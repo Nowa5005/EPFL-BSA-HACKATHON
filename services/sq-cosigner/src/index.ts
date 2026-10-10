@@ -243,6 +243,18 @@ app.post(
   }),
 );
 
+app.post(
+  '/clients/:id/privacy',
+  route((req) => {
+    const c = getClient(String(req.params.id));
+    const privacy = req.body.privacy as Client['privacy'];
+    if (!['full', 'balance-only', 'none'].includes(privacy)) throw new HttpError(400, 'Invalid privacy setting');
+    db.update((d) => (d.clients[c.clientId].privacy = privacy));
+    logActivity({ clientId: c.clientId, actor: 'client', type: 'settings.privacy', message: `Consolidated view for Swissquote set to "${privacy}"` });
+    return publicClient(getClient(c.clientId));
+  }),
+);
+
 // ───────────────────────────── Transactions ─────────────────────────────
 async function analyse(c: Client, safeTx: SafeTx) {
   if (!c.safeAddress) throw new HttpError(400, 'Wallet not deployed');

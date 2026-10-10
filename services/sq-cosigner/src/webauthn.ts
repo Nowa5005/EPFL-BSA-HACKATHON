@@ -34,7 +34,8 @@ export async function registrationOptions(c: Client, deviceType: 'mobile' | 'des
     userDisplayName: c.name,
     userID: new TextEncoder().encode(c.clientId),
     attestationType: 'none',
-    excludeCredentials: c.devices.filter((d) => d.status !== 'revoked').map((d) => ({ id: d.credentialId, transports: d.transports })),
+    // In recovery the old device is presumed lost: don't exclude its credential (same platform authenticator in the demo).
+    excludeCredentials: recovery ? [] : c.devices.filter((d) => d.status !== 'revoked').map((d) => ({ id: d.credentialId, transports: d.transports })),
     authenticatorSelection: { residentKey: 'preferred', userVerification: 'required', authenticatorAttachment: 'platform' },
     preferredAuthenticatorType: 'localDevice',
   });

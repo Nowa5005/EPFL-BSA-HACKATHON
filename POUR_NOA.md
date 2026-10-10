@@ -29,8 +29,19 @@ Le « relayer » est le compte de Swissquote qui paie les frais de transaction. 
 
 **Comment me répondre :** tape simplement dans le terminal Claude Code : `relayer alimenté`
 
-### Étape 2 — NON BLOQUANT (plus tard) — Recevoir de l'USDC de test
-Je te donnerai l'adresse du wallet de démo quand il sera créé. Il faudra aller sur https://faucet.circle.com, choisir **Ethereum Sepolia**, coller l'adresse, et cliquer « Send 10 USDC ». (Je te le redemanderai avec l'adresse exacte.)
+### Étape 2 — NON BLOQUANT (tu peux le faire dès maintenant) — Recevoir de l'USDC de test pour la « trésorerie Swissquote »
+Pour la démo, le compte Swissquote (simulé) envoie de vrais USDC de test vers le wallet. Il faut donc remplir sa « trésorerie ».
+
+**Adresse à alimenter (copie-la exactement) :**
+```
+0x8f5aC56Fe53A3af46EBb565a936bc094E2Ec3FA0
+```
+1. Ouvre https://faucet.circle.com
+2. Choisis **USDC** puis le réseau **Ethereum Sepolia**.
+3. Colle l'adresse ci-dessus et clique sur **« Send 10 USDC »** (ou le bouton équivalent).
+4. Si le site le permet, **recommence plusieurs fois** (idéalement 3 à 6 fois, éventuellement plus tard dans la journée) : plus il y a d'USDC, plus la démo est confortable (on veut pouvoir montrer un envoi de plus de 50 USDC).
+
+**Comment me répondre :** tape `usdc envoyé` (ce n'est pas grave si tu n'as pu le faire qu'une fois).
 
 ### Étape 3 — NON BLOQUANT (plus tard) — Tester Touch ID dans Chrome
 Quand l'app web sera prête, il faudra ouvrir http://localhost:5173 dans Chrome et poser le doigt sur Touch ID quand on te le demande. (Je te redirai.)
