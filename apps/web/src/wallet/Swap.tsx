@@ -68,7 +68,7 @@ export default function Swap() {
       <Card className="space-y-4">
         <div className="grid grid-cols-2 gap-1 rounded-[10px] bg-sq-chip/60 p-1">
           {(['USDC', 'ETH'] as const).map((a) => (
-            <button key={a} type="button" aria-pressed={from === a} onClick={() => { setFrom(a); setAmount(a === 'USDC' ? '500' : '0.1'); }} className={cx('min-h-11 rounded-[8px] text-[14px]', from === a ? 'bg-white font-semibold shadow-sm' : 'text-sq-ink-2')}>
+            <button key={a} type="button" aria-pressed={from === a} onClick={() => { setFrom(a); setAmount(a === 'USDC' ? '500' : '0.1'); }} className={cx('min-h-11 rounded-[8px] text-[14px]', from === a ? 'bg-sq-surface font-semibold shadow-sm' : 'text-sq-ink-2')}>
               {a} → {a === 'USDC' ? 'ETH' : 'USDC'}
             </button>
           ))}
@@ -79,7 +79,7 @@ export default function Swap() {
         <Field label={tr('Slippage tolerance', 'Tolérance de glissement')}>
           <div className="flex gap-2">
             {[10, 50, 100].map((b) => (
-              <button key={b} type="button" aria-pressed={slip === b} onClick={() => setSlip(b)} className={cx('min-h-10 rounded-full border px-3 text-[14px]', slip === b ? 'border-sq-chip bg-sq-chip font-medium' : 'border-sq-line bg-white')}>
+              <button key={b} type="button" aria-pressed={slip === b} onClick={() => setSlip(b)} className={cx('min-h-10 rounded-full border px-3 text-[14px]', slip === b ? 'border-sq-chip bg-sq-chip font-medium' : 'border-sq-line bg-sq-surface')}>
                 {(b / 100).toLocaleString(locale())} %
               </button>
             ))}

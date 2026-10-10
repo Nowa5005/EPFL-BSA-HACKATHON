@@ -175,7 +175,7 @@ export function UnlockProvider({ children }: { children: ReactNode }) {
       {pending && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="unlock-title">
           <form
-            className="mw-toast w-full max-w-sm space-y-4 rounded-[12px] bg-white p-5"
+            className="mw-toast w-full max-w-sm space-y-4 rounded-[12px] bg-sq-surface p-5"
             onSubmit={(e) => {
               e.preventDefault();
               void submit();

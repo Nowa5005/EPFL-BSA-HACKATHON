@@ -3,23 +3,42 @@
 @import "@fontsource/inter/600.css";
 @import "tailwindcss";
 
+/* ── Design tokens ────────────────────────────────────────────────────────────────────────────────────────────
+   One set of semantic tokens, two palettes. Light = the Swissquote identity (values below). Dark = a DESIGNED
+   palette (not an inversion), set on html[data-theme="dark"] by lib/theme.ts (System / Light / Dark in Settings).
+   Use ONLY these tokens in components (bg-sq-surface, text-sq-ink, border-sq-line…); never bg-white / hex colours.
+     sq-bg        page background            sq-surface   cards, sheets, bars, inputs
+     sq-ink       main text                  sq-ink-2     secondary text        sq-muted   tertiary text, captions
+     sq-line      borders, dividers          sq-chip      neutral chips, segmented controls, hover fills
+     sq-orange    brand accent (buttons, selected states) — white text on it = bold/large only (3.2:1)
+     sq-orange-600 accent text / hover       sq-orange-50 accent tint background
+     sq-up / sq-down        price up/down TEXT on surfaces; sq-up-solid / sq-down-solid / sq-warn-solid FILLED badges (white text)
+     sq-dark / sq-on-dark   strong neutral fill (round actions) and its foreground (inverts in dark mode)
+     sq-warn (+ -50), sq-ok-50, sq-bad-50   notice text / tinted backgrounds
+     sq-chart     neutral chart line         --asset-*    per-asset colours (lib/assetColors.ts)
+   Contrast (WCAG AA ≥ 4.5 for text) is checked for both palettes in apps/web/test/theme.test.ts.
+   PDFs / printed documents always use the light palette (jsPDF draws its own colours; print CSS forces white). */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
   --color-sq-orange: #fa5b35;
-  --color-sq-orange-600: #e64a25;
+  --color-sq-orange-600: #c93d1b;
   --color-sq-orange-50: #fff1ec;
   --color-sq-bg: #f0f3fa;
   --color-sq-surface: #ffffff;
   --color-sq-ink: #303137;
   --color-sq-ink-2: #4e4e4e;
-  --color-sq-muted: #6f7480;
+  --color-sq-muted: #6a6f7b;
   --color-sq-line: #e3e6ee;
   --color-sq-chip: #e2e5ee;
-  --color-sq-up: #00875a;
-  --color-sq-down: #e20e00;
+  --color-sq-up: #007a52;
+  --color-sq-down: #d00d00;
+  --color-sq-up-solid: #007a52;
+  --color-sq-down-solid: #d00d00;
+  --color-sq-warn-solid: #9a5b00;
   --color-sq-chart: #2f6fed;
   --color-sq-dark: #2b2d33;
+  --color-sq-on-dark: #ffffff;
   --color-sq-warn: #9a5b00;
   --color-sq-warn-50: #fff6e5;
   --color-sq-ok-50: #e9f6f0;
@@ -29,6 +48,61 @@
   --radius-btn: 10px;
   --radius-badge: 4px;
 }
+
+/* Per-asset colours (N8) — consumed through lib/assetColors.ts. Light / dark nuances. */
+:root {
+  color-scheme: light;
+  --asset-eth: #4c62c9;
+  --asset-eth-bg: #eef1fd;
+  --asset-usdc: #1f64b0;
+  --asset-usdc-bg: #e9f1fb;
+  --asset-btc: #a35b00;
+  --asset-btc-bg: #fdf1e1;
+  --asset-other: #5c616c;
+  --asset-other-bg: #eceef3;
+}
+
+/* Dark palette (designed): near-black blue-grey backgrounds, raised surfaces, softened text, brighter semantic
+   colours for legibility; orange stays the accent. Personal background presets get dark variants (lib/prefs.tsx). */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --color-sq-orange-600: #ff7a55;
+  --color-sq-orange-50: #3a2119;
+  --color-sq-bg: #111317;
+  --color-sq-surface: #1b1d23;
+  --color-sq-ink: #eceef3;
+  --color-sq-ink-2: #c5c9d3;
+  --color-sq-muted: #9ba1ae;
+  --color-sq-line: #2f323b;
+  --color-sq-chip: #2b2e37;
+  --color-sq-up: #3dcc8e;
+  --color-sq-down: #ff6f61;
+  --color-sq-up-solid: #14794f;
+  --color-sq-down-solid: #c9281d;
+  --color-sq-warn-solid: #8a5200;
+  --color-sq-chart: #6f9dff;
+  --color-sq-dark: #e6e8ee;
+  --color-sq-on-dark: #16171b;
+  --color-sq-warn: #f2b35b;
+  --color-sq-warn-50: #33270f;
+  --color-sq-ok-50: #11281e;
+  --color-sq-bad-50: #3a1815;
+  --asset-eth: #8fa4ff;
+  --asset-eth-bg: #232a45;
+  --asset-usdc: #5d9eea;
+  --asset-usdc-bg: #172a40;
+  --asset-btc: #f5a33b;
+  --asset-btc-bg: #3a2a12;
+  --asset-other: #9ba1ae;
+  --asset-other-bg: #2b2e37;
+}
+/* Safety net for hard-coded white surfaces written by other code paths (converted to tokens where possible). */
+/* Content illustrations (sq/content/common.tsx): tinted from their topic colour on the dark surface. */
+html[data-theme="dark"] .mw-illustration {
+  background: color-mix(in srgb, var(--ill-fg) 22%, var(--color-sq-surface)) !important;
+  color: color-mix(in srgb, var(--ill-fg) 45%, #ffffff) !important;
+}
+html[data-theme="dark"] .bg-white:not(.mw-keep-white) { background-color: var(--color-sq-surface); }
 
 html, body, #root { min-height: 100%; }
 body {
@@ -64,6 +138,11 @@ body {
 /* print: only the recovery kit sheet */
 .print-only { display: none; }
 @media print {
+  html[data-theme] {
+    color-scheme: light;
+    --color-sq-bg: #ffffff; --color-sq-surface: #ffffff; --color-sq-ink: #303137; --color-sq-ink-2: #4e4e4e;
+    --color-sq-muted: #6a6f7b; --color-sq-line: #e3e6ee; --color-sq-chip: #e2e5ee; --color-sq-orange-600: #c93d1b;
+  }
   body { background: #fff; }
   body * { visibility: hidden; }
   .print-only, .print-only * { visibility: visible; }

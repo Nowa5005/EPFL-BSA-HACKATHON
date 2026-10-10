@@ -145,7 +145,7 @@ export default function InstrumentPage() {
             </div>
             <div className="mt-3 grid grid-cols-6 rounded-full bg-sq-bg p-1" role="tablist" aria-label={tr('Period', 'Période')}>
               {RANGES.map((r) => (
-                <button key={r} type="button" role="tab" aria-selected={range === r} onClick={() => setRange(r)} className={cx('min-h-9 rounded-full text-[14px]', range === r ? 'bg-white font-semibold shadow-sm' : 'text-sq-ink-2')}>
+                <button key={r} type="button" role="tab" aria-selected={range === r} onClick={() => setRange(r)} className={cx('min-h-9 rounded-full text-[14px]', range === r ? 'bg-sq-surface font-semibold shadow-sm' : 'text-sq-ink-2')}>
                   {r}
                 </button>
               ))}
@@ -190,7 +190,7 @@ export default function InstrumentPage() {
                   {wlBusy ? <Spinner /> : inWatchlist ? <StarOff size={18} strokeWidth={1.75} /> : <Star size={18} strokeWidth={1.75} />}
                   {inWatchlist ? tr('Remove from watchlist', 'Retirer de la watchlist') : tr('Add to watchlist', 'Ajouter à la watchlist')}
                 </Button>
-                <Link to={`/sq/markets?tab=alerts&new=${encodeURIComponent(id)}`} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[10px] border border-sq-line bg-white px-4 py-3 text-[15px] font-semibold text-sq-ink hover:border-sq-muted/60">
+                <Link to={`/sq/markets?tab=alerts&new=${encodeURIComponent(id)}`} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[10px] border border-sq-line bg-sq-surface px-4 py-3 text-[15px] font-semibold text-sq-ink hover:border-sq-muted/60">
                   <Bell size={18} strokeWidth={1.75} /> {tr('Create an alert', 'Créer une alerte')}
                 </Link>
               </div>

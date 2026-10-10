@@ -149,7 +149,7 @@ const valKind = (k: string) =>
 
 function StatementView({ s }: { s: any }) {
   return (
-    <article id="annual-statement" className="space-y-3 rounded-[12px] border border-sq-line bg-white p-4 text-[13px]" aria-label={tr('Annual statement', 'Relevé annuel')}>
+    <article id="annual-statement" className="space-y-3 rounded-[12px] border border-sq-line bg-sq-surface p-4 text-[13px]" aria-label={tr('Annual statement', 'Relevé annuel')}>
       <header className="space-y-1 border-b border-sq-line pb-3">
         <h3 className="text-[15px] font-semibold">
           {tr('My Wall — Statement of holdings', 'My Wall — Relevé des avoirs')} {s.year} {!s.closed && <span className="text-sq-warn">({tr('provisional', 'provisoire')})</span>}

@@ -211,7 +211,7 @@ export default function Send() {
       <PageHeader title={tr('Send', 'Envoyer')} back="/wallet" />
       <div className="grid grid-cols-2 gap-1 rounded-[10px] bg-sq-chip/60 p-1">
         {(['USDC', 'ETH'] as const).map((a) => (
-          <button key={a} onClick={() => setAsset(a)} aria-pressed={asset === a} className={cx('min-h-11 rounded-[8px] text-[14px]', asset === a ? 'bg-white font-semibold shadow-sm' : 'text-sq-ink-2')}>
+          <button key={a} onClick={() => setAsset(a)} aria-pressed={asset === a} className={cx('min-h-11 rounded-[8px] text-[14px]', asset === a ? 'bg-sq-surface font-semibold shadow-sm' : 'text-sq-ink-2')}>
             {a}
           </button>
         ))}
@@ -234,7 +234,7 @@ export default function Send() {
                 setKind(id);
                 if (id === 'own' && !ownWallets.some((w) => w.address.toLowerCase() === to.toLowerCase())) setTo('');
               }}
-              className={cx('min-h-11 rounded-[8px] px-2 text-[14px]', kind === id ? 'bg-white font-semibold shadow-sm' : 'text-sq-ink-2')}
+              className={cx('min-h-11 rounded-[8px] px-2 text-[14px]', kind === id ? 'bg-sq-surface font-semibold shadow-sm' : 'text-sq-ink-2')}
             >
               {l}
             </button>
@@ -247,7 +247,7 @@ export default function Send() {
               <div className="space-y-2" role="radiogroup" aria-label={tr('Your verified wallets', 'Vos wallets vérifiés')}>
                 {ownWallets.map((w) => (
                   <label key={w.address} className={cx('flex min-h-11 cursor-pointer gap-3 rounded-[10px] border p-3', to.toLowerCase() === w.address.toLowerCase() ? 'border-sq-ink/40 bg-sq-bg' : 'border-sq-line')}>
-                    <input type="radio" name="own-wallet" checked={to.toLowerCase() === w.address.toLowerCase()} onChange={() => setTo(w.address)} className="mt-1 accent-[#fa5b35]" />
+                    <input type="radio" name="own-wallet" checked={to.toLowerCase() === w.address.toLowerCase()} onChange={() => setTo(w.address)} className="mt-1 accent-sq-orange" />
                     <span className="min-w-0">
                       <span className="block text-[14px] font-medium">
                         {w.label} <span className="font-mono text-[12px] text-sq-muted"><Addr a={w.address} /></span>
@@ -292,7 +292,7 @@ export default function Send() {
                     setTo(s.address);
                     if (s.address === DEMO_BOB) setSaveName('Bob');
                   }}
-                  className={cx('min-h-9 rounded-full border px-3 py-1.5 text-left text-[13px]', to.toLowerCase() === s.address.toLowerCase() ? 'border-sq-chip bg-sq-chip font-medium' : 'border-sq-line bg-white')}
+                  className={cx('min-h-9 rounded-full border px-3 py-1.5 text-left text-[13px]', to.toLowerCase() === s.address.toLowerCase() ? 'border-sq-chip bg-sq-chip font-medium' : 'border-sq-line bg-sq-surface')}
                 >
                   {s.name} <span className="text-sq-muted">· {s.note}</span>
                 </button>
@@ -356,7 +356,7 @@ export default function Send() {
               ] as const
             ).map(([v, l, d]) => (
               <label key={v} className={cx('flex min-h-11 cursor-pointer gap-3 rounded-[10px] border p-3', ben.walletType === v ? 'border-sq-ink/40 bg-sq-bg' : 'border-sq-line')}>
-                <input type="radio" name="wallet-type" checked={ben.walletType === v} onChange={() => setB({ walletType: v })} className="mt-1 accent-[#fa5b35]" />
+                <input type="radio" name="wallet-type" checked={ben.walletType === v} onChange={() => setB({ walletType: v })} className="mt-1 accent-sq-orange" />
                 <span>
                   <span className="block text-[14px] font-medium">{l}</span>
                   <span className="block text-[12px] text-sq-muted">{d}</span>
@@ -431,7 +431,7 @@ export default function Send() {
                 <input className={inputCls} value={ben.purpose ?? ''} maxLength={200} onChange={(e) => setB({ purpose: e.target.value })} placeholder={tr('e.g. Share of a holiday rental', 'ex. Part d’une location de vacances')} />
               </Field>
               <label className="flex cursor-pointer gap-3 text-[14px]">
-                <input type="checkbox" checked={ben.accuracyConfirmed === true} onChange={(e) => setB({ accuracyConfirmed: e.target.checked })} className="mt-1 accent-[#fa5b35]" />
+                <input type="checkbox" checked={ben.accuracyConfirmed === true} onChange={(e) => setB({ accuracyConfirmed: e.target.checked })} className="mt-1 accent-sq-orange" />
                 <span>{tr('I confirm that this information is accurate and complete.', 'Je confirme que ces informations sont exactes et complètes.')}</span>
               </label>
             </div>
@@ -460,7 +460,7 @@ export default function Send() {
               ['reminder', tr('Reminder', 'Rappel')],
             ] as const
           ).map(([id, l]) => (
-            <button key={id} type="button" aria-pressed={when === id} onClick={() => setWhen(id)} className={cx('min-h-11 rounded-[8px] text-[14px]', when === id ? 'bg-white font-semibold shadow-sm' : 'text-sq-ink-2')}>
+            <button key={id} type="button" aria-pressed={when === id} onClick={() => setWhen(id)} className={cx('min-h-11 rounded-[8px] text-[14px]', when === id ? 'bg-sq-surface font-semibold shadow-sm' : 'text-sq-ink-2')}>
               {l}
             </button>
           ))}

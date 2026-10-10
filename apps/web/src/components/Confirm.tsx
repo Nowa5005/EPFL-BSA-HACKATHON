@@ -13,7 +13,7 @@ import { tr } from '../lib/i18n';
 export function CheckDisc({ size = 64 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" className="mw-check-disc shrink-0" aria-hidden>
-      <circle cx="32" cy="32" r="32" fill="#fa5b35" />
+      <circle cx="32" cy="32" r="32" fill="var(--color-sq-orange)" />
       <path className="mw-check-path" d="M20 33 l8 8 l16 -18" fill="none" stroke="#fff" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
@@ -111,12 +111,12 @@ export function ConfirmationLayer() {
   return (
     <div className="pointer-events-none fixed inset-x-0 top-[max(8px,env(safe-area-inset-top))] z-40 flex flex-col items-center gap-2 px-4">
       {pending.length > 0 && !shown && (
-        <div className="mw-toast pointer-events-auto rounded-full border border-sq-line bg-white px-4 py-2 shadow-sm">
+        <div className="mw-toast pointer-events-auto rounded-full border border-sq-line bg-sq-surface px-4 py-2 shadow-sm">
           <PendingIndicator text={tr('Incoming payment awaiting confirmation…', 'Réception en attente de confirmation…')} />
         </div>
       )}
       {shown && (
-        <div className={cx('mw-toast pointer-events-auto w-full max-w-md rounded-[12px] border border-sq-line bg-white p-4 shadow-lg')}>
+        <div className={cx('mw-toast pointer-events-auto w-full max-w-md rounded-[12px] border border-sq-line bg-sq-surface p-4 shadow-lg')}>
           <ConfirmedCard tx={shown} clientName={session?.profile?.name ?? ''} onClose={() => setShown(null)} />
         </div>
       )}

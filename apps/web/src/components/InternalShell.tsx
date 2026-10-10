@@ -8,8 +8,8 @@ import { tr } from '../lib/i18n';
 export function InternalShell({ title, banner, children }: { title: string; banner: string; children: ReactNode }) {
   return (
     <div className="min-h-screen bg-sq-bg">
-      <div className="bg-sq-dark px-4 py-1.5 text-center text-[12px] text-white/85">{banner}</div>
-      <header className="sticky top-0 z-30 border-b border-sq-line bg-white">
+      <div className="bg-sq-dark px-4 py-1.5 text-center text-[12px] text-sq-on-dark/85">{banner}</div>
+      <header className="sticky top-0 z-30 border-b border-sq-line bg-sq-surface">
         <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-3 px-4 lg:px-6">
           <Logo size={28} />
           <span className="text-[16px] font-semibold tracking-tight">{title}</span>

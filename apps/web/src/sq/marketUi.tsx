@@ -20,7 +20,7 @@ export function ChangeTag({ pct, className, label }: { pct: number | null | unde
   const text = `${up ? '+' : flat ? '' : '−'}${Math.abs(pct).toFixed(2)} %`;
   return (
     <span
-      className={cx('num inline-flex min-w-[72px] shrink-0 items-center justify-center gap-0.5 rounded-[4px] px-1.5 py-1.5 text-[13px] font-medium', flat ? 'bg-sq-chip text-sq-ink-2' : up ? 'bg-sq-up text-white' : 'bg-sq-down text-white', className)}
+      className={cx('num inline-flex min-w-[72px] shrink-0 items-center justify-center gap-0.5 rounded-[4px] px-1.5 py-1.5 text-[13px] font-medium', flat ? 'bg-sq-chip text-sq-ink-2' : up ? 'bg-sq-up-solid text-white' : 'bg-sq-down-solid text-white', className)}
       aria-label={`${label ? label + ' ' : ''}${flat ? tr('unchanged', 'inchangé') : up ? tr('up', 'en hausse de') : tr('down', 'en baisse de')} ${Math.abs(pct).toFixed(2)} %`}
     >
       <Icon size={14} strokeWidth={2.25} aria-hidden />
@@ -158,7 +158,7 @@ export function PriceChart({ history, timeZone, label, className }: { history: H
         <path d={path} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" />
         {idx != null && (
           <>
-            <line x1={coords[idx][0]} x2={coords[idx][0]} y1={0} y2={h} stroke="#8a8f98" strokeWidth="1" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
+            <line x1={coords[idx][0]} x2={coords[idx][0]} y1={0} y2={h} stroke="var(--color-sq-muted)" strokeWidth="1" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
             <circle cx={coords[idx][0]} cy={coords[idx][1]} r="4" fill={color} vectorEffect="non-scaling-stroke" />
           </>
         )}

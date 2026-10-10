@@ -159,7 +159,7 @@ export default function Home() {
           <ChevronRight size={18} strokeWidth={1.75} className="text-sq-muted" />
         </Link>
       </Card>
-      <div className="rounded-[10px] border border-sq-line bg-white px-4 py-3 text-[13px] text-sq-ink-2">
+      <div className="rounded-[10px] border border-sq-line bg-sq-surface px-4 py-3 text-[13px] text-sq-ink-2">
         <div className="mb-1 font-semibold text-sq-ink">{tr('Your fees', 'Vos frais')}</div>
         <ul className="space-y-0.5">
           <li>
@@ -191,7 +191,7 @@ export default function Home() {
       {/* Balances stay underneath (sticky); the white sheet slides over them on scroll. */}
       <div className={cx('sticky z-0', isDesktop ? 'top-16' : 'top-14')}>{hero}</div>
       <div ref={sentinel} aria-hidden className="h-px" />
-      <div className={cx('relative z-10 -mx-4 rounded-t-[16px] bg-white px-4 pb-4 shadow-[0_-6px_20px_rgba(0,0,0,0.06)] [&_.mw-card]:border [&_.mw-card]:border-sq-line [&_.mw-card]:shadow-none', isDesktop && '-mx-6 px-6 pt-6')}>
+      <div className={cx('relative z-10 -mx-4 rounded-t-[16px] bg-sq-surface px-4 pb-4 shadow-[0_-6px_20px_rgba(0,0,0,0.06)] [&_.mw-card]:border [&_.mw-card]:border-sq-line [&_.mw-card]:shadow-none', isDesktop && '-mx-6 px-6 pt-6')}>
         {!isDesktop && <SheetHandle />}
         {isDesktop ? (
           <div className="grid grid-cols-12 gap-5">
@@ -264,7 +264,7 @@ function SheetHandle() {
 
 function AssetTile({ sym, name, amount, chfv, decimals = 2 }: { sym: string; name: string; amount: number; chfv: number | null; decimals?: number }) {
   return (
-    <Link to={`/asset/${sym}`} className="block rounded-[10px] border border-sq-line bg-white px-3.5 py-3 transition-colors hover:border-sq-muted/50">
+    <Link to={`/asset/${sym}`} className="block rounded-[10px] border border-sq-line bg-sq-surface px-3.5 py-3 transition-colors hover:border-sq-muted/50">
       <div className="flex items-center gap-1 text-[13px] text-sq-ink-2">
         <span className="flex-1">{name}</span>
         <ChevronRight size={16} strokeWidth={1.75} className="text-sq-muted" />

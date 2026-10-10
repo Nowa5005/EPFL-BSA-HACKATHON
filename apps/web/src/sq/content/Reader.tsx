@@ -103,7 +103,7 @@ function NewsView({ id, headingRef }: { id: string; headingRef: React.RefObject<
   const title = decodeEntities(a.title);
   const summary = decodeEntities(a.summary);
   return (
-    <article className="mt-2 overflow-hidden rounded-[12px] bg-white">
+    <article className="mt-2 overflow-hidden rounded-[12px] bg-sq-surface">
       <NewsImage a={a} className="aspect-[16/9] w-full" big />
       <div className="p-5 sm:p-7">
         <p className="flex flex-wrap gap-x-2 text-[13px] text-sq-muted">
@@ -159,7 +159,7 @@ function EditorialView({ id, headingRef }: { id: string; headingRef: React.RefOb
   const fr = getLang() === 'fr';
   const L = (x: { en: string; fr: string }) => (fr ? x.fr : x.en);
   return (
-    <article className="mt-2 overflow-hidden rounded-[12px] bg-white">
+    <article className="mt-2 overflow-hidden rounded-[12px] bg-sq-surface">
       <Illustration theme={a.theme} big className="aspect-[16/7] w-full" label={tr('Illustration', 'Illustration')} />
       <div className="p-5 sm:p-7">
         <p className="flex flex-wrap items-center gap-2 text-[13px] text-sq-muted">

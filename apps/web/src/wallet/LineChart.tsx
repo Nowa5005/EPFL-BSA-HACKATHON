@@ -1,7 +1,7 @@
 // Minimal responsive SVG line chart (one series, 2 px line, recessive axes, crosshair + tooltip, optional
 // event markers). Used for the personal portfolio history and for public market-price charts.
-// Personal charts are NEVER rendered while amounts are masked (the caller shows a neutral placeholder instead),
-// so no shape, axis value or tooltip can leak.
+// Personal charts live inside the wallet, which is unmounted while the privacy screen is shown (lib/privacy.ts),
+// so no shape, axis value or tooltip can leak while My Wall is locked.
 
 import { useEffect, useRef, useState } from 'react';
 import { locale, tr } from '../lib/i18n';
@@ -114,7 +114,7 @@ export function LineChart({ points, unit = 'CHF', markers = [], label, from, to 
             const cy = y(valueAt(m.t).v);
             const d = m.kind === 'in' ? `M${cx},${cy - 6} L${cx + 5},${cy + 4} L${cx - 5},${cy + 4} Z` : `M${cx},${cy + 6} L${cx + 5},${cy - 4} L${cx - 5},${cy - 4} Z`;
             return (
-              <path key={i} d={d} fill={m.kind === 'in' ? 'var(--color-sq-up)' : 'var(--color-sq-ink)'} stroke="white" strokeWidth={2}>
+              <path key={i} d={d} fill={m.kind === 'in' ? 'var(--color-sq-up)' : 'var(--color-sq-ink)'} stroke="var(--color-sq-surface)" strokeWidth={2}>
                 <title>{m.label}</title>
               </path>
             );
@@ -122,13 +122,13 @@ export function LineChart({ points, unit = 'CHF', markers = [], label, from, to 
         {h && (
           <g pointerEvents="none">
             <line x1={x(h.t)} x2={x(h.t)} y1={PAD.t} y2={H - PAD.b} stroke="var(--color-sq-muted)" strokeWidth={1} strokeDasharray="3 3" />
-            <circle cx={x(h.t)} cy={y(h.v)} r={4} fill="var(--color-sq-chart)" stroke="white" strokeWidth={2} />
+            <circle cx={x(h.t)} cy={y(h.v)} r={4} fill="var(--color-sq-chart)" stroke="var(--color-sq-surface)" strokeWidth={2} />
           </g>
         )}
       </svg>
       {h && (
         <div
-          className="pointer-events-none absolute top-0 z-10 rounded-[8px] border border-sq-line bg-white px-2 py-1 text-[12px] shadow-sm"
+          className="pointer-events-none absolute top-0 z-10 rounded-[8px] border border-sq-line bg-sq-surface px-2 py-1 text-[12px] shadow-sm"
           style={{ left: Math.min(Math.max(x(h.t) - 70, 0), w - 150) }}
           role="status"
         >

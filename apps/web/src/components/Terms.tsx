@@ -276,12 +276,12 @@ function TermsAcceptScreen({ clientId, status }: { clientId: string; status: Ter
         <Card className="mt-4">
           <h2 className="text-[15px] font-semibold">{tr('Full text', 'Texte complet')}</h2>
           {getLang() === 'fr' && <p className="mt-1 text-[12px] text-sq-muted">Le texte complet est en anglais (version qui fait foi). Une traduction française est disponible en annexe.</p>}
-          <div tabIndex={0} aria-label={tr('Full text of the Terms of Use', 'Texte complet des conditions d’utilisation')} className="mt-2 max-h-[42vh] overflow-y-auto rounded-[10px] border border-sq-line bg-white p-3" data-testid="terms-fulltext">
+          <div tabIndex={0} aria-label={tr('Full text of the Terms of Use', 'Texte complet des conditions d’utilisation')} className="mt-2 max-h-[42vh] overflow-y-auto rounded-[10px] border border-sq-line bg-sq-surface p-3" data-testid="terms-fulltext">
             <TermsText text={status.text ?? ''} />
           </div>
         </Card>
 
-        <label className="mt-4 flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-sq-line bg-white p-3 text-[14px]">
+        <label className="mt-4 flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-sq-line bg-sq-surface p-3 text-[14px]">
           <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} className="mt-0.5 size-5 shrink-0 accent-[#fa5b35]" />
           <span>{tr(`I have read and accept the My Wall Terms of Use (version ${cur.version}).`, `J’ai lu et j’accepte les conditions d’utilisation de My Wall (version ${cur.version}).`)}</span>
         </label>
@@ -457,7 +457,7 @@ function AcceptedVersionViewer({ clientId, acceptance }: { clientId: string; acc
   if (error) return <p className="text-[12px] text-sq-down">{error}</p>;
   if (!data) return <Spinner />;
   return (
-    <div className="max-h-[50vh] overflow-y-auto rounded-[10px] border border-sq-line bg-white p-3">
+    <div className="max-h-[50vh] overflow-y-auto rounded-[10px] border border-sq-line bg-sq-surface p-3">
       <TermsText text={data.text} />
     </div>
   );

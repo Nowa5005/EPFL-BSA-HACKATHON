@@ -225,7 +225,7 @@ export function TxFlow({ clientId, safeAddress, safeTx: initialTx, note, onDone,
           {d.warnings
             ?.filter((w: string) => !/ILLIMITÉE|UNLIMITED/.test(w))
             .map((w: string) => (
-              <div key={w} role="alert" className="mw-important flex gap-2 rounded-[10px] bg-sq-down p-3 text-[14px] font-medium text-white">
+              <div key={w} role="alert" className="mw-important flex gap-2 rounded-[10px] bg-sq-down-solid p-3 text-[14px] font-medium text-white">
                 <TriangleAlert size={18} strokeWidth={2} className="mt-0.5 shrink-0" /> {w}
               </div>
             ))}
@@ -238,7 +238,7 @@ export function TxFlow({ clientId, safeAddress, safeTx: initialTx, note, onDone,
         </Card>
         {step && <Why>{tr('This transaction needs enhanced checks: verification on your device, a code sent by email, a short cooling-off period and approval by a Swissquote compliance officer.', 'Cette opération demande des contrôles renforcés : vérification sur votre appareil, un code envoyé par email, un court délai de réflexion et la validation d’un responsable conformité Swissquote.')}</Why>}
 
-        <details className="rounded-[10px] border border-dashed border-sq-line bg-white px-3 py-2 text-[13px]">
+        <details className="rounded-[10px] border border-dashed border-sq-line bg-sq-surface px-3 py-2 text-[13px]">
           <summary className="min-h-10 cursor-pointer py-2 text-sq-muted">
             {tr('Demo: fee change', 'Démonstration : variation des frais')} <MockBadge />
           </summary>
@@ -349,7 +349,7 @@ function Row({ k, v }: { k: React.ReactNode; v: React.ReactNode }) {
 function ApprovalBlock({ ap, onLimit, disabled }: { ap: any; onLimit: (amount: string) => void; disabled?: boolean }) {
   const [cap, setCap] = useState(ap.unlimited ? '25' : ap.amount);
   return (
-    <section aria-label={tr('Approval', 'Autorisation')} className={cx('rounded-[10px] border p-3 text-[14px]', ap.unlimited ? 'mw-important border-sq-down/40 bg-sq-bad-50' : 'border-sq-line bg-white')}>
+    <section aria-label={tr('Approval', 'Autorisation')} className={cx('rounded-[10px] border p-3 text-[14px]', ap.unlimited ? 'mw-important border-sq-down/40 bg-sq-bad-50' : 'border-sq-line bg-sq-surface')}>
       <h3 className="mb-1 font-semibold">{ap.revocation ? tr('Approval revocation', 'Révocation d’autorisation') : tr('Spending approval granted', 'Autorisation de dépense accordée')}</h3>
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
         <dt className="text-sq-muted">{tr('App', 'Application')}</dt>

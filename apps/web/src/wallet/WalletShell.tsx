@@ -9,6 +9,7 @@ import { cx, DemoFooter, Logo } from '../components/ui';
 import { AccountButton } from '../sq/SqShell';
 import { useIsDesktopLayout } from '../lib/platform';
 import { tr } from '../lib/i18n';
+import { useTheme } from '../lib/theme';
 
 const CompactCtx = createContext<(v: string | null) => void>(() => {});
 /** Home publishes "My Wall · 1'234.56 CHF" here once the content sheet covers the balances. */
@@ -36,16 +37,17 @@ export function WalletShell({ children, wide }: { children: ReactNode; wide?: bo
   const [compact, setCompact] = useState<string | null>(null);
   const { device } = useLocal();
   const { prefs } = usePrefs();
+  const { resolved } = useTheme();
   useEffect(() => {
     if (device?.clientId) cosigner.get(`/clients/${device.clientId}`).then((c) => setPrefs(c.preferences)).catch(() => undefined);
   }, [device?.clientId]);
 
   return (
     <CompactCtx.Provider value={setCompact}>
-      <div className={cx('min-h-screen bg-sq-bg', prefs.highlight && 'mw-highlight')} style={themeStyle(prefs)}>
+      <div className={cx('min-h-screen bg-sq-bg', prefs.highlight && 'mw-highlight')} style={themeStyle(prefs, resolved === 'dark')}>
         <ConfirmationLayer />
         {isDesktop ? (
-          <header className="sticky top-0 z-30 border-b border-sq-line bg-white">
+          <header className="sticky top-0 z-30 border-b border-sq-line bg-sq-surface">
             <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-8 px-6">
               <Link to="/wallet" className="flex items-center gap-2.5">
                 <Logo size={28} />
@@ -109,7 +111,7 @@ export function WalletShell({ children, wide }: { children: ReactNode; wide?: bo
         </main>
 
         {!isDesktop && (
-          <nav className="fixed inset-x-0 bottom-0 z-30 rounded-t-[16px] bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_0_rgba(0,0,0,0.04)]" aria-label={tr('My Wall navigation', 'Navigation My Wall')}>
+          <nav className="fixed inset-x-0 bottom-0 z-30 rounded-t-[16px] bg-sq-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_0_rgba(0,0,0,0.04)]" aria-label={tr('My Wall navigation', 'Navigation My Wall')}>
             <div className="mx-auto grid max-w-[720px] grid-cols-4">
               {MOBILE_TABS.map((t) => {
                 const extra = 'also' in t && t.also?.some((p) => loc.pathname.startsWith(p));
@@ -143,7 +145,7 @@ export function MoreMenu() {
   return (
     <div>
       <h1 className="mb-4 text-[22px] font-semibold tracking-tight">{tr('More', 'Plus')}</h1>
-      <ul className="overflow-hidden rounded-[12px] bg-white">
+      <ul className="overflow-hidden rounded-[12px] bg-sq-surface">
         {items.map((it) => (
           <li key={it.to} className="border-b border-sq-line last:border-0">
             <Link to={it.to} className="flex min-h-[64px] items-center gap-3 px-4 py-3 hover:bg-sq-bg/60">

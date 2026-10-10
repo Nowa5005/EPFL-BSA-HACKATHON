@@ -55,20 +55,20 @@ export default function PreviewSwitch() {
         onClick={() => setCollapsed(false)}
         aria-label={tr('Show the Web / App preview switch', 'Afficher le sélecteur d’aperçu Web / App')}
         title={tr('Preview: Web / App (owner tool)', 'Aperçu : Web / App (outil propriétaire)')}
-        className="fixed bottom-[calc(124px+env(safe-area-inset-bottom))] left-2 z-[60] flex size-11 items-center justify-center rounded-full border border-sq-line bg-white/95 text-sq-ink-2 shadow-md lg:bottom-4"
+        className="fixed bottom-[calc(124px+env(safe-area-inset-bottom))] left-2 z-[60] flex size-11 items-center justify-center rounded-full border border-sq-line bg-sq-surface/95 text-sq-ink-2 shadow-md lg:bottom-4"
       >
         {inApp ? <Smartphone size={18} strokeWidth={1.75} /> : <Monitor size={18} strokeWidth={1.75} />}
       </button>
     );
 
   const seg = (active: boolean) =>
-    cx('flex min-h-11 items-center gap-1.5 rounded-[8px] px-3 text-[13px] font-semibold', active ? 'bg-sq-ink text-white' : 'text-sq-ink-2 hover:bg-sq-chip/60');
+    cx('flex min-h-11 items-center gap-1.5 rounded-[8px] px-3 text-[13px] font-semibold', active ? 'bg-sq-ink text-sq-surface' : 'text-sq-ink-2 hover:bg-sq-chip/60');
   return (
     <div
       data-testid="preview-switch"
       role="group"
       aria-label={tr('Preview mode (owner tool)', 'Mode d’aperçu (outil propriétaire)')}
-      className="fixed bottom-[calc(124px+env(safe-area-inset-bottom))] left-2 z-[60] flex items-center gap-1 rounded-[12px] border border-sq-line bg-white/95 p-1 shadow-md backdrop-blur lg:bottom-4"
+      className="fixed bottom-[calc(124px+env(safe-area-inset-bottom))] left-2 z-[60] flex items-center gap-1 rounded-[12px] border border-sq-line bg-sq-surface/95 p-1 shadow-md backdrop-blur lg:bottom-4"
     >
       <span className="hidden px-1.5 text-[11px] font-semibold uppercase tracking-wide text-sq-muted sm:inline">{tr('Preview', 'Aperçu')}</span>
       <button type="button" aria-pressed={!inApp} onClick={toWeb} className={seg(!inApp)}>

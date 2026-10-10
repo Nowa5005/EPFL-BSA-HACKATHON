@@ -124,7 +124,7 @@ export default function NewsTab() {
 function NewsCard({ a, onOpen }: { a: Article; onOpen: () => void }) {
   const title = decodeEntities(a.title);
   return (
-    <article className="flex h-full flex-col overflow-hidden rounded-[12px] bg-white">
+    <article className="flex h-full flex-col overflow-hidden rounded-[12px] bg-sq-surface">
       <button type="button" data-card-id={a.id} onClick={onOpen} className="group flex flex-1 flex-col text-left focus-visible:outline-2 focus-visible:outline-sq-orange" aria-label={tr(`Open: ${title}`, `Ouvrir : ${title}`)}>
         <NewsImage a={a} className="h-40 w-full" />
         <div className="flex flex-1 flex-col p-4">

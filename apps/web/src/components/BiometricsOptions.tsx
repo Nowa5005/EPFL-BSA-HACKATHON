@@ -6,7 +6,7 @@ export function BiometricsOptions({ children, defaultOpen }: { children?: ReactN
   return (
     <details className="rounded-[10px] text-[13px] text-sq-ink-2" open={defaultOpen}>
       <summary className="min-h-11 cursor-pointer py-3 text-center text-sq-muted underline underline-offset-4">{tr('Biometrics not available? See the other options.', 'La biométrie n’est pas disponible ? Découvrez les autres options.')}</summary>
-      <div className="space-y-2 rounded-[10px] border border-sq-line bg-white p-3">
+      <div className="space-y-2 rounded-[10px] border border-sq-line bg-sq-surface p-3">
         {getLang() === 'en' ? (
           <p>
             Your passkey requires <b>user verification</b> by your device: Touch ID, Face ID <b>or the device PIN / password</b>. My Wall cannot tell which one was used — only that your device has verified it is you.

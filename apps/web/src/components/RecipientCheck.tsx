@@ -11,7 +11,7 @@ export function AddressWithDiff({ address, diff = [] }: { address: string; diff?
     <code className="block break-all font-mono text-[13px] leading-relaxed" aria-label={`${tr('Address', 'Adresse')} ${address}`}>
       {address.split('').map((ch, i) =>
         set.has(i) ? (
-          <mark key={i} className="rounded-sm bg-sq-down px-px text-white">
+          <mark key={i} className="rounded-sm bg-sq-down-solid px-px text-white">
             {ch}
           </mark>
         ) : (
@@ -28,7 +28,7 @@ export function RecipientCheckView({ input, contacts, compact }: { input: string
   if (r.status === 'invalid') return <p className="text-[13px] text-sq-down">{r.reason}</p>;
   if (r.status === 'exact')
     return (
-      <div className="rounded-[10px] border border-sq-line bg-white p-3 text-[13px]">
+      <div className="rounded-[10px] border border-sq-line bg-sq-surface p-3 text-[13px]">
         <div className="font-medium text-sq-ink">
           {tr('Saved beneficiary:', 'Bénéficiaire enregistré :')} {r.name}
           <span className="ml-1 font-normal text-sq-muted">(Ethereum Sepolia)</span>

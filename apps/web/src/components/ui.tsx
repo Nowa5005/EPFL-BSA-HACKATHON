@@ -47,7 +47,7 @@ export function NetBadge({ className }: { className?: string }) {
 export function ChangeBadge({ value, className }: { value: number; className?: string }) {
   const up = value >= 0;
   return (
-    <span className={cx('num inline-flex min-w-[62px] shrink-0 justify-center rounded-[4px] px-1.5 py-1.5 text-[13px] font-medium text-white', up ? 'bg-sq-up' : 'bg-sq-down', className)}>
+    <span className={cx('num inline-flex min-w-[62px] shrink-0 justify-center rounded-[4px] px-1.5 py-1.5 text-[13px] font-medium text-white', up ? 'bg-sq-up-solid' : 'bg-sq-down-solid', className)}>
       {up ? '+' : '−'}
       {Math.abs(value).toFixed(2)} %
     </span>
@@ -122,10 +122,10 @@ export function Button({
 }) {
   const styles = {
     primary: 'bg-sq-orange text-white hover:bg-sq-orange-600 active:bg-sq-orange-600',
-    secondary: 'border border-sq-line bg-white text-sq-ink hover:border-sq-muted/60',
-    danger: 'border border-sq-down/30 bg-white text-sq-down hover:bg-sq-bad-50',
+    secondary: 'border border-sq-line bg-sq-surface text-sq-ink hover:border-sq-muted/60',
+    danger: 'border border-sq-down/30 bg-sq-surface text-sq-down hover:bg-sq-bad-50',
     ghost: 'bg-transparent text-sq-ink-2 hover:bg-sq-chip/60',
-    dark: 'bg-sq-dark text-white hover:bg-black',
+    dark: 'bg-sq-dark text-sq-on-dark hover:bg-sq-dark/90',
   }[variant];
   return (
     <button
@@ -149,7 +149,7 @@ export function Button({
 export function RoundAction({ icon, label, onClick, to }: { icon: ReactNode; label: string; onClick?: () => void; to?: string }) {
   const inner = (
     <>
-      <span className="flex size-12 items-center justify-center rounded-full bg-sq-dark text-white transition-transform duration-150 group-active:scale-95">{icon}</span>
+      <span className="flex size-12 items-center justify-center rounded-full bg-sq-dark text-sq-on-dark transition-transform duration-150 group-active:scale-95">{icon}</span>
       <span className="text-[13px] font-medium text-sq-ink">{label}</span>
     </>
   );
@@ -169,7 +169,7 @@ export function RoundAction({ icon, label, onClick, to }: { icon: ReactNode; lab
 
 export function IconButton({ label, onClick, children, className }: { label: string; onClick?: () => void; children: ReactNode; className?: string }) {
   return (
-    <button type="button" aria-label={label} title={label} onClick={onClick} className={cx('flex size-11 items-center justify-center rounded-full bg-white text-sq-ink shadow-[0_1px_2px_rgba(0,0,0,0.06)] hover:bg-sq-chip/50', className)}>
+    <button type="button" aria-label={label} title={label} onClick={onClick} className={cx('flex size-11 items-center justify-center rounded-full bg-sq-surface text-sq-ink shadow-[0_1px_2px_rgba(0,0,0,0.06)] hover:bg-sq-chip/50', className)}>
       {children}
     </button>
   );
@@ -187,7 +187,7 @@ export function Field({ label, hint, children, error }: { label: string; hint?: 
 }
 
 export const inputCls =
-  'w-full min-h-12 rounded-[10px] border border-sq-line bg-white px-3.5 py-3 text-[15px] text-sq-ink outline-none transition placeholder:text-sq-muted/70 focus:border-sq-ink/40 focus-visible:outline-2 focus-visible:outline-sq-orange';
+  'w-full min-h-12 rounded-[10px] border border-sq-line bg-sq-surface px-3.5 py-3 text-[15px] text-sq-ink outline-none transition placeholder:text-sq-muted/70 focus:border-sq-ink/40 focus-visible:outline-2 focus-visible:outline-sq-orange';
 
 export function SecretInput({ value, onChange, autoComplete = 'new-password', placeholder, id, autoFocus }: { value: string; onChange: (v: string) => void; autoComplete?: string; placeholder?: string; id?: string; autoFocus?: boolean }) {
   const [show, setShow] = useState(false);
@@ -247,7 +247,7 @@ export function Pill({ active, children, onClick }: { active?: boolean; children
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={cx('min-h-9 shrink-0 rounded-full border px-3.5 py-1.5 text-[14px] transition-colors', active ? 'border-sq-chip bg-sq-chip font-medium text-sq-ink' : 'border-sq-line bg-white text-sq-ink-2 hover:border-sq-muted/50')}
+      className={cx('min-h-9 shrink-0 rounded-full border px-3.5 py-1.5 text-[14px] transition-colors', active ? 'border-sq-chip bg-sq-chip font-medium text-sq-ink' : 'border-sq-line bg-sq-surface text-sq-ink-2 hover:border-sq-muted/50')}
     >
       {children}
     </button>
@@ -293,7 +293,7 @@ export function Checks({ checks }: { checks: PolicyCheck[] }) {
       {checks.map((c) => (
         <li key={c.id} className="flex items-start gap-3 py-2.5 text-[14px]">
           <span
-            className={cx('mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-white', c.status === 'pass' ? 'bg-sq-up' : c.status === 'step-up' ? 'bg-sq-warn' : 'bg-sq-down')}
+            className={cx('mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-white', c.status === 'pass' ? 'bg-sq-up-solid' : c.status === 'step-up' ? 'bg-sq-warn-solid' : 'bg-sq-down-solid')}
             aria-label={c.status === 'pass' ? tr('Passed', 'Réussi') : c.status === 'step-up' ? tr('Extra check', 'Contrôle renforcé') : tr('Refused', 'Refusé')}
           >
             {c.status === 'pass' ? <Check size={12} strokeWidth={3} /> : c.status === 'step-up' ? <span className="text-[11px] font-bold">!</span> : <X size={12} strokeWidth={3} />}
@@ -332,11 +332,11 @@ export function ProgressList({ items }: { items: { label: string; state: ProgSta
             {it.state === 'doing' ? (
               <Spinner className="text-sq-orange" />
             ) : it.state === 'done' ? (
-              <span className="flex size-5 items-center justify-center rounded-full bg-sq-up text-white">
+              <span className="flex size-5 items-center justify-center rounded-full bg-sq-up-solid text-white">
                 <Check size={12} strokeWidth={3} />
               </span>
             ) : it.state === 'error' ? (
-              <span className="flex size-5 items-center justify-center rounded-full bg-sq-down text-white">
+              <span className="flex size-5 items-center justify-center rounded-full bg-sq-down-solid text-white">
                 <X size={12} strokeWidth={3} />
               </span>
             ) : (

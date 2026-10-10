@@ -174,7 +174,7 @@ export async function downloadReceiptPdf(r: Receipt) {
 export function ReceiptView({ r }: { r: Receipt }) {
   const masked = useMasked();
   return (
-    <article className="rounded-[12px] border border-sq-line bg-white p-5" aria-label={tr(`Receipt ${r.reference}`, `Justificatif ${r.reference}`)}>
+    <article className="rounded-[12px] border border-sq-line bg-sq-surface p-5" aria-label={tr(`Receipt ${r.reference}`, `Justificatif ${r.reference}`)}>
       <header className="flex items-start gap-3 border-b border-sq-line pb-4">
         <img src="/brand/swissquote-logo.png" alt="" width={36} height={36} className="rounded-full" />
         <div className="min-w-0">

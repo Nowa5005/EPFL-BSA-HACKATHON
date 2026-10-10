@@ -110,7 +110,7 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/30 px-3 pt-[max(12px,env(safe-area-inset-top))] sm:pt-20" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div ref={panel} role="dialog" aria-modal="true" aria-label={tr('Search instruments', 'Rechercher un instrument')} onKeyDown={onKey} className="mw-toast flex max-h-[80vh] w-full max-w-[560px] flex-col overflow-hidden rounded-[14px] bg-white shadow-xl">
+      <div ref={panel} role="dialog" aria-modal="true" aria-label={tr('Search instruments', 'Rechercher un instrument')} onKeyDown={onKey} className="mw-toast flex max-h-[80vh] w-full max-w-[560px] flex-col overflow-hidden rounded-[14px] bg-sq-surface shadow-xl">
         <div className="flex items-center gap-2 border-b border-sq-line px-3 py-2">
           <Search size={20} strokeWidth={1.75} className="shrink-0 text-sq-muted" aria-hidden />
           <input

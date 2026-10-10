@@ -6,6 +6,14 @@
     <meta name="theme-color" content="#f0f3fa" />
     <title>My Wall — prototype</title>
     <link rel="icon" type="image/png" href="/favicon.png" />
+    <script>
+      // Appearance before the first paint (lib/theme.ts keeps it in sync afterwards).
+      try {
+        var t = localStorage.getItem('mw:theme');
+        var d = t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.theme = d ? 'dark' : 'light';
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

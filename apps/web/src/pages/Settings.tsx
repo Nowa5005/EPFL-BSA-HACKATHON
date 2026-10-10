@@ -10,6 +10,7 @@ import { Addr, Button, Card, cx, dateOnly, MockBadge, Notice, PageHeader, Why } 
 import { Personalization } from '../components/Personalization';
 import { ExternalWallets } from '../components/ExternalWallets';
 import { TermsSettingsCard } from '../components/Terms';
+import { AppearanceSettings } from '../components/AppearanceSettings';
 
 export default function Settings() {
   const nav = useNavigate();
@@ -153,6 +154,8 @@ export default function Settings() {
         </div>
         <p className="text-[12px] text-sq-muted">{tr('Saved on this device. English is the default.', 'Enregistré sur cet appareil. L’anglais est la langue par défaut.')}</p>
       </Card>
+
+      <AppearanceSettings />
 
       <TermsSettingsCard />
 

@@ -500,7 +500,7 @@ function AlertForm({ clientId, edit, instrumentId: initialId, onCancel, onDone }
             <legend className="mb-1.5 text-[14px] font-medium">{tr('Type', 'Type')}</legend>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {types.map((t) => (
-                <label key={t.id} className={cx('flex min-h-11 cursor-pointer items-center justify-center rounded-[10px] border px-2 text-center text-[14px] has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-sq-orange', type === t.id ? 'border-sq-ink bg-sq-chip font-semibold' : 'border-sq-line bg-white')}>
+                <label key={t.id} className={cx('flex min-h-11 cursor-pointer items-center justify-center rounded-[10px] border px-2 text-center text-[14px] has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-sq-orange', type === t.id ? 'border-sq-ink bg-sq-chip font-semibold' : 'border-sq-line bg-sq-surface')}>
                   <input type="radio" name="alert-type" className="sr-only" checked={type === t.id} onChange={() => setType(t.id)} />
                   {t.label}
                 </label>

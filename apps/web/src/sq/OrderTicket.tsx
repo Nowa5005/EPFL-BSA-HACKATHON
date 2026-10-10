@@ -34,7 +34,7 @@ export function OrderTicket({ instrument, quote, side: initialSide, onClose }: {
   // portal: the page container has its own stacking context (page animation), so the sheet must live under <body>
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/30 sm:items-center" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div ref={panel} role="dialog" aria-modal="true" aria-labelledby="ticket-title" className="mw-sheet-up max-h-[92vh] w-full max-w-[460px] overflow-y-auto rounded-t-[16px] bg-white p-5 pb-[max(20px,env(safe-area-inset-bottom))] shadow-xl sm:rounded-[16px]">
+      <div ref={panel} role="dialog" aria-modal="true" aria-labelledby="ticket-title" className="mw-sheet-up max-h-[92vh] w-full max-w-[460px] overflow-y-auto rounded-t-[16px] bg-sq-surface p-5 pb-[max(20px,env(safe-area-inset-bottom))] shadow-xl sm:rounded-[16px]">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 id="ticket-title" className="text-[18px] font-semibold">
@@ -58,7 +58,7 @@ export function OrderTicket({ instrument, quote, side: initialSide, onClose }: {
               aria-checked={side === s}
               data-autofocus={side === s ? '' : undefined}
               onClick={() => setSide(s)}
-              className={cx('min-h-10 rounded-full text-[15px]', side === s ? 'bg-white font-semibold shadow-sm' : 'text-sq-ink-2')}
+              className={cx('min-h-10 rounded-full text-[15px]', side === s ? 'bg-sq-surface font-semibold shadow-sm' : 'text-sq-ink-2')}
             >
               {s === 'buy' ? tr('Buy', 'Acheter') : tr('Sell', 'Vendre')}
             </button>

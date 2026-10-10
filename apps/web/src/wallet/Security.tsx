@@ -140,7 +140,7 @@ function SecretCard({ icon, title, tag, desc, extra, secret, onReveal, onHide, u
       <p className="text-[13px] text-sq-muted">{desc}</p>
       {secret ? (
         <div className="space-y-2">
-          <code className="block select-all break-all rounded-[10px] border border-sq-line bg-white p-3 font-mono text-[14px] leading-relaxed">{secret.value}</code>
+          <code className="block select-all break-all rounded-[10px] border border-sq-line bg-sq-surface p-3 font-mono text-[14px] leading-relaxed">{secret.value}</code>
           <div className="h-1 overflow-hidden rounded-full bg-sq-line" aria-hidden>
             <div className="mw-countdown h-full bg-sq-orange" style={{ animationDuration: `${REVEAL_SEC}s` }} />
           </div>
@@ -191,7 +191,7 @@ function Reauth({ clientId, onCancel, onDone }: { clientId: string; onCancel: ()
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="reauth-title">
       <form
-        className="mw-toast w-full max-w-sm space-y-4 rounded-[12px] bg-white p-5"
+        className="mw-toast w-full max-w-sm space-y-4 rounded-[12px] bg-sq-surface p-5"
         onSubmit={(e) => {
           e.preventDefault();
           if (pw) void go();

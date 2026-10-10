@@ -31,7 +31,7 @@ export function AccountButton() {
         <CircleUser {...ICON} size={22} />
       </IconButton>
       {open && (
-        <div className="mw-toast absolute right-0 top-12 z-40 w-60 rounded-[12px] border border-sq-line bg-white p-3 text-[14px] shadow-lg">
+        <div className="mw-toast absolute right-0 top-12 z-40 w-60 rounded-[12px] border border-sq-line bg-sq-surface p-3 text-[14px] shadow-lg">
           <div className="px-2 py-1 font-semibold">{session?.profile?.name ?? tr('Client', 'Client')}</div>
           <div className="px-2 pb-2 text-[12px] text-sq-muted">{session?.clientId}</div>
           <button
@@ -75,7 +75,7 @@ export function SqShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-sq-bg">
       {isDesktop && (
-        <header className="sticky top-0 z-30 border-b border-sq-line bg-white">
+        <header className="sticky top-0 z-30 border-b border-sq-line bg-sq-surface">
           <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-8 px-6">
             <Link to="/sq" className="flex items-center gap-2.5" aria-label={tr('Swissquote home', 'Accueil Swissquote')}>
               <Logo size={28} />
@@ -112,7 +112,7 @@ export function SqShell({ children }: { children: ReactNode }) {
       </main>
 
       {!isDesktop && (
-        <nav className="fixed inset-x-0 bottom-0 z-30 rounded-t-[16px] bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_0_rgba(0,0,0,0.04)]" aria-label={tr('Swissquote navigation', 'Navigation Swissquote')}>
+        <nav className="fixed inset-x-0 bottom-0 z-30 rounded-t-[16px] bg-sq-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_0_rgba(0,0,0,0.04)]" aria-label={tr('Swissquote navigation', 'Navigation Swissquote')}>
           <div className="mx-auto grid max-w-[720px] grid-cols-4">
             {NAV.map((n) => (
               <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => cx('flex min-h-[60px] flex-col items-center justify-center gap-1 text-[12px]', isActive ? 'font-medium text-sq-orange' : 'text-sq-ink-2')}>
@@ -177,7 +177,7 @@ function WalletTab({ aboveNav }: { aboveNav: boolean }) {
         onPointerMove={onPointerMove}
         onPointerUp={() => (start.current = null)}
         style={{ touchAction: 'none', bottom: aboveNav ? 'calc(60px + env(safe-area-inset-bottom))' : 'env(safe-area-inset-bottom)' }}
-        className="fixed left-1/2 z-30 flex w-[200px] -translate-x-1/2 flex-col items-center gap-1.5 rounded-t-[12px] bg-white px-4 pb-2.5 pt-2 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]"
+        className="fixed left-1/2 z-30 flex w-[200px] -translate-x-1/2 flex-col items-center gap-1.5 rounded-t-[12px] bg-sq-surface px-4 pb-2.5 pt-2 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]"
       >
         <span className="h-1 w-9 rounded-full bg-sq-line" aria-hidden />
         <span className="flex items-center gap-2 text-[14px] font-semibold text-sq-ink">

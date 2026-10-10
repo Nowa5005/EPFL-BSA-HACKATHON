@@ -56,7 +56,7 @@ export function FreezeCard({ clientId }: { clientId: string }) {
           className={cx('relative box-border h-7 w-12 shrink-0 rounded-full border-0 p-0 transition-colors disabled:opacity-50', frozen ? 'bg-sq-orange' : 'bg-sq-line')}
         >
           {/* Track 48×28, knob 24×24 anchored at left/top 2 px: off = x 2→26, on = translate 20 px → x 22→46 (2 px inset both sides). */}
-          <span aria-hidden className={cx('pointer-events-none absolute left-0.5 top-0.5 block size-6 rounded-full bg-white shadow transition-transform motion-reduce:transition-none', frozen ? 'translate-x-5' : 'translate-x-0')} />
+          <span aria-hidden className={cx('pointer-events-none absolute left-0.5 top-0.5 block size-6 rounded-full bg-white mw-keep-white shadow transition-transform motion-reduce:transition-none', frozen ? 'translate-x-5' : 'translate-x-0')} />
         </button>
       </div>
       <p className="text-[13px] text-sq-muted">
@@ -148,7 +148,7 @@ export function BackupCodeCard({ clientId }: { clientId: string }) {
       {step === 'show' && (
         <div className="space-y-2">
           <p className="text-[14px]">{tr('Write this code down and keep it away from your phone (for example with your recovery kit). It will never be shown again.', 'Notez ce code et rangez-le hors de votre téléphone (par exemple avec votre kit de récupération). Il ne sera plus jamais affiché.')}</p>
-          <code className="block rounded-[10px] border border-sq-line bg-white p-3 text-center font-mono text-[22px] tracking-[0.2em]">{group(code)}</code>
+          <code className="block rounded-[10px] border border-sq-line bg-sq-surface p-3 text-center font-mono text-[22px] tracking-[0.2em]">{group(code)}</code>
           <div className="flex flex-wrap gap-2">
             <CopyButton value={code} sensitive />
             <Button className="w-auto px-4" onClick={() => setStep('confirm')}>

@@ -167,6 +167,21 @@ links are registered (none are needed for the demo); adding them requires the sa
 
 **Secrets.** The app bundle only contains public service URLs. No key, token or `.env` value is embedded.
 
+## 5b. Privacy screen and appearance in the native app
+
+**Privacy lock (N1).** `apps/web/src/lib/privacy.ts` listens to the Capacitor `App` `pause` / `resume` events in
+addition to `visibilitychange` / `pagehide`: when the app goes to the background the wallet is unmounted behind the
+privacy screen, and the passkey (or the wallet password) is needed to show it again. JavaScript may run slightly after
+the OS takes the app-switcher snapshot, so the **production target** adds a native cover: Android
+`WindowManager.LayoutParams.FLAG_SECURE` on the activity (blank snapshot, no screenshots), and on iOS a blur/cover
+view added in `sceneWillResignActive` and removed in `sceneDidBecomeActive`. Not done here (no native build on this
+Mac). Inactivity delay: 60 s in the demo, 5 min in production (`VITE_PRIVACY_IDLE_SECONDS`).
+
+**Appearance (N5).** System / Light / Dark is stored on the device (`localStorage` `mw:theme`). *System* uses the
+`prefers-color-scheme` media query, which the WebView reflects from the OS (iOS WKWebView; Android WebView with the
+app theme set to `Theme.MaterialComponents.DayNight` / `forceDark` off, so the page's own dark palette is used rather
+than an automatic darkening). The change listener updates the page live, without reload.
+
 ## 6. Not done here
 
 - No native compile, simulator run or device install (no Xcode / Android SDK on this Mac).

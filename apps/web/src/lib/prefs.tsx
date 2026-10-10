@@ -19,17 +19,19 @@ export interface Preferences {
 export const DEFAULT_PREFS: Preferences = { background: 'default', accent: 'orange', highlight: false, hiddenWallets: [], hideAmounts: false };
 
 // White text on every accent meets WCAG AA for large/bold text (buttons are 15 px semibold).
-export const ACCENTS: Record<Preferences['accent'], { label: string; main: string; dark: string; soft: string }> = {
-  orange: { label: tr('Swissquote orange', 'Orange Swissquote'), main: '#fa5b35', dark: '#e64a25', soft: '#fff1ec' },
-  blue: { label: tr('Blue', 'Bleu'), main: '#2563d9', dark: '#1d4fb0', soft: '#eaf1fd' },
-  green: { label: tr('Green', 'Vert'), main: '#00875a', dark: '#006b47', soft: '#e6f4ee' },
-  violet: { label: 'Violet', main: '#6b46d6', dark: '#5534b5', soft: '#f1edfc' },
+// `dark` = accent text / hover (≥ 4.5:1 on white); `night` = the same roles in the dark theme (lib/theme.ts).
+export const ACCENTS: Record<Preferences['accent'], { label: string; main: string; dark: string; soft: string; night: { text: string; soft: string } }> = {
+  orange: { label: tr('Swissquote orange', 'Orange Swissquote'), main: '#fa5b35', dark: '#c93d1b', soft: '#fff1ec', night: { text: '#ff7a55', soft: '#3a2119' } },
+  blue: { label: tr('Blue', 'Bleu'), main: '#2563d9', dark: '#1d4fb0', soft: '#eaf1fd', night: { text: '#7fa8ff', soft: '#1a2742' } },
+  green: { label: tr('Green', 'Vert'), main: '#00875a', dark: '#006b47', soft: '#e6f4ee', night: { text: '#3dcc8e', soft: '#11281e' } },
+  violet: { label: 'Violet', main: '#6b46d6', dark: '#5534b5', soft: '#f1edfc', night: { text: '#a98bff', soft: '#2a2142' } },
 };
-export const BACKGROUNDS: Record<Preferences['background'], { label: string; color: string }> = {
-  default: { label: tr('Light grey (default)', 'Gris clair (par défaut)'), color: '#f0f3fa' },
-  white: { label: tr('White', 'Blanc'), color: '#ffffff' },
-  sand: { label: tr('Sand', 'Sable'), color: '#f6f2ec' },
-  mist: { label: tr('Mist', 'Brume'), color: '#eef3f2' },
+// Background presets, with a designed dark variant each (same mood, dark tone).
+export const BACKGROUNDS: Record<Preferences['background'], { label: string; color: string; night: string }> = {
+  default: { label: tr('Light grey (default)', 'Gris clair (par défaut)'), color: '#f0f3fa', night: '#111317' },
+  white: { label: tr('White', 'Blanc'), color: '#ffffff', night: '#17191e' },
+  sand: { label: tr('Sand', 'Sable'), color: '#f6f2ec', night: '#1a1814' },
+  mist: { label: tr('Mist', 'Brume'), color: '#eef3f2', night: '#121918' },
 };
 export const WALLET_ITEMS = [
   { id: 'mywall-usdc', label: 'My Wall — USD Coin' },
@@ -70,14 +72,17 @@ export async function savePrefs(clientId: string, patch: Partial<Preferences> & 
   return c.preferences as Preferences;
 }
 
-export function themeStyle(p: Preferences): CSSProperties {
+/** Personalisation (accent + background) as CSS variables, for the resolved theme (light or dark). */
+export function themeStyle(p: Preferences, dark = false): CSSProperties {
   const a = ACCENTS[p.accent] ?? ACCENTS.orange;
+  const b = BACKGROUNDS[p.background] ?? BACKGROUNDS.default;
+  const bg = dark ? b.night : b.color;
   return {
     ['--color-sq-orange' as any]: a.main,
-    ['--color-sq-orange-600' as any]: a.dark,
-    ['--color-sq-orange-50' as any]: a.soft,
-    ['--color-sq-bg' as any]: (BACKGROUNDS[p.background] ?? BACKGROUNDS.default).color,
-    background: (BACKGROUNDS[p.background] ?? BACKGROUNDS.default).color,
+    ['--color-sq-orange-600' as any]: dark ? a.night.text : a.dark,
+    ['--color-sq-orange-50' as any]: dark ? a.night.soft : a.soft,
+    ['--color-sq-bg' as any]: bg,
+    background: bg,
   };
 }
 

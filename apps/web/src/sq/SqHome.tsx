@@ -23,12 +23,12 @@ function LineChart({ data, label }: { data: number[]; label: string }) {
     <svg viewBox={`0 0 ${w} ${h}`} className="h-36 w-full" preserveAspectRatio="none" role="img" aria-label={label} data-first={data[0]} data-last={data[data.length - 1]}>
       <defs>
         <linearGradient id="sqfill" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#2f6fed" stopOpacity="0.16" />
-          <stop offset="100%" stopColor="#2f6fed" stopOpacity="0" />
+          <stop offset="0%" stopColor="var(--color-sq-chart)" stopOpacity="0.16" />
+          <stop offset="100%" stopColor="var(--color-sq-chart)" stopOpacity="0" />
         </linearGradient>
       </defs>
       <path d={`${line} L${w},${h} L0,${h} Z`} fill="url(#sqfill)" />
-      <path d={line} fill="none" stroke="#2f6fed" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+      <path d={line} fill="none" stroke="var(--color-sq-chart)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
@@ -116,7 +116,7 @@ export default function SqHome() {
         </div>
         <div className="mt-2 grid grid-cols-5 rounded-full bg-sq-bg p-1" role="tablist" aria-label={tr('Period', 'Période')}>
           {PERIODS.map((p) => (
-            <button key={p} type="button" role="tab" aria-selected={period === p} onClick={() => setPeriod(p)} className={cx('min-h-9 rounded-full text-[14px]', period === p ? 'bg-white font-semibold shadow-sm' : 'text-sq-ink-2')}>
+            <button key={p} type="button" role="tab" aria-selected={period === p} onClick={() => setPeriod(p)} className={cx('min-h-9 rounded-full text-[14px]', period === p ? 'bg-sq-surface font-semibold shadow-sm' : 'text-sq-ink-2')}>
               {p === 'All' ? tr('All', 'Tout') : p}
             </button>
           ))}
@@ -250,7 +250,7 @@ function HomeMarkets() {
 function UnavailableAction({ icon, label, onClick, active }: { icon: ReactNode; label: string; onClick: () => void; active: boolean }) {
   return (
     <button type="button" aria-disabled="true" aria-expanded={active} aria-controls="home-action-why" onClick={onClick} className="group flex min-w-[84px] flex-col items-center gap-2 rounded-lg p-1">
-      <span className="flex size-12 items-center justify-center rounded-full bg-sq-dark text-white opacity-45">{icon}</span>
+      <span className="flex size-12 items-center justify-center rounded-full bg-sq-dark text-sq-on-dark opacity-45">{icon}</span>
       <span className="text-[13px] font-medium text-sq-ink">{label}</span>
       <span className="-mt-1.5 text-[10px] text-sq-muted">{tr('Unavailable', 'Indisponible')}</span>
     </button>

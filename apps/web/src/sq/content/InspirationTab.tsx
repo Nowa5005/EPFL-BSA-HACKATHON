@@ -22,7 +22,7 @@ export default function InspirationTab() {
 
   return (
     <section aria-label="Inspiration" className="mt-4">
-      <p className="rounded-[10px] border border-dashed border-sq-muted/50 bg-white px-3.5 py-2.5 text-[13px] text-sq-ink-2">{L(EDITORIAL_LABEL)}</p>
+      <p className="rounded-[10px] border border-dashed border-sq-muted/50 bg-sq-surface px-3.5 py-2.5 text-[13px] text-sq-ink-2">{L(EDITORIAL_LABEL)}</p>
       <div className="mt-3 flex gap-2 overflow-x-auto pb-1" role="group" aria-label={tr('Filter by theme', 'Filtrer par thème')}>
         <Pill active={theme === 'all'} onClick={() => setTheme('all')}>
           {tr('All', 'Tout')}
@@ -40,7 +40,7 @@ export default function InspirationTab() {
               type="button"
               data-card-id={a.id}
               onClick={() => open(a.id)}
-              className="group flex h-full w-full flex-col overflow-hidden rounded-[12px] bg-white text-left focus-visible:outline-2 focus-visible:outline-sq-orange"
+              className="group flex h-full w-full flex-col overflow-hidden rounded-[12px] bg-sq-surface text-left focus-visible:outline-2 focus-visible:outline-sq-orange"
             >
               <Illustration theme={a.theme} className="h-36 w-full" label={tr('Illustration', 'Illustration')} />
               <div className="flex flex-1 flex-col p-4">

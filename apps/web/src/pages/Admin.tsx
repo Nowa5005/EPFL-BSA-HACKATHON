@@ -102,7 +102,7 @@ function Console() {
         <div className="flex-1" />
         <label className="text-[14px] text-sq-muted">
           {tr('Signed in as', 'Connecté en tant que')}{' '}
-          <select className="min-h-11 rounded-[10px] border border-sq-line bg-white px-2" value={agent} onChange={(e) => setAgent(e.target.value)}>
+          <select className="min-h-11 rounded-[10px] border border-sq-line bg-sq-surface px-2" value={agent} onChange={(e) => setAgent(e.target.value)}>
             {AGENTS.map((a) => (
               <option key={a}>{a}</option>
             ))}

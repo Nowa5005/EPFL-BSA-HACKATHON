@@ -45,7 +45,7 @@ export default function Scheduled() {
     <div className="mx-auto max-w-[760px] space-y-4">
       <PageHeader title={tr('Scheduled payments & reminders', 'Dépenses planifiées et rappels')} back="/wallet/more" />
       <Why>{tr('A scheduled payment never goes out on its own: at the due date it becomes “to confirm”, fees and simulation are recalculated, and you approve it yourself. A reminder only notifies you.', 'Une dépense planifiée ne part jamais toute seule : à l’échéance, elle devient « à confirmer », les frais et la simulation sont recalculés, et vous la validez vous-même. Un rappel ne fait que vous prévenir.')}</Why>
-      <Link to="/send" className="inline-flex min-h-11 items-center gap-2 rounded-[10px] border border-sq-line bg-white px-4 text-[14px] font-semibold">
+      <Link to="/send" className="inline-flex min-h-11 items-center gap-2 rounded-[10px] border border-sq-line bg-sq-surface px-4 text-[14px] font-semibold">
         <CalendarClock size={18} strokeWidth={1.75} /> {tr('Schedule from Send', 'Planifier depuis Envoyer')}
       </Link>
       {err && <Notice tone="bad">{err}</Notice>}

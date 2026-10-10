@@ -115,13 +115,13 @@ const THEMES: Record<string, { bg: string; fg: string; Icon: typeof Newspaper }>
 export function Illustration({ theme, label, className, big }: { theme: string; label: string; className?: string; big?: boolean }) {
   const t = THEMES[theme] ?? THEMES.news;
   return (
-    <div role="img" aria-label={label} className={cx('relative flex items-center justify-center overflow-hidden', className)} style={{ background: t.bg }}>
+    <div role="img" aria-label={label} className={cx('mw-illustration relative flex items-center justify-center overflow-hidden', className)} style={{ background: t.bg, color: t.fg, ['--ill-fg' as any]: t.fg }}>
       <svg className="absolute inset-0 h-full w-full" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" aria-hidden>
-        <circle cx="270" cy="30" r="70" fill={t.fg} opacity="0.07" />
-        <circle cx="40" cy="170" r="60" fill={t.fg} opacity="0.06" />
-        <path d="M0 140 C 60 120, 90 150, 150 110 S 260 90, 320 60" fill="none" stroke={t.fg} strokeWidth="3" opacity="0.18" />
+        <circle cx="270" cy="30" r="70" fill="currentColor" opacity="0.07" />
+        <circle cx="40" cy="170" r="60" fill="currentColor" opacity="0.06" />
+        <path d="M0 140 C 60 120, 90 150, 150 110 S 260 90, 320 60" fill="none" stroke="currentColor" strokeWidth="3" opacity="0.18" />
       </svg>
-      <t.Icon size={big ? 56 : 36} strokeWidth={1.5} color={t.fg} aria-hidden className="relative" />
+      <t.Icon size={big ? 56 : 36} strokeWidth={1.5} color="currentColor" aria-hidden className="relative" />
     </div>
   );
 }
@@ -148,5 +148,5 @@ export function NewsImage({ a, className, big }: { a: Article; className?: strin
 }
 
 export function StateCard({ children, tone = 'muted' }: { children: ReactNode; tone?: 'muted' | 'bad' }) {
-  return <div className={cx('mt-4 rounded-[12px] bg-white p-5 text-[14px]', tone === 'bad' ? 'text-sq-down' : 'text-sq-muted')}>{children}</div>;
+  return <div className={cx('mt-4 rounded-[12px] bg-sq-surface p-5 text-[14px]', tone === 'bad' ? 'text-sq-down' : 'text-sq-muted')}>{children}</div>;
 }

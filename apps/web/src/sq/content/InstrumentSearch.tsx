@@ -67,7 +67,7 @@ export function InstrumentSearch({ label, action, autoFocus }: { label: string; 
         {hits && hits.length === 0 && <p className="mt-2 text-[13px] text-sq-muted">{tr('No instrument found.', 'Aucun instrument trouvé.')}</p>}
       </div>
       {hits && hits.length > 0 && (
-        <ul className="mt-2 divide-y divide-sq-line rounded-[10px] border border-sq-line bg-white">
+        <ul className="mt-2 divide-y divide-sq-line rounded-[10px] border border-sq-line bg-sq-surface">
           {hits.map((h) => (
             <li key={h.id} className="flex min-h-14 items-center gap-3 px-3 py-2">
               <span className="min-w-0 flex-1">
