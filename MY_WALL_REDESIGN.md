@@ -5,7 +5,7 @@
 > Ce document **remplace** trois règles de `CLAUDE_CODE_BRIEF.md` :
 > - §5, « ne pas utiliser le logo Swissquote » : on utilise désormais le **logo fourni** ;
 > - le nom « SQ Wallet » devient **« My Wall »** ;
-> - la langue de l'interface passe de l'anglais au **français**. Le README et les docs restent en anglais.
+> - **toute l'interface (site, wallet, interface Swissquote reconstituée, console admin, page attaquant, PDF) est 100 % en ANGLAIS.** Le brief de Noa (`docs/design/BRIEF_MY_WALL_NOA.md`) demandait du français : **cette consigne est annulée**. Tous les libellés français cités dans ce document sont des **exemples à traduire en anglais naturel** (anglais britannique/suisse, formats de date `10.10.2026`, montants `55'051.67 CHF`). Le README et les docs restent en anglais.
 >
 > Le parcours **create → sign → recover** doit continuer de fonctionner à chaque étape. Après chaque jalon, lance `npm run typecheck`, `npm test` et `npm run e2e`, puis commite. Si un test casse, répare-le avant de continuer.
 
@@ -41,15 +41,15 @@ Les fichiers sont dans `docs/design/assets/`. Une copie du logo est dans `apps/w
 
 **Logo :** utiliser le PNG fourni tel quel. Ne pas le redessiner, ne pas changer ses proportions, ne pas ajouter d'ombre ni d'effet. Garder une marge d'au moins 25 % de son diamètre autour. Tailles : 28 px dans les barres de navigation, 56 px sur les écrans d'accueil et de déverrouillage, et aussi en favicon.
 
-**Mention obligatoire et discrète** (pied de l'interface reconstituée et du wallet) : « Prototype — Swissquote Wallet Challenge (EPFL). Reconstitution de démonstration, données fictives. »
+**Mention obligatoire et discrète** (pied de l'interface reconstituée et du wallet) : « Prototype — Swissquote Wallet Challenge (EPFL). Demo reconstruction, fictitious data. »
 
 ---
 
 ## 1. Vision et périmètre de la démo
 
 L'utilisateur démarre dans une **reconstitution de l'app Swissquote** (données de marché fictives). Il ouvre **My Wall** depuis :
-- une **languette « Mon wallet »** en bas sur mobile ;
-- un **bouton « Mon wallet »** à côté de l'icône de compte sur ordinateur.
+- une **languette « My Wallet »** en bas sur mobile ;
+- un **bouton « My Wallet »** à côté de l'icône de compte sur ordinateur.
 
 Il se retrouve alors dans un wallet qui prolonge le même univers graphique, sans rupture. Toutes les fonctions existantes restent disponibles : envoi, réception, transferts depuis le compte, dApps, step-up, console admin, page attaquant, récupération et porte de sortie.
 
@@ -126,10 +126,10 @@ Remplace les tokens « navy » de `apps/web/src/index.css`. Couleurs relevées p
 | `/wallet/security` | Clés et sécurité | Révélation temporaire, copie, export chiffré |
 | `/send`, `/asset/:symbol`, `/dapps`, `/settings`, `/recover`, `/admin`, `/attacker`, `/inbox` | Écrans existants | À restyler et traduire. Garder leur logique intacte. |
 
-**Swaplet (hypothèse à écrire dans la doc)** : le rôle exact de Swaplet n'est pas encore défini. Pour la démo, c'est l'**espace de gestion des échanges et des justificatifs** de My Wall. Il contient une rubrique **Documents** (complète) et une rubrique **Échanger**, affichée comme « Bientôt disponible » (désactivée, avec badge « Prochaine version »). On ne le renomme pas et on ne le supprime pas.
+**Swaplet (hypothèse à écrire dans la doc)** : le rôle exact de Swaplet n'est pas encore défini. Pour la démo, c'est l'**espace de gestion des échanges et des justificatifs** de My Wall. Il contient une rubrique **Documents** (complète) et une rubrique **Échanger**, affichée comme « Coming soon » (désactivée, avec badge « Next release »). On ne le renomme pas et on ne le supprime pas.
 
 **Navigation interne de My Wall :**
-- mobile : barre du bas **Accueil · Transactions · Swaplet · Plus** (Plus = Informations, Sécurité, dApps, Paramètres), plus un bouton « Retour à Swissquote » dans l'en-tête ;
+- mobile : barre du bas **Home · Transactions · Swaplet · More** (More = Information, Security, dApps, Settings), plus un bouton « Back to Swissquote » dans l'en-tête ;
 - ordinateur : barre du haut avec le logo, « My Wall », les onglets soulignés (Accueil, Transactions, Swaplet, Informations, Sécurité), l'icône de compte et un lien « ← Swissquote ».
 
 ---
@@ -149,15 +149,15 @@ Remplace les tokens « navy » de `apps/web/src/index.css`. Couleurs relevées p
 ### 4.3 Navigation du bas Swissquote (mobile)
 **Home · Trade · Bank · Plan**, avec l'icône au trait et l'item actif en orange.
 
-### 4.4 Languette « Mon wallet » (mobile, < 768 px)
-- Petite languette centrée **au-dessus** de la barre du bas, sans en masquer les items : carte blanche aux coins supérieurs arrondis (rayon 12), poignée grise de 36×4 px, logo 20 px et texte « Mon wallet » avec une flèche ↑. Elle respecte `env(safe-area-inset-bottom)`.
+### 4.4 Languette « My Wallet » (mobile, < 768 px)
+- Petite languette centrée **au-dessus** de la barre du bas, sans en masquer les items : carte blanche aux coins supérieurs arrondis (rayon 12), poignée grise de 36×4 px, logo 20 px et texte « My Wallet » avec une flèche ↑. Elle respecte `env(safe-area-inset-bottom)`.
 - **Glisser vers le haut** (Pointer Events, seuil de 60 px ou vitesse > 0.5 px/ms) **ou simple toucher/clic** : un panneau monte du bas (translateY de 100 % à 0, 260 ms, `cubic-bezier(.2,.8,.2,1)`).
 - Le panneau affiche le **déverrouillage**, ou l'**activation** si aucun wallet n'existe sur l'appareil. Après validation, **My Wall** s'affiche dans le même panneau, en plein écran. Une poignée et une croix permettent de redescendre vers Swissquote.
 - Éviter les conflits de gestes : `touch-action: none` uniquement sur la languette et la poignée ; le contenu du panneau défile normalement. Pas de glissement dans les 20 px du bas réservés au geste système.
 - Accessibilité : la languette est un `<button>` avec `aria-expanded` et `aria-controls`. Elle s'ouvre aussi avec Entrée ou Espace.
 
-### 4.5 Bouton « Mon wallet » (ordinateur, ≥ 1024 px)
-Barre du haut de l'interface Swissquote : bouton **orange** « Mon wallet » (avec logo et icône `Wallet`) **juste à gauche du bouton compte**. Au clic : route `/wallet/unlock` (ou `/onboarding`), avec une transition latérale. Un lien « ← Retour à Swissquote » reste toujours visible dans My Wall.
+### 4.5 Bouton « My Wallet » (ordinateur, ≥ 1024 px)
+Barre du haut de l'interface Swissquote : bouton **orange** « My Wallet » (avec logo et icône `Wallet`) **juste à gauche du bouton compte**. Au clic : route `/wallet/unlock` (ou `/onboarding`), avec une transition latérale. Un lien « ← Back to Swissquote » reste toujours visible dans My Wall.
 
 ### 4.6 Tablette (768–1023 px)
 Interface Swissquote en une colonne centrée (max 720 px). On garde la languette (le tactile est probable). My Wall utilise une grille à 2 colonnes (§5.4).
@@ -172,7 +172,7 @@ Mêmes fonctions sur tous les supports ; la disposition change. Points de ruptur
 ### 5.2 Zone supérieure : soldes et devises
 - **Total du portefeuille** très grand (40 px mobile, 48 px ordinateur), en CHF, avec la mention « taux indicatifs ».
 - **Actifs** (USDC, ETH) : quantité en gras, contre-valeur CHF en secondaire, badge réseau « Ethereum Sepolia » sobre.
-- Mobile : total dominant, puis une rangée de 2 tuiles d'actifs compactes (style des tuiles de A2, avec bordure fine), puis **3 actions rondes sombres** comme dans A2 : **Envoyer · Recevoir · Depuis mon compte**.
+- Mobile : total dominant, puis une rangée de 2 tuiles d'actifs compactes (style des tuiles de A2, avec bordure fine), puis **3 actions rondes sombres** comme dans A2 : **Send · Receive · From my account**.
 - Ordinateur : total à gauche, actifs répartis **horizontalement** à droite (une tuile par actif), actions en boutons à côté.
 
 ### 5.3 Volet de contenu qui remonte
@@ -229,29 +229,29 @@ Ajoute `birthDate` au profil fictif d'Alice dans `sq-bank` (ex. `1992-03-14`), e
 - **checklist en direct** sous le champ (icône Check ou cercle vide + texte) ;
 - bouton **afficher/masquer** (icône `Eye`/`EyeOff`) ;
 - champ de **confirmation** ;
-- erreurs précises, par exemple « Utilisez au moins 15 caractères, dont 5 lettres, 2 chiffres et 1 caractère spécial. » ;
-- pour les données personnelles, le message est « Votre mot de passe ne doit pas contenir votre nom ou votre date de naissance. » **sans afficher ces données**.
+- erreurs précises, par exemple « Use at least 15 characters, including 5 letters, 2 numbers and 1 special character. » ;
+- pour les données personnelles, le message est « Your password must not contain your name or date of birth. » **sans afficher ces données**.
 
 Mention honnête dans la doc : ces règles ne suffisent pas à garantir la sécurité. Le mot de passe chiffre K1 localement (keystore ethers, scrypt) ; en production, il faut aussi limiter les tentatives et protéger les sessions.
 
 ### 6.3 Questions de récupération : 3 parmi 15
 - **3 emplacements**, chacun avec un `<select>` des 15 questions ci-dessous. **Une question choisie disparaît des deux autres listes**, et redevient disponible si on change ou retire le choix. Trois questions distinctes sont donc garanties. Ajoute un test unitaire de cette logique.
-- Les 15 questions (à mettre dans `@sq/shared`, et à **remplacer `DEFAULT_QUESTIONS`**) :
-  1. Quel surnom utilisiez-vous pendant votre enfance ?
-  2. Quel était le nom de votre premier animal de compagnie ?
-  3. Quel était le nom de votre école primaire ?
-  4. Dans quelle rue habitiez-vous pendant votre enfance ?
-  5. Quel était le prénom de votre premier meilleur ami ?
-  6. Quel était le nom de votre premier professeur marquant ?
-  7. Quelle destination avez-vous visitée lors de vos premières vacances dont vous vous souvenez ?
-  8. Quel était le titre de votre livre préféré pendant votre enfance ?
-  9. Quel était le premier concert auquel vous avez assisté ?
-  10. Quel était le nom de votre premier club sportif ou de loisirs ?
-  11. Quel plat aimiez-vous particulièrement pendant votre enfance ?
-  12. Quel était le modèle de votre premier vélo ?
-  13. Quel était le premier film que vous avez vu au cinéma ?
-  14. Quel était le nom du lieu où vous avez exercé votre premier emploi ?
-  15. Quel endroit fréquentiez-vous le plus après l'école ?
+- Les 15 questions, **en anglais** (à mettre dans `@sq/shared`, et à **remplacer `DEFAULT_QUESTIONS`**) :
+  1. What nickname did you have as a child?
+  2. What was the name of your first pet?
+  3. What was the name of your primary school?
+  4. What street did you live on as a child?
+  5. What was the first name of your first best friend?
+  6. What was the name of the first teacher who made an impression on you?
+  7. Where did you go on the first holiday you can remember?
+  8. What was your favourite book as a child?
+  9. What was the first concert you attended?
+  10. What was the name of your first sports or hobby club?
+  11. What dish did you love most as a child?
+  12. What was the model of your first bicycle?
+  13. What was the first film you saw in a cinema?
+  14. Where did you have your first job?
+  15. Where did you spend most of your time after school?
 - **3 réponses obligatoires**, masquées par défaut (avec bouton œil). **Normalisation** avant envoi et comparaison : minuscules, sans accents, espaces fusionnés, rognées, sans ponctuation finale.
 - Le `recovery-partner` stocke **un hash des réponses normalisées** (scrypt de `ethers` avec un sel aléatoire par réponse ; pas de crypto maison), **jamais les réponses en clair**. Rien dans les logs.
 - Dans le parcours `/recover`, le partenaire pose les **3 questions choisies**.
@@ -259,7 +259,7 @@ Mention honnête dans la doc : ces règles ne suffisent pas à garantir la sécu
 
 ### 6.4 Kit de récupération : SANS QR CODE (changement important)
 - **Supprime tout QR code** : `qrcode.react` dans Onboarding, le scan `jsqr` dans Recover, et les dépendances correspondantes si elles ne servent plus ailleurs.
-- La part ① devient un **code de récupération texte** affiché **masqué par défaut** : groupes de 4 caractères en base32, avec un groupe de contrôle (checksum) pour détecter les fautes de frappe. Bouton **Afficher temporairement** (30 s, voir §7.2), bouton **Imprimer le kit** (une page imprimable via `window.print()` et une feuille CSS `@media print` : logo, nom du client, date, code en grands caractères monospaces, consignes, **aucun QR**), bouton **Copier**.
+- La part ① devient un **code de récupération texte** affiché **masqué par défaut** : groupes de 4 caractères en base32, avec un groupe de contrôle (checksum) pour détecter les fautes de frappe. Bouton **Show temporarily** (30 s, voir §7.2), bouton **Imprimer le kit** (une page imprimable via `window.print()` et une feuille CSS `@media print` : logo, nom du client, date, code en grands caractères monospaces, consignes, **aucun QR**), bouton **Copier**.
 - La part ② (« sauvegarde cloud ») reste un **fichier chiffré** téléchargé (le chiffrement existant, AES-256-GCM avec dérivation depuis le mot de passe via WebCrypto, est conservé ; vérifie que la dérivation utilise PBKDF2 ou scrypt avec un sel aléatoire).
 - Dans `/recover`, l'étape « Kit papier » devient : **saisir le code** (champ formaté par groupes, collage accepté, validation du checksum avec un message « Le groupe 5 semble erroné ») **ou importer le fichier de sauvegarde chiffrée + mot de passe** (2 parts sur 3 = part ② + part ③).
 
@@ -293,8 +293,8 @@ Distinguer **clairement** trois secrets et leurs conséquences :
 Il n'existe **pas de phrase de 12/24 mots** dans ce modèle. Explique-le en une phrase dans l'écran (« Votre wallet n'utilise pas de phrase secrète : la sécurité repose sur 3 clés, dont 2 sont nécessaires »).
 
 **Révélation temporaire :**
-- bouton **Afficher temporairement** → **réauthentification** (mot de passe + passkey) → secret affiché pendant **30 s**, avec un **compte à rebours visible** (barre fine orange qui se vide, plus « 24 s ») ;
-- bouton **Masquer maintenant** ;
+- bouton **Show temporarily** → **réauthentification** (mot de passe + passkey) → secret affiché pendant **30 s**, avec un **compte à rebours visible** (barre fine orange qui se vide, plus « 24 s ») ;
+- bouton **Hide now** ;
 - **remasquage automatique** à expiration, en quittant la page (démontage du composant) et lors du passage en arrière-plan (`visibilitychange`) ;
 - les secrets ne vont **jamais** dans l'historique, les notifications, la console, le journal d'activité ou `localStorage` en clair ;
 - K1 est la vraie clé de test Sepolia, ce qui est honnête : la mention « Réseau de test — aucune valeur réelle » est affichée à côté.
@@ -305,8 +305,8 @@ Il n'existe **pas de phrase de 12/24 mots** dans ce modèle. Explique-le en une 
 - tentative d'effacement du presse-papiers après 30 s (`navigator.clipboard.writeText('')`), **sans promettre** qu'elle réussit sur toutes les plateformes.
 
 **Sauvegarde chiffrée de la clé de l'appareil :**
-- **Télécharger une sauvegarde chiffrée** : choix d'un **mot de passe de sauvegarde** + confirmation (mêmes règles qu'au §6.2), puis téléchargement d'un fichier `my-wall-device-key-backup-AAAA-MM-JJ.json` au **format keystore JSON v3 d'ethers** (`wallet.encrypt(password)` : scrypt + AES-128-CTR + MAC). C'est un format documenté et **authentifié**, produit par une bibliothèque établie. **Aucun secret en clair dans le fichier.**
-- **Importer / déchiffrer une sauvegarde** : choix du fichier + mot de passe → « Sauvegarde valide : elle correspond à la clé de cet appareil (adresse 0x…) ». Tester trois cas et afficher un message pour chacun : **mauvais mot de passe**, **fichier altéré** (un octet modifié, donc MAC invalide), **fichier d'un autre wallet**.
+- **Download encrypted backup** : choix d'un **mot de passe de sauvegarde** + confirmation (mêmes règles qu'au §6.2), puis téléchargement d'un fichier `my-wall-device-key-backup-AAAA-MM-JJ.json` au **format keystore JSON v3 d'ethers** (`wallet.encrypt(password)` : scrypt + AES-128-CTR + MAC). C'est un format documenté et **authentifié**, produit par une bibliothèque établie. **Aucun secret en clair dans le fichier.**
+- **Import / decrypt a backup** : choix du fichier + mot de passe → « Sauvegarde valide : elle correspond à la clé de cet appareil (adresse 0x…) ». Tester trois cas et afficher un message pour chacun : **mauvais mot de passe**, **fichier altéré** (un octet modifié, donc MAC invalide), **fichier d'un autre wallet**.
 - Avertissement : « Si vous perdez ce mot de passe, la sauvegarde ne pourra pas être déchiffrée. »
 - Les sauvegardes de clés restent **ici**, jamais dans Swaplet → Documents.
 - Remplace l'actuel `exportKey` de `Settings.tsx` s'il exporte autre chose qu'un fichier chiffré.
@@ -318,20 +318,20 @@ Il n'existe **pas de phrase de 12/24 mots** dans ce modèle. Explique-le en une 
 ### 8.1 Statuts
 `détectée` → `en attente` → `confirmée` (ou `échouée`). Chaque statut a une icône, un texte et une couleur ; la couleur n'est jamais le seul indicateur.
 - **Réel** : `en attente` = transaction soumise avec un hash connu ; `confirmée` = reçu de transaction obtenu (`tx.wait(1)` ; réglage `CONFIRMATIONS=1` sur Sepolia, documenté) ; `échouée` = statut 0 ou erreur.
-- **Simulé** : un bouton « Simuler une réception (démo) » avec un badge MOCK ajoute un événement fictif de **250 USDC** qui passe *en attente* (3 s) puis *confirmée*, sans transaction blockchain. Il est **marqué « simulé »** dans l'historique et sur le justificatif.
+- **Simulé** : un bouton « Simulate an incoming payment (demo) » avec un badge MOCK ajoute un événement fictif de **250 USDC** qui passe *en attente* (3 s) puis *confirmée*, sans transaction blockchain. Il est **marqué « simulé »** dans l'historique et sur le justificatif.
 - **Réception réelle** : le transfert « Depuis mon compte Swissquote » (fonction existante) suit les mêmes statuts.
 
 ### 8.2 Animation de confirmation
 - Ne se déclenche **qu'au statut confirmée**, jamais en attente.
 - **Disque orange de 64 px avec une petite coche blanche** (SVG ; la coche se dessine via `stroke-dashoffset` en 350 ms, le disque passe de 0.6 à 1 en échelle en 200 ms). Avec `prefers-reduced-motion` : apparition en fondu, sans tracé.
-- Texte : « **Réception confirmée — 250 USDC** » (ou « Envoi confirmé — 10 USDC »), puis le solde mis à jour avec un léger compteur animé.
-- Dessous : **Voir le justificatif** · **Télécharger**.
+- Texte : « **Payment received — 250 USDC** » (ou « Payment sent — 10 USDC »), puis le solde mis à jour avec un léger compteur animé.
+- Dessous : **View receipt** · **Download**.
 - Affichage en **couche légère dans l'écran** (carte qui glisse du haut ou panneau intégré), qui ne bloque pas le parcours et se ferme toute seule après 8 s ou avec une croix. **Pas de modale bloquante.**
 - Une transaction en attente affiche un indicateur discret (cercle de progression gris + « En attente de confirmation sur Ethereum… ») **sans coche**.
 
 ### 8.3 Justificatif PDF
 Généré **côté client** avec `jspdf` (bibliothèque établie). Contenu :
-- en-tête avec le logo, « My Wall — Justificatif de transaction », et la mention « Prototype — données de test » ;
+- en-tête avec le logo, « My Wall — Transaction receipt », et la mention « Prototype — test data » ;
 - **référence unique** du document (`MW-AAAAMMJJ-<8 premiers caractères du hash>`) et **identifiant de transaction** (hash) avec un lien Etherscan Sepolia s'il existe ;
 - **type** (Réception / Envoi / Échange), **statut**, **réseau** (Ethereum Sepolia) ;
 - **actif, montant**, et **frais** indiqués séparément (« 0.00 — offerts par Swissquote » si sponsorisés) ;
@@ -342,7 +342,7 @@ Généré **côté client** avec `jspdf` (bibliothèque établie). Contenu :
 - **contre-valeur indicative** en CHF, avec le taux utilisé et la mention « indicatif » ;
 - **jamais de clé privée, de code de récupération ou de part de clé.**
 
-Nom de fichier : `2026-10-10_reception_USDC_MW-20261010-ab12cd34.pdf`.
+Nom de fichier : `2026-10-10_received_USDC_MW-20261010-ab12cd34.pdf`.
 
 ### 8.4 Classement automatique et absence de doublons
 - Le justificatif est **dérivé de la transaction**. Son identifiant est `docId = type + ':' + txHash` (ou l'identifiant simulé). Le même document est servi depuis le **détail de la transaction** et depuis **Swaplet → Documents**.
@@ -351,7 +351,7 @@ Nom de fichier : `2026-10-10_reception_USDC_MW-20261010-ab12cd34.pdf`.
 ---
 
 ## 9. Swaplet → Documents (`/wallet/swaplet`)
-- Onglets soulignés : **Documents** (actif) · **Échanger** (désactivé, badge « Prochaine version »).
+- Onglets soulignés : **Documents** (actif) · **Échanger** (désactivé, badge « Next release »).
 - Liste groupée par **année → mois**. Une ligne contient : date, type (icône + texte), actif, montant, référence, puis les actions **Aperçu** et **Télécharger**.
 - **Recherche** (référence, montant, adresse) et **filtres** en capsules : Actif (USDC, ETH), Type (Réception, Envoi, Échange), Période (Ce mois, 3 mois, Année, Personnalisée).
 - **Ordinateur** : liste à gauche (7 colonnes) + **aperçu latéral** à droite (5 colonnes), rendu HTML du justificatif + bouton Télécharger PDF.
@@ -385,10 +385,10 @@ Les alertes personnelles (A, C avec action requise) ne sont **jamais** mélangé
 ---
 
 ## 11. Restylage et traduction des écrans existants
-- **Tout le wallet en français**, avec une terminologie cohérente : Envoyer, Recevoir, Justificatif, Clé de l'appareil, Code de récupération, Frais offerts par Swissquote, En attente, Confirmée, Échouée.
+- **Tout le site en anglais** (y compris les écrans déjà existants, la console admin, la page attaquant, les messages d'erreur, les e-mails de la Mock Inbox et les PDF), avec une terminologie cohérente : Send, Receive, Receipt, Device key, Recovery code, Network fees covered by Swissquote, Pending, Confirmed, Failed, Swaplet, Documents, Insights → utiliser **« Information »** pour la section (catégories : *My transactions*, *Crypto market*, *My Wall updates*).
 - `Send`, `Asset`, `Dapps`, `Settings`, `Recover`, `Inbox` : nouveaux tokens, icônes Lucide, sans émojis. Toute la logique existante est conservée : simulation en langage clair, step-up, OTP, délai de réflexion, refus sanctions, alerte `approve` illimité, rotation d'owner.
-- `Admin` (console Swissquote) et `Attacker` : restylage léger aux couleurs Swissquote, traduction en français. Une bannière discrète indique « Console interne Swissquote — simulation ».
-- Renommage : toutes les occurrences visibles de « SQ Wallet », « Wallet tab » ou « SQ » utilisées comme nom produit deviennent **My Wall** ou **Mon wallet**. Mets aussi à jour `index.html` (title, favicon = logo), le README et `docs/DEMO_SCRIPT.md`.
+- `Admin` (console Swissquote) et `Attacker` : restylage léger aux couleurs Swissquote, entièrement en anglais. Une bannière discrète indique « Swissquote internal console — simulation ».
+- Renommage : toutes les occurrences visibles de « SQ Wallet », « Wallet tab » ou « SQ » utilisées comme nom produit deviennent **My Wall** ou **My Wallet**. Mets aussi à jour `index.html` (title, favicon = logo), le README et `docs/DEMO_SCRIPT.md`.
 
 ---
 
@@ -422,24 +422,24 @@ Les alertes personnelles (A, C avec action requise) ne sont **jamais** mélangé
 
 **Téléphone (Chrome DevTools en 390×844, ou vrai téléphone sur le même wifi via `vite --host`)**
 1. `/sq/markets` : l'app Swissquote reconstituée (onglets, liste SMI qui vit).
-2. Tirer la languette « Mon wallet » : le panneau monte.
+2. Tirer la languette « My Wallet » : le panneau monte.
 3. Activation : document de démonstration → passkey → mot de passe (montrer d'abord un mot de passe trop court qui est refusé) → 3 questions (montrer qu'une question choisie disparaît des autres listes) → création → kit de récupération **sans QR** (impression).
 4. My Wall : soldes en grand en haut. Faire remonter le volet.
-5. « Simuler une réception » : *en attente* (pas de coche), puis *confirmée* avec le **disque orange et la coche**, et le solde mis à jour.
+5. « Simulate an incoming payment » : *en attente* (pas de coche), puis *confirmée* avec le **disque orange et la coche**, et le solde mis à jour.
 6. Voir le justificatif → le retrouver dans **Swaplet → Documents**.
 7. Réception réelle depuis le compte Swissquote → lien Etherscan → justificatif réel.
 8. Informations : les 3 catégories, lu / non lu.
 9. Sécurité : afficher temporairement la clé (compte à rebours, remasquage) ; export chiffré ; import avec un **mauvais mot de passe** refusé.
 10. Envoi sans ETH, step-up au-dessus de 50 USDC, refus sanctions, récupération, attaquant refusé, porte de sortie (scénario existant).
 
-**Ordinateur (1440×900)** : mêmes étapes depuis le **bouton « Mon wallet »** près du compte. Montrer la grille multi-zones, les devises réparties horizontalement et le volet qui remonte à la molette.
+**Ordinateur (1440×900)** : mêmes étapes depuis le **bouton « My Wallet »** près du compte. Montrer la grille multi-zones, les devises réparties horizontalement et le volet qui remonte à la molette.
 
 **Cas supplémentaires à montrer** : mot de passe trop court ; question indisponible ailleurs ; erreur de déverrouillage ; expiration de la révélation des clés ; mauvais mot de passe de sauvegarde ; transaction en attente sans coche.
 
 ---
 
 ## 15. Critères d'acceptation (à cocher dans `docs/PLAN.md`)
-- [ ] My Wall partout dans l'interface ; logo fourni utilisé sans modification ; palette, boutons, icônes et arrondis conformes aux références
+- [ ] Interface 100 % en anglais ; My Wall partout dans l'interface ; logo fourni utilisé sans modification ; palette, boutons, icônes et arrondis conformes aux références
 - [ ] Plus aucun émoji ; icônes Lucide au trait
 - [ ] La démo commence dans l'interface Swissquote reconstituée ; languette (glisser + toucher + clavier) ; bouton ordinateur près du compte
 - [ ] Mises en page mobile, tablette et ordinateur distinctes, avec les mêmes fonctions ; aucun défilement horizontal à 360 px

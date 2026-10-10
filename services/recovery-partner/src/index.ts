@@ -26,6 +26,7 @@ interface ShareRecord {
   questions: { question: string; salt: string; hash: string }[];
   paperCommitment: string; // sha256 of the paper share — the partner never holds the paper share itself
   share2Commitment?: string; // sha256 of share ② (security key / offline file) — never the share itself
+  contactCommitment?: string; // #14 sha256 of the trusted contact's share ④ (2-of-4 split) — never the share itself
   createdAt: string;
 }
 
@@ -37,7 +38,7 @@ interface Session {
   liveness?: 'match' | 'no-match';
   answers?: { correct: number; total: number };
   paperProof?: boolean;
-  proofKind?: 'paper' | 'key';
+  proofKind?: 'paper' | 'key' | 'contact';
   decision?: 'released' | 'refused';
   riskScore?: number;
   // factor: English, factorFr: French twin (folded on read by localizeResponses); legacy sessions are French-only
@@ -62,6 +63,7 @@ interface StagedShare {
   share: string;
   paperCommitment: string;
   share2Commitment: string;
+  contactCommitment?: string;
   createdAt: string;
   expiresAt: string;
 }
@@ -100,6 +102,7 @@ const security = createSecurity({
     ['GET', '/attestations/:id'], // read by the co-signer only
     ['GET', '/shares/:clientId/staged/:stageId'], // recovery-kit replacement: co-signer checks, then activates
     ['POST', '/shares/:clientId/commit'],
+    ['POST', '/shares/:clientId/verify'], // #14 recovery health check (co-signer): does a part match? (hash only)
   ],
   owner: (req) => {
     const seg = segmentsOf(req.path);
@@ -170,15 +173,15 @@ app.post(
   route((req) => {
     const clientId = String(req.params.clientId);
     if (!store.data.shares[clientId]) throw new HttpError(404, t('No recovery enrolment for this client', 'Aucune inscription de récupération pour ce client'));
-    const { share, paperCommitment, share2Commitment } = req.body as { share: string; paperCommitment: string; share2Commitment: string };
+    const { share, paperCommitment, share2Commitment, contactCommitment } = req.body as { share: string; paperCommitment: string; share2Commitment: string; contactCommitment?: string };
     const hex = (v: unknown, n: number) => typeof v === 'string' && new RegExp(`^0x[0-9a-fA-F]{${n}}$`).test(v);
-    if (!hex(share, 66) || !hex(paperCommitment, 64) || !hex(share2Commitment, 64)) throw new HttpError(400, t('Invalid share data', 'Données de part invalides'));
+    if (!hex(share, 66) || !hex(paperCommitment, 64) || !hex(share2Commitment, 64) || (contactCommitment !== undefined && !hex(contactCommitment, 64))) throw new HttpError(400, t('Invalid share data', 'Données de part invalides'));
     const id = newId();
     const now = Date.now();
     store.update((d) => {
       d.staged ??= {};
       for (const [k, v] of Object.entries(d.staged)) if (v.clientId === clientId || new Date(v.expiresAt).getTime() < now) delete d.staged[k];
-      d.staged[id] = { clientId, share, paperCommitment, share2Commitment, createdAt: nowIso(), expiresAt: new Date(now + 60 * 60_000).toISOString() };
+      d.staged[id] = { clientId, share, paperCommitment, share2Commitment, ...(contactCommitment ? { contactCommitment } : {}), createdAt: nowIso(), expiresAt: new Date(now + 60 * 60_000).toISOString() };
     });
     return { stageId: id };
   }),
@@ -203,6 +206,9 @@ app.post(
     store.update((d) => {
       const rec = d.shares[clientId];
       Object.assign(rec, { share: s.share, paperCommitment: s.paperCommitment, share2Commitment: s.share2Commitment, createdAt: nowIso() });
+      // #14: the trusted contact's commitment belongs to this split only (a kit replaced without contact drops it).
+      if (s.contactCommitment) rec.contactCommitment = s.contactCommitment;
+      else delete rec.contactCommitment;
       if (req.body?.safeAddress) rec.safeAddress = String(req.body.safeAddress);
       delete d.staged![stageId];
     });
@@ -272,10 +278,27 @@ app.post(
     // (or the offline file). Only a hash is compared — the partner never receives the client's parts.
     const rec = store.data.shares[s.clientId];
     const c = String(req.body.commitment ?? '').toLowerCase();
-    const kind: 'paper' | 'key' = req.body.kind === 'key' ? 'key' : 'paper';
-    const ok = kind === 'paper' ? c === rec.paperCommitment.toLowerCase() : !!rec.share2Commitment && c === rec.share2Commitment.toLowerCase();
+    const kind: 'paper' | 'key' | 'contact' = req.body.kind === 'key' ? 'key' : req.body.kind === 'contact' ? 'contact' : 'paper';
+    const ok = commitmentMatches(rec, kind, c);
     store.update((d) => Object.assign(d.sessions[s.id], { paperProof: ok, proofKind: kind }));
     return { paperProof: ok, kind };
+  }),
+);
+
+function commitmentMatches(rec: ShareRecord, kind: 'paper' | 'key' | 'contact', c: string) {
+  const want = kind === 'paper' ? rec.paperCommitment : kind === 'key' ? rec.share2Commitment : rec.contactCommitment;
+  return !!want && /^0x[0-9a-f]{64}$/.test(c) && want.length === c.length && timingSafeEqual(Buffer.from(c), Buffer.from(want.toLowerCase()));
+}
+
+/** #14 recovery health check (internal, from the co-signer): does the client's part match? Only a hash is compared. */
+app.post(
+  '/shares/:clientId/verify',
+  route((req) => {
+    const rec = store.data.shares[String(req.params.clientId)];
+    if (!rec) throw new HttpError(404, t('No recovery enrolment for this client', 'Aucune inscription de récupération pour ce client'));
+    const kind = req.body?.kind;
+    if (!['paper', 'key', 'contact'].includes(kind)) throw new HttpError(400, t('Invalid part', 'Partie invalide'));
+    return { match: commitmentMatches(rec, kind, String(req.body?.commitment ?? '').toLowerCase()), enrolled: true };
   }),
 );
 
@@ -291,7 +314,9 @@ app.post(
     factors.push({
       ...(s.proofKind === 'key'
         ? biField('factor', 'Recovery part ② opened with the security key (or offline file)', 'Partie ② ouverte avec la clé de sécurité (ou le fichier hors ligne)')
-        : biField('factor', 'Paper recovery code presented', 'Code de récupération papier présenté')),
+        : s.proofKind === 'contact'
+          ? biField('factor', 'Trusted contact’s part ④ presented', 'Partie ④ du contact de confiance présentée')
+          : biField('factor', 'Paper recovery code presented', 'Code de récupération papier présenté')),
       points: s.paperProof ? 0 : 40,
       ok: !!s.paperProof,
     });

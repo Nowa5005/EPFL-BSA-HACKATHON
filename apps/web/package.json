@@ -17,6 +17,7 @@
     "@simplewebauthn/browser": "^14.0.0",
     "@sq/shared": "*",
     "@types/qrcode": "^1.5.5",
+    "ethers": "^6.17.0",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.55.0",
     "qrcode": "^1.5.4",

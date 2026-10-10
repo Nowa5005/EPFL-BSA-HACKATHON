@@ -34,7 +34,8 @@
     "screenshots": "tsx scripts/screenshots.ts",
     "build:contracts": "tsx scripts/build-contracts.ts",
     "test:contracts": "tsx scripts/build-contracts.ts --check && node --import tsx --test contracts/test/*.test.ts",
-    "deploy:guard": "tsx scripts/deploy-guard.ts"
+    "deploy:guard": "tsx scripts/deploy-guard.ts",
+    "redeploy": "tsx scripts/redeploy-safe.ts"
   },
   "repository": {
     "type": "git",
@@ -54,10 +55,13 @@
   },
   "dependencies": {
     "@safe-global/safe-deployments": "^1.37.0",
+    "bitcoinjs-lib": "7.0.2",
     "dotenv": "^17.0.0",
+    "ecpair": "3.0.2",
     "ethers": "^6.15.0",
     "jsqr": "^1.4.0",
     "pngjs": "^7.0.0",
-    "shamir-secret-sharing": "^0.0.4"
+    "shamir-secret-sharing": "^0.0.4",
+    "tiny-secp256k1": "2.2.4"
   }
 }

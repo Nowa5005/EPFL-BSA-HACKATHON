@@ -6,24 +6,30 @@
 import { useEffect, useRef, useState } from 'react';
 import { HardDrive, KeyRound, RefreshCw, Usb } from 'lucide-react';
 import { Wallet, sha256, type HDNodeWallet } from 'ethers';
-import { encodeRecoveryCode, sealWithPassword, signSafeTx, splitRecoveryKey } from '@sq/shared';
+import { CONTACT_SHARE_ORDER, encodeRecoveryCode, invitationLink, sealInvitation, sealWithPassword, signSafeTx, splitRecoveryKey } from '@sq/shared';
 import { cosigner, partner } from '../lib/api';
 import { decryptDeviceKey, getDevice, passkeyAssertion, saveDevice } from '../lib/device';
 import { useLocal } from '../lib/hooks';
 import { privacyLock } from '../lib/privacy';
 import { tr } from '../lib/i18n';
-import { Button, Card, dateOnly, Field, Notice, SecretInput, Spinner, TxLink, Why } from '../components/ui';
+import { Button, Card, CopyButton, dateOnly, Field, Notice, SecretInput, Spinner, TxLink, Why } from '../components/ui';
 import { RecoveryKitSetup, type Share2Persist } from '../components/RecoveryKitSetup';
 
 type Kit = { share2: null | { method: 'security-key' | 'offline-password'; storedAt: string } };
 type Phase = 'idle' | 'auth' | 'kit' | 'confirming' | 'done';
 
-export function RecoveryKitCard() {
+/**
+ * `contactName` (#14, from Security → Trusted contact): same replacement, but the new recovery key K3′ is split
+ * 2-of-4 — ① paper · ② security key · ③ partner · ④ trusted contact — and the contact's part leaves this device only
+ * encrypted for the invitation link (its key sits in the link's #fragment, never sent to Swissquote).
+ */
+export function RecoveryKitCard({ contactName, onFinished }: { contactName?: string; onFinished?: () => void } = {}) {
   const { device, session } = useLocal();
   const clientId = session!.clientId;
   const safeAddress = device!.safeAddress!;
   const [kit, setKit] = useState<Kit | null>(null);
-  const [phase, setPhase] = useState<Phase>('idle');
+  const [phase, setPhase] = useState<Phase>(contactName ? 'auth' : 'idle');
+  const [inviteLink, setInviteLink] = useState('');
   const [pw, setPw] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -31,7 +37,7 @@ export function RecoveryKitCard() {
   const [txHash, setTxHash] = useState('');
   const [partnerOk, setPartnerOk] = useState(true);
   // Secrets: memory only, dropped when the flow ends.
-  const secrets = useRef<{ k1?: Wallet | HDNodeWallet; walletPw?: string; k3?: string; paper?: string; key?: string | null; partner?: string; part2?: Share2Persist; share2Commitment?: string } | null>(null);
+  const secrets = useRef<{ k1?: Wallet | HDNodeWallet; walletPw?: string; k3?: string; paper?: string; key?: string | null; partner?: string; contact?: string; part2?: Share2Persist; share2Commitment?: string } | null>(null);
   const load = () => cosigner.get(`/clients/${clientId}/recovery-kit`).then(setKit).catch(() => setKit({ share2: null }));
   useEffect(() => {
     void load();
@@ -61,8 +67,8 @@ export function RecoveryKitCard() {
         throw new Error(tr('Incorrect password.', 'Mot de passe incorrect.'));
       });
       const k3 = Wallet.createRandom();
-      const shares = await splitRecoveryKey(k3.privateKey);
-      secrets.current = { k1, walletPw: pw, k3: k3.address, paper: shares.paper, key: shares.key, partner: shares.partner, share2Commitment: sha256(shares.key) };
+      const shares: Record<string, string> = contactName ? await splitRecoveryKey(k3.privateKey, CONTACT_SHARE_ORDER) : await splitRecoveryKey(k3.privateKey);
+      secrets.current = { k1, walletPw: pw, k3: k3.address, paper: shares.paper, key: shares.key, partner: shares.partner, contact: shares.contact, share2Commitment: sha256(shares.key) };
       setCode(encodeRecoveryCode(shares.paper));
       setPhase('kit');
     } catch (e: any) {
@@ -81,7 +87,14 @@ export function RecoveryKitCard() {
     setPhase('confirming');
     try {
       // 1. The partner prepares the new share ③ (inactive until the on-chain swap is done).
-      const st = await partner.post(`/shares/${clientId}/stage`, { share: s.partner, paperCommitment: sha256(s.paper), share2Commitment: s.share2Commitment });
+      const st = await partner.post(`/shares/${clientId}/stage`, { share: s.partner, paperCommitment: sha256(s.paper), share2Commitment: s.share2Commitment, ...(s.contact ? { contactCommitment: sha256(s.contact) } : {}) });
+      // #14: the contact's part, encrypted for the invitation link (valid only once K3′ is on-chain).
+      let invite: { token: string; inviteKey: string } | null = null;
+      if (contactName && s.contact) {
+        const sealed = await sealInvitation(safeAddress, s.contact);
+        const r = await cosigner.post(`/clients/${clientId}/trusted-contact/invitation`, { name: contactName, recoveryAddress: s.k3, iv: sealed.iv, ciphertext: sealed.ciphertext });
+        invite = { token: r.token, inviteKey: sealed.inviteKey };
+      }
       // 2. swapOwner(K3 → K3′): exact transaction from the co-signer, signed by the device key + passkey.
       const prep = await cosigner.post(`/clients/${clientId}/recovery-kit/rotation/prepare`, { newRecoveryAddress: s.k3 });
       const signatureK1 = await signSafeTx(s.k1, safeAddress, prep.safeTx);
@@ -92,6 +105,10 @@ export function RecoveryKitCard() {
       if (d) saveDevice({ ...d, paperShareEnc: await sealWithPassword(safeAddress, s.paper, s.walletPw!) });
       setTxHash(r.txHash);
       setPartnerOk(!!r.partnerCommitted);
+      if (invite) {
+        await cosigner.post(`/clients/${clientId}/trusted-contact/sent`).catch(() => undefined);
+        setInviteLink(invitationLink(window.location.origin, invite.token, invite.inviteKey));
+      }
       secrets.current = null;
       setCode('');
       setPhase('done');
@@ -109,13 +126,14 @@ export function RecoveryKitCard() {
     setCode('');
     setErr('');
     setPhase('idle');
+    onFinished?.();
   };
 
   return (
     <Card className="space-y-3">
       <div className="flex items-center gap-2">
         <KeyRound size={20} strokeWidth={1.75} />
-        <h2 className="text-[17px] font-semibold">{tr('Recovery kit', 'Kit de récupération')}</h2>
+        <h2 className="text-[17px] font-semibold">{contactName ? tr(`Add ${contactName} as trusted contact`, `Ajouter ${contactName} comme contact de confiance`) : tr('Recovery kit', 'Kit de récupération')}</h2>
       </div>
       <p className="text-[13px] text-sq-muted">
         {tr(
@@ -154,6 +172,14 @@ export function RecoveryKitCard() {
             if (pw) void start();
           }}
         >
+          {contactName && (
+            <Why>
+              {tr(
+                `Your backup key will be split in 4 parts — ① paper code, ② security key, ③ partner, ④ ${contactName} — any 2 restore your access, so the partner and ${contactName} together can help you if you lose both your paper code and your security key. Neither of them alone can do anything.`,
+                `Votre clé de secours sera découpée en 4 parties — ① code papier, ② clé de sécurité, ③ partenaire, ④ ${contactName} — 2 parties suffisent : le partenaire et ${contactName} ensemble pourront vous aider si vous perdez votre code papier et votre clé de sécurité. Aucun des deux ne peut rien faire seul.`,
+              )}
+            </Why>
+          )}
           <Why>
             {tr(
               'A NEW backup key is created on this device and split again; the old one is then replaced on the blockchain (device key + Swissquote, with Touch ID). Every old part — paper code, backup file, partner share — becomes useless. Have your security key and something to write the new code with.',
@@ -215,6 +241,26 @@ export function RecoveryKitCard() {
             'La nouvelle clé de secours est sur la blockchain. Détruisez l’ancien code papier et supprimez tout ancien fichier de sauvegarde : ils n’ouvrent plus rien.',
           )}{' '}
           <TxLink hash={txHash} />
+          {inviteLink && (
+            <div className="mt-3 space-y-2" data-testid="trusted-invite">
+              <div className="font-medium">{tr(`Invitation for ${contactName}`, `Invitation pour ${contactName}`)}</div>
+              <p>
+                {tr(
+                  `Send this link to ${contactName} yourself (in this prototype no e-mail is sent). It works once and expires in 7 days. The secret part of the link (after #) never reaches Swissquote: ${contactName} will protect their part with their own passkey or a passphrase.`,
+                  `Envoyez vous-même ce lien à ${contactName} (ce prototype n’envoie aucun e-mail). Il ne sert qu’une fois et expire dans 7 jours. La partie secrète du lien (après #) n’atteint jamais Swissquote : ${contactName} protégera sa partie avec sa propre passkey ou une phrase secrète.`,
+                )}
+              </p>
+              <code className="block break-all rounded-[10px] bg-sq-bg p-2 font-mono text-[12px]" data-testid="trusted-invite-link">
+                {inviteLink}
+              </code>
+              <div className="flex flex-wrap gap-2">
+                <CopyButton value={inviteLink} sensitive />
+                <a href={inviteLink} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center text-[14px] font-medium underline">
+                  {tr('Open as the contact (demo)', 'Ouvrir comme le contact (démo)')}
+                </a>
+              </div>
+            </div>
+          )}
           {!partnerOk && (
             <div className="mt-2">
               {tr('The recovery partner could not be reached yet: ', 'Le partenaire de récupération n’a pas encore pu être joint : ')}

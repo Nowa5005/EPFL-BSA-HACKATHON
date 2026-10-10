@@ -49,6 +49,7 @@ import { decodeBilingual, evaluatePolicy, ethToUsdcEquivalent, usdcEquivalent, D
 import { feeChf, policyRates } from './rates';
 import { recordOpportunistic, registerSnapshotRoutes, startSnapshotTimer } from './snapshots';
 import { registerRecoveryKitRoutes } from './recoveryKit';
+import { registerTrustedContactRoutes, startRecoveryHealthReminders } from './trustedContact';
 import { effectiveDailyLimit, registerDuressRoutes } from './duress';
 import { applyTravelRule, assertTravelRuleCleared, recordPrepared, recordSubmitted, registerTravelRuleRoutes, registerTrpRoutes, transmitTravelRule, travelRuleSummary } from './travelRuleGlue';
 import { registerStatementRoutes } from './statements';
@@ -79,6 +80,8 @@ const security = createSecurity({
     ['GET', '/config'],
     ['GET', '/pricing'],
     ['GET', '/trp/identity'], // #9 Travel Rule identity (Ed25519 public key) for counterparty VASPs
+    ['GET', '/trusted/:token'], // #14 trusted contact page (unguessable token, only its hash is stored)
+    ['POST', '/trusted/:token/accept'],
   ],
   internalRoutes: [['POST', '/recovery/alerts']], // sent by the recovery partner
   owner: (req) => {
@@ -930,6 +933,8 @@ registerStatementRoutes(app, route);
 registerSnapshotRoutes(app, route);
 registerProtectionRoutes(app, route);
 registerRecoveryKitRoutes(app, route); // recovery key part ② (security-key ciphertext) + recovery-key rotation
+registerTrustedContactRoutes(app, route); // #14 trusted contact (2-of-4) + recovery health check
+startRecoveryHealthReminders();
 startSnapshotTimer();
 registerIndexerRoutes(app, route); // #3 / #19: on-chain receipts + unrecognised tokens
 startIndexer();

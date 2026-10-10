@@ -31,13 +31,13 @@ import {
 } from '@sq/shared';
 import { internalHeaders, loadDotenv } from '@sq/shared/server';
 import { DELAY_ABI, readProtection } from '@sq/shared/protection';
+import { externalReceiptStep } from './e2e-external-receipt';
 
 loadDotenv(); // INTERNAL_API_TOKEN (dev only) to obtain a session token for the headless client
 const provider = makeProvider();
 const C = SERVICE_URLS.cosigner;
 const P = SERVICE_URLS.partner;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-import { externalReceiptStep } from './e2e-external-receipt';
 const step = (n: number | string, t: string) => console.log(`\n\x1b[1m\x1b[34m[${n}] ${t}\x1b[0m`);
 const ok = (t: string) => console.log(`  \x1b[32m✔\x1b[0m ${t}`);
 const info = (t: string) => console.log(`  ${t}`);

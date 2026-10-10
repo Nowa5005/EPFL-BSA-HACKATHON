@@ -33,7 +33,12 @@ export interface EncKey {
 export interface EncKeyFile {
   format: typeof KEYFILE_FORMAT;
   relayer: EncKey;
+  /** K2 version 1 (the original keys, never rewritten). */
   cosigners: Record<string, EncKey>;
+  /** #17 — K2 versions metadata (absent = only v1, active). See k2versions.ts. */
+  k2Versions?: import('./k2versions').K2VersionMeta[];
+  /** #17 — K2 keys of versions ≥ 2: version → clientId → encrypted key. */
+  cosignersV?: Record<string, Record<string, EncKey>>;
 }
 
 export function encryptKey(k: PlainKey, master: string): EncKey {

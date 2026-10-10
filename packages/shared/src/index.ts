@@ -15,3 +15,4 @@ export * from './tokens';
 export * from './ivms101';
 export * from './trp';
 export * from './deviceBinding';
+export * from './trustedContact';

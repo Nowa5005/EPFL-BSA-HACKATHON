@@ -67,23 +67,26 @@ export async function evalSecurityKeyPrf(credentialId: string, prfSaltHex: strin
  * Registers a dedicated credential on the security key (or second device) with PRF, then encrypts `share` with
  * the derived key. Returns the ciphertext record — the only thing that ever leaves this browser.
  */
-export async function protectShareWithSecurityKey(input: { safeAddress: string; share: string; clientId: string; userName: string }): Promise<SecurityKeyShare> {
+export async function protectShareWithSecurityKey(input: { safeAddress: string; share: string; clientId: string; userName: string; forTrustedContact?: boolean }): Promise<SecurityKeyShare> {
   const prfSalt = newPrfSalt();
+  // #14 — the trusted contact protects THEIR part with their own passkey (phone, laptop or security key: any authenticator).
+  const contact = !!input.forTrustedContact;
+  const userLabel = contact ? `${input.userName} — My Wall trusted contact` : `${input.userName} — My Wall recovery key ②`;
   const reg = await startRegistration({
     optionsJSON: {
       challenge: challenge(),
       rp: { name: 'My Wall recovery key', id: window.location.hostname },
       user: {
         id: bufferToBase64URLString(crypto.getRandomValues(new Uint8Array(16)).buffer),
-        name: `${input.userName} — My Wall recovery key ②`,
-        displayName: `${input.userName} — My Wall recovery key ②`,
+        name: userLabel,
+        displayName: userLabel,
       },
       pubKeyCredParams: [
         { type: 'public-key', alg: -7 },
         { type: 'public-key', alg: -8 },
         { type: 'public-key', alg: -257 },
       ],
-      authenticatorSelection: { authenticatorAttachment: 'cross-platform', residentKey: 'discouraged', userVerification: 'discouraged' },
+      authenticatorSelection: contact ? { residentKey: 'discouraged', userVerification: 'preferred' } : { authenticatorAttachment: 'cross-platform', residentKey: 'discouraged', userVerification: 'discouraged' },
       attestation: 'none',
       timeout: 120_000,
       extensions: prfInput(prfSalt) as any,
@@ -102,7 +105,7 @@ export async function protectShareWithSecurityKey(input: { safeAddress: string; 
     rpId: window.location.hostname,
     prfSalt,
     transports,
-    label: reg.authenticatorAttachment === 'platform' ? 'second device' : 'security key',
+    label: contact ? 'trusted contact' : reg.authenticatorAttachment === 'platform' ? 'second device' : 'security key',
   });
   out.fill(0);
   return record;
