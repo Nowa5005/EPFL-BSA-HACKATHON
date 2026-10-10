@@ -124,8 +124,8 @@ export default function Attacker() {
           </ol>
           <Notice title={tr('4. What if everything were fooled?', '4. Et si tout était trompé ?')}>
             {tr(
-              'The key replacement still waits 48 h (2 min in the demo) while Alice is alerted by email, SMS and in her Swissquote account (separate sign-in) — one tap is enough to cancel. Her cloud backup is encrypted by her password, and 2 parts out of 3 are always required.',
-              'Le remplacement de clé attend encore 48 h (2 min en démo) pendant qu’Alice est alertée par email, SMS et dans son compte Swissquote (connexion séparée) — un geste suffit pour annuler. Sa sauvegarde cloud est chiffrée par son mot de passe, et 2 parties sur 3 sont toujours nécessaires.',
+              'The key replacement still waits 48 h (2 min in the demo) while Alice is alerted by email, SMS and in her Swissquote account (separate sign-in) — one tap is enough to cancel. Part ② of her backup key is locked to her physical security key, which no remote attacker has, and 2 parts out of 3 are always required.',
+              'Le remplacement de clé attend encore 48 h (2 min en démo) pendant qu’Alice est alertée par email, SMS et dans son compte Swissquote (connexion séparée) — un geste suffit pour annuler. La partie ② de sa clé de secours est verrouillée par sa clé de sécurité physique, qu’aucun attaquant à distance ne possède, et 2 parties sur 3 sont toujours nécessaires.',
             )}
           </Notice>
         </Card>

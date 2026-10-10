@@ -2,7 +2,7 @@
 // the passkey credential id, and the Swissquote session. K1 is only decrypted in memory.
 
 import { Wallet, encryptKeystoreJson, type HDNodeWallet } from 'ethers';
-import { decryptCloudShare, type CloudBackup } from '@sq/shared';
+import { openWithPassword, type PasswordSealed } from '@sq/shared';
 import { startAuthentication, startRegistration } from './passkeyGuard'; // guarded for the native app
 import { cosigner } from './api';
 import { tr } from './i18n';
@@ -17,7 +17,7 @@ export interface DeviceRecord {
   createdAt: string;
   /** Recovery code (share ①) kept on this device ENCRYPTED with the wallet password, so it can be shown again
    *  after re-authentication. Trade-off documented in THREAT_MODEL.md; the client can delete it. */
-  paperShareEnc?: CloudBackup;
+  paperShareEnc?: PasswordSealed;
 }
 
 export interface BankSession {
@@ -178,7 +178,7 @@ export async function reauthenticate(password: string, clientId: string, onProgr
 export async function revealPaperCode(password: string): Promise<string | null> {
   const d = getDevice();
   if (!d?.paperShareEnc) return null;
-  return decryptCloudShare(d.paperShareEnc, password);
+  return openWithPassword(d.paperShareEnc, password);
 }
 
 export async function encryptKey(w: Wallet | HDNodeWallet, password: string, onProgress?: (p: number) => void) {

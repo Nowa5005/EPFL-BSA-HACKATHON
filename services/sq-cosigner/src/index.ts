@@ -47,6 +47,7 @@ import { effectiveTier, registerFeatureRoutes, tickScheduled } from './features'
 import { decodeBilingual, evaluatePolicy, ethToUsdcEquivalent, usdcEquivalent, DAPP_WHITELIST, SANCTIONED, type PolicyRates } from './policy';
 import { feeChf, policyRates } from './rates';
 import { recordOpportunistic, registerSnapshotRoutes, startSnapshotTimer } from './snapshots';
+import { registerRecoveryKitRoutes } from './recoveryKit';
 import { applyTravelRule, recordPrepared, recordSubmitted, registerTravelRuleRoutes } from './travelRuleGlue';
 import { registerStatementRoutes } from './statements';
 import { confirmWalletTx, docIdOf, hasReceipt, referenceOf, simulateReceive, trackIncoming, upsertWalletTx, type WalletTx } from './walletTx';
@@ -915,6 +916,7 @@ registerFeatureRoutes(app, route, publicClient);
 registerTravelRuleRoutes(app, route);
 registerStatementRoutes(app, route);
 registerSnapshotRoutes(app, route);
+registerRecoveryKitRoutes(app, route); // recovery key part ② (security-key ciphertext) + recovery-key rotation
 startSnapshotTimer();
 
 // ───────────────────────────── Inbox & activity ─────────────────────────────

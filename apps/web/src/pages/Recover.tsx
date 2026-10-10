@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, CircleCheck, CircleX, Cloud, FileKey2, Fingerprint, ShieldAlert, Smile, X } from 'lucide-react';
+import { ArrowLeft, Check, CircleCheck, CircleX, FileKey2, Fingerprint, HardDrive, ShieldAlert, Smile, Usb, X } from 'lucide-react';
 import { Wallet, sha256 } from 'ethers';
-import { buildSafeTx, combineShares, decodeRecoveryCode, decryptCloudShare, encryptCloudShare, questionLabel, signSafeTx, swapOwnerData, type CloudBackup } from '@sq/shared';
+import { buildSafeTx, decodeRecoveryCode, decryptShareOffline, parseShare2Record, questionLabel, reconstructK3FromShares, sealWithPassword, signSafeTx, swapOwnerData, type PasswordSealed, type Share2Record } from '@sq/shared';
+import { openShareWithSecurityKey } from '../lib/securityKey';
 import { bank, cosigner, partner } from '../lib/api';
 import { encryptKey, guessDeviceType, lock, registerPasskey, saveDevice, saveSession, setUnlocked } from '../lib/device';
 import { checkPassword } from '../lib/passwordPolicy';
@@ -29,7 +30,7 @@ interface Pending {
   credentialId: string;
   recoveryId: string;
   deviceType: 'mobile' | 'desktop';
-  paperShareEnc?: CloudBackup;
+  paperShareEnc?: PasswordSealed;
 }
 const loadPending = (): Pending | null => {
   try {
@@ -96,12 +97,14 @@ export default function Recover() {
   const [questions, setQuestions] = useState<string[]>([]);
   const [liveness, setLiveness] = useState<'match' | 'no-match' | null>(null);
   const [answers, setAnswers] = useState(['', '', '']);
-  // recovery material
-  const [mode, setMode] = useState<'paper' | 'cloud'>('paper');
+  // recovery material: any 2 of ① paper code, ② security key (or offline file), ③ partner
   const [code, setCode] = useState('');
   const [codeErr, setCodeErr] = useState('');
-  const [cloudFile, setCloudFile] = useState<File | null>(null);
-  const [cloudPw, setCloudPw] = useState('');
+  const [part2Mode, setPart2Mode] = useState<'key' | 'file' | 'none'>('none');
+  const [kitRecord, setKitRecord] = useState<Share2Record | null>(null);
+  const [part2File, setPart2File] = useState<File | null>(null);
+  const [filePw, setFilePw] = useState('');
+  const [part2Progress, setPart2Progress] = useState(0);
   // decision
   const [refusal, setRefusal] = useState<any>(null);
   const [k3, setK3] = useState<Wallet | null>(null);
@@ -127,6 +130,18 @@ export default function Recover() {
       })
       .catch((e) => setErr(e.message));
   }, [step, session, sessionId]);
+
+  // Part ② ciphertext kept by Swissquote (unreadable without the client's security key).
+  useEffect(() => {
+    if (step !== 2 || !session) return;
+    cosigner
+      .get(`/clients/${session.clientId}/recovery-kit`)
+      .then((r) => {
+        const rec = r?.share2?.record ? parseShare2Record(r.share2.record) : null;
+        setKitRecord(rec);
+      })
+      .catch(() => setKitRecord(null));
+  }, [step, session?.clientId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [first, ...rest] = (profile?.name ?? '').split(' ');
   const pwCheck = checkPassword(pw, { firstName: profile?.firstName ?? first, lastName: profile?.lastName ?? rest.join(' '), birthDate: profile?.birthDate });
@@ -157,51 +172,65 @@ export default function Recover() {
     }
   };
 
+  /** Opens part ② with the physical security key (record stored by Swissquote, or an offline copy) or the offline file. */
+  const openPart2 = async (): Promise<string | null> => {
+    if (part2Mode === 'none') return null;
+    let rec: Share2Record | null = part2Mode === 'key' ? kitRecord : null;
+    if (part2File) {
+      try {
+        rec = parseShare2Record(await part2File.text());
+      } catch {
+        throw new Error(tr('This file is not a My Wall recovery part ②.', "Ce fichier n'est pas une partie ② My Wall."));
+      }
+    }
+    if (!rec) return null;
+    if (rec.method === 'security-key') return openShareWithSecurityKey(rec);
+    return decryptShareOffline(rec, filePw, setPart2Progress).catch(() => {
+      throw new Error(tr('Wrong backup password for this offline file.', 'Mot de passe de sauvegarde incorrect pour ce fichier hors ligne.'));
+    });
+  };
+
   const decide = async (withMaterial: boolean) => {
     setBusy(true);
     setErr('');
     setCodeErr('');
     try {
-      let ownShare: string | null = null;
-      if (withMaterial && mode === 'paper') {
-        const r = decodeRecoveryCode(code);
-        if (!r.ok) {
-          setCodeErr(r.error);
-          return;
+      let paper: string | null = null;
+      let part2: string | null = null;
+      if (withMaterial) {
+        // The security key is asked first, directly after the click (some browsers require a fresh user gesture).
+        part2 = await openPart2();
+        if (code.replace(/ /g, '').length) {
+          const r = decodeRecoveryCode(code);
+          if (!r.ok) {
+            setCodeErr(r.error);
+            return;
+          }
+          paper = r.share;
         }
-        ownShare = r.share;
-        await partner.post(`/sessions/${sessionId}/paper-proof`, { commitment: sha256(ownShare), kind: 'paper' });
-      } else if (withMaterial && mode === 'cloud') {
-        let backup: CloudBackup;
-        try {
-          backup = JSON.parse(await cloudFile!.text());
-        } catch {
-          throw new Error(tr('This file is not a My Wall cloud backup.', "Ce fichier n'est pas une sauvegarde cloud My Wall."));
-        }
-        if (backup.kind !== 'sqwallet-cloud-backup') throw new Error(tr('This file is not a My Wall cloud backup.', "Ce fichier n'est pas une sauvegarde cloud My Wall."));
-        try {
-          ownShare = await decryptCloudShare(backup, cloudPw);
-        } catch {
-          throw new Error(tr('Wrong password for this backup (use the one chosen when the wallet was created).', 'Mot de passe incorrect pour cette sauvegarde (celui choisi à la création du wallet).'));
-        }
-        await partner.post(`/sessions/${sessionId}/paper-proof`, { commitment: sha256(ownShare), kind: 'cloud' });
+        // Proof of possession for the partner: only a hash, never the part itself.
+        if (paper) await partner.post(`/sessions/${sessionId}/paper-proof`, { commitment: sha256(paper), kind: 'paper' });
+        else if (part2) await partner.post(`/sessions/${sessionId}/paper-proof`, { commitment: sha256(part2), kind: 'key' });
       }
       const r = await partner.post(`/sessions/${sessionId}/decide`);
       if (r.decision !== 'released') {
         setRefusal(r);
         return;
       }
-      if (!ownShare) throw new Error(tr('One part of your backup key (paper code or cloud backup) is required.', 'Une partie de votre clé de secours (code papier ou sauvegarde cloud) est nécessaire.'));
-      const w = new Wallet(await combineShares([ownShare, r.share]));
+      const own = [paper, part2].filter((x): x is string => !!x);
+      if (!own.length) throw new Error(tr('One part of your backup key (paper code or security key) is required.', 'Une partie de votre clé de secours (code papier ou clé de sécurité) est nécessaire.'));
       const client = await cosigner.get(`/clients/${session!.clientId}`);
-      if (w.address.toLowerCase() !== client.owners?.recovery?.toLowerCase()) throw new Error(tr('This code or backup does not belong to this wallet.', 'Ce code ou cette sauvegarde n’appartient pas à ce wallet.'));
+      // Two own parts (paper + security key): the partner's part is not even needed. Otherwise: own part + partner.
+      const w = await reconstructK3FromShares(own.length >= 2 ? own : [own[0], r.share], { expectedAddress: client.owners?.recovery }).catch(() => {
+        throw new Error(tr('These parts do not belong to this wallet (or were replaced since).', 'Ces parties n’appartiennent pas à ce wallet (ou ont été remplacées depuis).'));
+      });
       setK3(w);
-      setPaperShare(mode === 'paper' ? ownShare : null);
+      setPaperShare(paper);
       setAttestationId(r.attestationId);
       setSafeAddress(client.safeAddress);
       setStep(3);
     } catch (e: any) {
-      setErr(e.message);
+      setErr(e?.name === 'NotAllowedError' ? tr('The security key was not used (cancelled or timed out). Try again.', 'La clé de sécurité n’a pas été utilisée (annulé ou délai dépassé). Réessayez.') : e.message);
     } finally {
       setBusy(false);
     }
@@ -230,7 +259,7 @@ export default function Recover() {
       set(++i, 'doing');
       const k1 = Wallet.createRandom();
       const keystore = await encryptKey(k1, pw);
-      const paperShareEnc = paperShare ? await encryptCloudShare(safeAddress, paperShare, pw) : undefined;
+      const paperShareEnc = paperShare ? await sealWithPassword(safeAddress, paperShare, pw) : undefined;
       set(i, 'done', <Addr a={k1.address} />);
       set(++i, 'doing');
       const on = await cosigner.get(`/clients/${session!.clientId}/onchain`);
@@ -336,54 +365,87 @@ export default function Recover() {
         <>
           <Why>
             {tr(
-              'You need 2 of the 3 parts of your backup key. The partner provides part ③; bring yours: your paper code (①) or your encrypted cloud backup (②).',
-              'Il faut 2 parties sur 3 de votre clé de secours. Le partenaire fournit la partie ③ ; apportez la vôtre : votre code papier (①) ou votre sauvegarde cloud chiffrée (②).',
+              'You need 2 of the 3 parts of your backup key: ① your paper code, ② your security key, ③ the partner’s part. Bring what you have: with your paper code and your security key, the partner’s part is not even needed.',
+              'Il faut 2 parties sur 3 de votre clé de secours : ① votre code papier, ② votre clé de sécurité, ③ la partie du partenaire. Apportez ce que vous avez : avec votre code papier et votre clé de sécurité, la partie du partenaire n’est même pas nécessaire.',
             )}
           </Why>
-          <Tabs
-            value={mode}
-            onChange={setMode}
-            tabs={[
-              { id: 'paper', label: tr('Paper code', 'Code papier') },
-              { id: 'cloud', label: tr('Cloud backup', 'Sauvegarde cloud') },
-            ]}
-          />
-          {mode === 'paper' ? (
-            <Card className="space-y-3">
-              <Field label={tr('Recovery code', 'Code de récupération')} error={codeErr || undefined} hint={tr('19 groups of 4 characters. Pasting is allowed.', '19 groupes de 4 caractères. Le collage est accepté.')}>
-                <textarea
-                  className={cx(inputCls, 'h-28 resize-none font-mono text-[15px] uppercase leading-relaxed tracking-wider')}
-                  value={code}
-                  onChange={(e) => {
-                    setCode(formatCode(e.target.value));
-                    setCodeErr('');
-                  }}
-                  spellCheck={false}
-                  autoCapitalize="characters"
-                  autoComplete="off"
-                  placeholder="XXXX XXXX XXXX …"
-                  aria-label={tr('Recovery code', 'Code de récupération')}
-                />
-              </Field>
-            </Card>
-          ) : (
-            <Card className="space-y-3">
-              <label className="flex min-h-[88px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[10px] border-2 border-dashed border-sq-line text-center text-[14px] text-sq-ink-2 hover:bg-sq-bg/60">
-                <Cloud size={24} strokeWidth={1.5} />
-                {cloudFile ? cloudFile.name : tr('Choose the backup file (my-wall-cloud-backup-….json)', 'Choisir le fichier de sauvegarde (my-wall-cloud-backup-….json)')}
-                <input type="file" accept="application/json,.json" className="sr-only" onChange={(e) => setCloudFile(e.target.files?.[0] ?? null)} />
-              </label>
-              <Field label={tr('Password chosen when the wallet was created', 'Mot de passe choisi à la création du wallet')}>
-                <SecretInput value={cloudPw} onChange={setCloudPw} autoComplete="off" />
-              </Field>
-            </Card>
-          )}
+          <Card className="space-y-3">
+            <h2 className="font-semibold">① {tr('Paper code', 'Code papier')}</h2>
+            <Field label={tr('Recovery code', 'Code de récupération')} error={codeErr || undefined} hint={tr('19 groups of 4 characters. Pasting is allowed. Leave empty if you do not have it.', '19 groupes de 4 caractères. Le collage est accepté. Laissez vide si vous ne l’avez pas.')}>
+              <textarea
+                className={cx(inputCls, 'h-28 resize-none font-mono text-[15px] uppercase leading-relaxed tracking-wider')}
+                value={code}
+                onChange={(e) => {
+                  setCode(formatCode(e.target.value));
+                  setCodeErr('');
+                }}
+                spellCheck={false}
+                autoCapitalize="characters"
+                autoComplete="off"
+                placeholder="XXXX XXXX XXXX …"
+                aria-label={tr('Recovery code', 'Code de récupération')}
+              />
+            </Field>
+          </Card>
+          <Card className="space-y-3">
+            <h2 className="font-semibold">② {tr('Security key', 'Clé de sécurité')}</h2>
+            <Tabs
+              value={part2Mode}
+              onChange={(v) => {
+                setPart2Mode(v);
+                setPart2File(null);
+                setFilePw('');
+              }}
+              tabs={[
+                { id: 'none', label: tr('Not using it', 'Non utilisée') },
+                { id: 'key', label: tr('Security key', 'Clé de sécurité') },
+                { id: 'file', label: tr('Offline file', 'Fichier hors ligne') },
+              ]}
+            />
+            {part2Mode === 'key' && (
+              <>
+                {kitRecord?.method === 'security-key' && !part2File ? (
+                  <p className="flex items-start gap-2 text-[14px] text-sq-ink-2">
+                    <Usb size={18} strokeWidth={1.75} className="mt-0.5 shrink-0" />
+                    {tr('Your encrypted part ② is kept by Swissquote — unreadable without your key. Insert your security key (or have your second device ready) and touch it when asked.', 'Votre partie ② chiffrée est conservée par Swissquote — illisible sans votre clé. Insérez votre clé de sécurité (ou préparez votre second appareil) et touchez-la quand on vous le demande.')}
+                  </p>
+                ) : (
+                  <label className="flex min-h-[88px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[10px] border-2 border-dashed border-sq-line text-center text-[14px] text-sq-ink-2 hover:bg-sq-bg/60">
+                    <Usb size={24} strokeWidth={1.5} />
+                    {part2File ? part2File.name : tr('Choose the offline copy (my-wall-security-key-part-….json)', 'Choisir la copie hors ligne (my-wall-security-key-part-….json)')}
+                    <input type="file" accept="application/json,.json" className="sr-only" onChange={(e) => setPart2File(e.target.files?.[0] ?? null)} />
+                  </label>
+                )}
+              </>
+            )}
+            {part2Mode === 'file' && (
+              <>
+                <label className="flex min-h-[88px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[10px] border-2 border-dashed border-sq-line text-center text-[14px] text-sq-ink-2 hover:bg-sq-bg/60">
+                  <HardDrive size={24} strokeWidth={1.5} />
+                  {part2File ? part2File.name : tr('Choose the offline backup file (my-wall-offline-backup-….json)', 'Choisir le fichier de sauvegarde hors ligne (my-wall-offline-backup-….json)')}
+                  <input type="file" accept="application/json,.json" className="sr-only" onChange={(e) => setPart2File(e.target.files?.[0] ?? null)} />
+                </label>
+                <Field label={tr('Backup password (not your wallet password)', 'Mot de passe de sauvegarde (pas celui du wallet)')}>
+                  <SecretInput value={filePw} onChange={setFilePw} autoComplete="off" />
+                </Field>
+                {busy && part2Progress > 0 && <p className="num text-[13px] text-sq-muted">{tr('Decrypting…', 'Déchiffrement…')} {Math.round(part2Progress * 100)} %</p>}
+              </>
+            )}
+          </Card>
           {err && <Notice tone="bad">{err}</Notice>}
-          <Button onClick={() => decide(true)} disabled={busy || (mode === 'paper' ? code.replace(/ /g, '').length < 4 : !cloudFile || !cloudPw)}>
+          <Button
+            onClick={() => decide(true)}
+            disabled={
+              busy ||
+              (code.replace(/ /g, '').length < 4 &&
+                !(part2Mode === 'key' && (kitRecord?.method === 'security-key' || part2File)) &&
+                !(part2Mode === 'file' && part2File && filePw))
+            }
+          >
             {busy ? <Spinner /> : tr('Verify and continue', 'Vérifier et continuer')}
           </Button>
           <Button variant="ghost" onClick={() => decide(false)} disabled={busy}>
-            {tr('I have neither the code nor the backup', "Je n'ai ni le code ni la sauvegarde")}
+            {tr('I have neither the code nor the security key', "Je n'ai ni le code ni la clé de sécurité")}
           </Button>
         </>
       )}

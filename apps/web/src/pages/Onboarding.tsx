@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, Check, Cloud, Copy, Eye, Fingerprint, IdCard, KeyRound, Printer, ScanFace, ShieldCheck, Smartphone } from 'lucide-react';
+import { ArrowLeft, Building2, Check, Fingerprint, IdCard, KeyRound, ScanFace, Smartphone } from 'lucide-react';
 import { Wallet, hashMessage, sha256 } from 'ethers';
 import {
   RECOVERY_QUESTIONS,
   availableQuestions,
   questionText,
   encodeRecoveryCode,
-  encryptCloudShare,
   ownershipStatement,
+  sealWithPassword,
   signSafeMessage,
   splitRecoveryKey,
 } from '@sq/shared';
@@ -18,6 +18,7 @@ import { checkPassword } from '../lib/passwordPolicy';
 import { useLocal } from '../lib/hooks';
 import { getLang, tr } from '../lib/i18n';
 import { Button, Card, cx, dateOnly, DemoFooter, Field, inputCls, Logo, MockBadge, Notice, ProgressList, SecretInput, Spinner, Steps, TxLink, Why, type ProgState } from '../components/ui';
+import { RecoveryKitSetup } from '../components/RecoveryKitSetup';
 import { PasswordChecklist } from '../components/PasswordChecklist';
 import { BiometricsOptions } from '../components/BiometricsOptions';
 
@@ -47,7 +48,9 @@ export default function Onboarding() {
   const [qs, setQs] = useState<(number | null)[]>([null, null, null]);
   const [answers, setAnswers] = useState(['', '', '']);
   const [prog, setProg] = useState<Prog>([]);
-  const [result, setResult] = useState<{ safeAddress: string; deployTx: string; code: string; cloudBlob: string } | null>(null);
+  const [result, setResult] = useState<{ safeAddress: string; deployTx: string; code: string } | null>(null);
+  // Part ② of the recovery key stays in memory only until the client protected it (security key or offline file).
+  const share2Ref = useRef<string | null>(null);
 
   useEffect(() => {
     bank.get(`/clients/${clientId}`).then(setProfile).catch(() => undefined);
@@ -81,7 +84,7 @@ export default function Onboarding() {
       tr('Preparing your backup key (3 parts)', 'Préparation de votre clé de secours (3 parties)'),
       tr('Opening your wallet on Ethereum (fees covered)', 'Ouverture de votre wallet sur Ethereum (frais offerts)'),
       tr('Sending part ③ to the recovery partner', 'Envoi de la partie ③ au partenaire de récupération'),
-      tr('Encrypting part ② for your cloud backup', 'Chiffrement de la partie ② pour votre sauvegarde cloud'),
+      tr('Keeping a sealed copy of part ① on this device', 'Copie scellée de la partie ① sur cet appareil'),
       tr('Registering the wallet in your name', 'Enregistrement du wallet à votre nom'),
     ];
     const p: Prog = labels.map((label) => ({ label, state: 'todo' }));
@@ -103,7 +106,7 @@ export default function Onboarding() {
 
       set(++i, 'doing');
       const shares = await splitRecoveryKey(k3.privateKey);
-      set(i, 'done', tr('① paper code · ② your cloud · ③ partner — any 2 parts are enough', '① code papier · ② votre cloud · ③ partenaire — 2 parties suffisent'));
+      set(i, 'done', tr('① paper code · ② your security key · ③ partner — any 2 parts are enough', '① code papier · ② votre clé de sécurité · ③ partenaire — 2 parties suffisent'));
 
       set(++i, 'doing', tr('Usually 10 to 20 seconds…', 'En général 10 à 20 secondes…'));
       const dep = await cosigner.post('/wallets/deploy', { clientId, deviceAddress: k1.address, recoveryAddress: k3.address });
@@ -117,14 +120,13 @@ export default function Onboarding() {
         kyc: { name: profile.name, dob: profile.birthDate ?? profile.kyc?.dob, idNumber: profile.kyc?.idDocument },
         questions: qs.map((q, j) => ({ question: RECOVERY_QUESTIONS[q!], answer: answers[j] })),
         paperCommitment: sha256(shares.paper),
-        cloudCommitment: sha256(shares.cloud),
+        share2Commitment: sha256(shares.key),
       });
       set(i, 'done', tr('One part out of three: useless on its own', 'Une partie sur trois : inutilisable seule'));
 
       set(++i, 'doing');
-      const backup = await encryptCloudShare(dep.safeAddress, shares.cloud, pw);
-      const paperEnc = await encryptCloudShare(dep.safeAddress, shares.paper, pw);
-      set(i, 'done', tr('AES-256-GCM, key derived from your password', 'AES-256-GCM, clé dérivée de votre mot de passe'));
+      const paperEnc = await sealWithPassword(dep.safeAddress, shares.paper, pw);
+      set(i, 'done', tr('AES-256-GCM, key derived from your password — never leaves this device', 'AES-256-GCM, clé dérivée de votre mot de passe — ne quitte jamais cet appareil'));
 
       set(++i, 'doing');
       const statement = ownershipStatement(clientId, dep.safeAddress, new Date().toISOString());
@@ -138,9 +140,10 @@ export default function Onboarding() {
 
       saveDevice({ clientId, safeAddress: dep.safeAddress, deviceAddress: k1.address, keystore, credentialId, deviceType, createdAt: new Date().toISOString(), paperShareEnc: paperEnc });
       setUnlocked(k1);
-      setResult({ safeAddress: dep.safeAddress, deployTx: dep.txHash, code: encodeRecoveryCode(shares.paper), cloudBlob: JSON.stringify(backup, null, 2) });
+      share2Ref.current = shares.key; // protected at the next step (security key, or offline file)
+      setResult({ safeAddress: dep.safeAddress, deployTx: dep.txHash, code: encodeRecoveryCode(shares.paper) });
       // The full recovery key only existed in memory; drop the references.
-      shares.partner = shares.cloud = shares.paper = '';
+      shares.partner = shares.key = shares.paper = '';
       setStep(6);
     } catch (e: any) {
       set(i, 'error');
@@ -174,7 +177,7 @@ export default function Onboarding() {
                 {[
                   [Smartphone, tr('Your device key', 'Votre clé d’appareil'), tr('Created on this device, protected by Touch ID / Face ID and your password. For everyday operations.', 'Créée sur cet appareil, protégée par Touch ID / Face ID et votre mot de passe. Pour les opérations courantes.')],
                   [Building2, tr('Swissquote control', 'Le contrôle Swissquote'), tr('Swissquote co-signs after its checks (identity, compliance, limits). It holds only one key out of three.', 'Swissquote co-signe après ses vérifications (identité, conformité, limites). Il ne détient qu’une clé sur trois.')],
-                  [KeyRound, tr('Your backup key', 'Votre clé de secours'), tr('Split into 3 parts: a paper code, your cloud backup and an independent Swiss partner. Any 2 parts are enough — even if Swissquote disappears.', 'Découpée en 3 parties : un code papier, votre sauvegarde cloud et un partenaire suisse indépendant. 2 parties suffisent — même si Swissquote disparaît.')],
+                  [KeyRound, tr('Your backup key', 'Votre clé de secours'), tr('Split into 3 parts: a paper code, your physical security key and an independent Swiss partner. Any 2 parts are enough — even if Swissquote disappears. Nothing goes to a cloud.', 'Découpée en 3 parties : un code papier, votre clé de sécurité physique et un partenaire suisse indépendant. 2 parties suffisent — même si Swissquote disparaît. Rien ne part dans un cloud.')],
                 ].map(([Icon, t, d]: any) => (
                   <div key={t} className="flex gap-3">
                     <Icon size={24} strokeWidth={1.75} className="mt-0.5 shrink-0 text-sq-ink-2" />
@@ -247,8 +250,8 @@ export default function Onboarding() {
               <h1 className="text-[26px] font-semibold tracking-tight">{tr('Wallet password', 'Mot de passe du wallet')}</h1>
               <Why>
                 {tr(
-                  'It encrypts your device key and your cloud backup. Swissquote never sees it and cannot reset it. Pasting and password managers are allowed.',
-                  'Il chiffre votre clé d’appareil et votre sauvegarde cloud. Swissquote ne le voit jamais et ne peut pas le réinitialiser. Le collage et les gestionnaires de mots de passe sont acceptés.',
+                  'It encrypts your device key on this device. Swissquote never sees it and cannot reset it. Pasting and password managers are allowed.',
+                  'Il chiffre votre clé d’appareil sur cet appareil. Swissquote ne le voit jamais et ne peut pas le réinitialiser. Le collage et les gestionnaires de mots de passe sont acceptés.',
                 )}
               </Why>
               <Card className="space-y-4">
@@ -329,7 +332,22 @@ export default function Onboarding() {
             </>
           )}
 
-          {step === 6 && result && <KitStep result={result} name={profile?.name ?? ''} onDone={() => nav('/wallet')} />}
+          {step === 6 && result && (
+            <KitStep
+              result={result}
+              name={profile?.name ?? ''}
+              clientId={clientId}
+              walletPassword={pw}
+              pwContext={{ firstName: profile?.firstName ?? first, lastName: profile?.lastName ?? rest.join(' '), birthDate: profile?.birthDate }}
+              share2={share2Ref.current}
+              dropShare2={() => (share2Ref.current = null)}
+              onDone={() => {
+                setPw('');
+                setPw2('');
+                nav('/wallet');
+              }}
+            />
+          )}
         </div>
       </div>
       <DemoFooter />
@@ -485,138 +503,56 @@ function IdentityStep({ clientId, name, onDone }: { clientId: string; name: stri
   );
 }
 
-// ───────────────── Recovery kit — no QR code ─────────────────
-function KitStep({ result, name, onDone }: { result: { safeAddress: string; deployTx: string; code: string; cloudBlob: string }; name: string; onDone: () => void }) {
-  const [shownUntil, setShownUntil] = useState(0);
-  const [now, setNow] = useState(Date.now());
-  const [saved, setSaved] = useState({ code: false, cloud: false });
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 250);
-    const onVis = () => document.visibilityState === 'hidden' && setShownUntil(0);
-    document.addEventListener('visibilitychange', onVis);
-    return () => {
-      clearInterval(t);
-      document.removeEventListener('visibilitychange', onVis);
-    };
-  }, []);
-  const left = Math.max(0, Math.ceil((shownUntil - now) / 1000));
-  const visible = left > 0;
-  const download = (fileName: string, content: string) => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
-    a.download = fileName;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  };
-
+// ───────────────── Recovery kit — no QR code, no cloud ─────────────────
+function KitStep({
+  result,
+  name,
+  clientId,
+  walletPassword,
+  pwContext,
+  share2,
+  dropShare2,
+  onDone,
+}: {
+  result: { safeAddress: string; deployTx: string; code: string };
+  name: string;
+  clientId: string;
+  walletPassword: string;
+  pwContext: { firstName?: string; lastName?: string; birthDate?: string };
+  share2: string | null;
+  dropShare2: () => void;
+  onDone: () => void;
+}) {
   return (
     <>
       <h1 className="text-[26px] font-semibold tracking-tight">{tr('Your recovery kit', 'Votre kit de récupération')}</h1>
       <Why>
         {tr(
-          'If you lose this device, this is your way back. Keep the paper code away from this phone. Nobody — not even Swissquote — can rebuild your backup key from a single part.',
-          "Si vous perdez cet appareil, c'est votre chemin de retour. Gardez le code papier hors de ce téléphone. Personne — pas même Swissquote — ne peut reconstituer votre clé de secours avec une seule partie.",
+          'If you lose this device, this is your way back: any 2 of the 3 parts rebuild your backup key. Keep the paper code and the security key apart from this phone and from each other. Nothing is stored in a cloud.',
+          "Si vous perdez cet appareil, c'est votre chemin de retour : 2 des 3 parties reconstituent votre clé de secours. Gardez le code papier et la clé de sécurité loin de ce téléphone et séparés l’un de l’autre. Rien n’est stocké dans un cloud.",
         )}
       </Why>
-      <Card className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold">① {tr('Paper recovery code', 'Code de récupération papier')}</h2>
-          <span className="text-[12px] text-sq-muted">{tr('print or copy it by hand', 'à imprimer ou recopier')}</span>
-        </div>
-        <code data-testid="recovery-code" className={cx('block rounded-[10px] border border-sq-line p-3 font-mono text-[15px] leading-loose tracking-wider', !visible && 'select-none text-sq-muted')} aria-live="polite">
-          {visible ? result.code : result.code.replace(/[0-9A-Z]/g, '•')}
-        </code>
-        {visible && (
-          <div className="h-1 overflow-hidden rounded-full bg-sq-line" aria-hidden>
-            <div className="mw-countdown h-full bg-sq-orange" style={{ animationDuration: '30s' }} key={shownUntil} />
-          </div>
+      <RecoveryKitSetup
+        safeAddress={result.safeAddress}
+        code={result.code}
+        share2={share2}
+        name={name}
+        clientId={clientId}
+        walletPassword={walletPassword}
+        pwContext={pwContext}
+        persist={(p) => cosigner.post(`/clients/${clientId}/recovery-kit/share2`, p)}
+        onShare2Done={dropShare2}
+        footer={(ready) => (
+          <>
+            <Notice tone="ok" title={tr('Your wallet is open on Ethereum', 'Votre wallet est ouvert sur Ethereum')}>
+              <TxLink hash={result.deployTx} />
+            </Notice>
+            <Button disabled={!ready} onClick={onDone}>
+              {ready ? tr('Open My Wall', 'Ouvrir My Wall') : tr('Print or copy the code, then protect part ②', 'Imprimez ou copiez le code, puis protégez la partie ②')}
+            </Button>
+          </>
         )}
-        <div className="grid grid-cols-3 gap-2">
-          <Button variant="secondary" className="px-2 text-[14px]" onClick={() => (visible ? setShownUntil(0) : setShownUntil(Date.now() + 30_000))}>
-            <Eye size={16} strokeWidth={1.75} /> {visible ? tr(`Hide (${left} s)`, `Masquer (${left} s)`) : tr('Show', 'Afficher')}
-          </Button>
-          <Button
-            variant="secondary"
-            className="px-2 text-[14px]"
-            onClick={() => {
-              window.print();
-              setSaved((s) => ({ ...s, code: true }));
-            }}
-          >
-            <Printer size={16} strokeWidth={1.75} /> {tr('Print', 'Imprimer')}
-          </Button>
-          <Button
-            variant="secondary"
-            className="px-2 text-[14px]"
-            onClick={async () => {
-              await navigator.clipboard.writeText(result.code).catch(() => undefined);
-              setCopied(true);
-              setSaved((s) => ({ ...s, code: true }));
-              setTimeout(() => navigator.clipboard.writeText('').catch(() => undefined), 30_000);
-            }}
-          >
-            <Copy size={16} strokeWidth={1.75} /> {tr('Copy', 'Copier')}
-          </Button>
-        </div>
-        {copied && <p className="text-[12px] text-sq-muted">{tr('Copied. The clipboard now holds sensitive data.', 'Copié. Le presse-papiers contient une donnée sensible.')}</p>}
-        <p className="text-[12px] text-sq-muted">{tr('19 groups of 4 characters; each group contains a check character to catch typos.', '19 groupes de 4 caractères ; chaque groupe contient un caractère de contrôle pour repérer les fautes de frappe.')}</p>
-      </Card>
-      <Card className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 font-semibold">
-            <Cloud size={18} strokeWidth={1.75} /> ② {tr('Cloud backup', 'Sauvegarde cloud')}
-          </h2>
-          <MockBadge label={tr('Simulated cloud', 'Cloud simulé')} />
-        </div>
-        <p className="text-[14px] text-sq-ink-2">{tr('Encrypted with your password. In the app it would go to your iCloud / Google Drive; here it is downloaded.', "Chiffrée avec votre mot de passe. Dans l'app, elle irait dans votre iCloud / Google Drive ; ici, elle est téléchargée.")}</p>
-        <Button
-          variant="secondary"
-          onClick={() => {
-            download(`my-wall-cloud-backup-${result.safeAddress.slice(2, 8)}.json`, result.cloudBlob);
-            setSaved((s) => ({ ...s, cloud: true }));
-          }}
-        >
-          {tr('Save to the cloud (download)', 'Enregistrer dans le cloud (télécharger)')}
-        </Button>
-      </Card>
-      <Card className="space-y-1">
-        <h2 className="flex items-center gap-2 font-semibold">
-          <ShieldCheck size={18} strokeWidth={1.75} /> ③ {tr('Recovery partner', 'Partenaire de récupération')}
-        </h2>
-        <p className="text-[14px] text-sq-ink-2">
-          {tr('Held by an independent Swiss trustee, released only after a video identity check.', "Conservée par un trustee suisse indépendant, libérée seulement après une vérification d'identité vidéo.")} <MockBadge />
-        </p>
-      </Card>
-      <Notice tone="ok" title={tr('Your wallet is open on Ethereum', 'Votre wallet est ouvert sur Ethereum')}>
-        <TxLink hash={result.deployTx} />
-      </Notice>
-      <Button disabled={!saved.code || !saved.cloud} onClick={onDone}>
-        {saved.code && saved.cloud ? tr('Open My Wall', 'Ouvrir My Wall') : tr('Print or copy the code, then save part ②', 'Imprimez ou copiez le code, puis sauvegardez la partie ②')}
-      </Button>
-
-      {/* Printable kit (window.print): logo, name, date, code in large monospace, instructions — no QR. */}
-      <div className="print-only">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <img src="/brand/swissquote-logo.png" width={48} height={48} alt="" />
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 600 }}>My Wall — {tr('Recovery kit', 'Kit de récupération')}</div>
-            <div style={{ fontSize: 12, color: '#6f7480' }}>{tr('Prototype — test data', 'Prototype — données de test')}</div>
-          </div>
-        </div>
-        <p style={{ marginTop: 24, fontSize: 14 }}>
-          {tr('Client:', 'Client :')} <b>{name}</b> · {tr('Date:', 'Date :')} {dateOnly(new Date().toISOString())}
-          <br />
-          {tr('Wallet:', 'Wallet :')} <span style={{ fontFamily: 'monospace' }}>{result.safeAddress}</span>
-        </p>
-        <div style={{ marginTop: 24, padding: 20, border: '2px solid #303137', borderRadius: 12, fontFamily: 'monospace', fontSize: 22, lineHeight: 1.8, letterSpacing: 2 }}>{result.code}</div>
-        <ol style={{ marginTop: 24, fontSize: 13, lineHeight: 1.7 }}>
-          <li>{tr('This code is part ① of your backup key. On its own, it cannot do anything.', 'Ce code est la partie ① de votre clé de secours. Seul, il ne permet rien.')}</li>
-          <li>{tr('Keep this sheet somewhere safe, away from your phone. Tip: make 2 copies.', 'Rangez cette feuille dans un endroit sûr, hors de votre téléphone. Conseil : faites-en 2 copies.')}</li>
-          <li>{tr('If you lose your device: My Wall → “I lost my device”, then enter this code.', "En cas de perte d'appareil : My Wall → « J'ai perdu mon appareil », puis saisissez ce code.")}</li>
-          <li>{tr('Never share it, by phone or email. Swissquote will never ask you for it.', 'Ne le communiquez jamais, ni par téléphone ni par email. Swissquote ne vous le demandera jamais.')}</li>
-        </ol>
-      </div>
+      />
     </>
   );
 }

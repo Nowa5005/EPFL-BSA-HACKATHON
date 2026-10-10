@@ -56,6 +56,10 @@ async function main() {
   await cdp.send('WebAuthn.addVirtualAuthenticator', {
     options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true },
   });
+  // Physical security key (USB, FIDO2 with PRF / hmac-secret) for part ② of the recovery key.
+  await cdp.send('WebAuthn.addVirtualAuthenticator', {
+    options: { protocol: 'ctap2', transport: 'usb', hasResidentKey: false, hasUserVerification: true, isUserVerified: true, hasPrf: true, automaticPresenceSimulation: true } as any,
+  });
 
   log('login');
   await page.goto(`${BASE}/login`);
@@ -94,8 +98,8 @@ async function main() {
   await page.getByText('Your recovery kit').waitFor({ timeout: 120000 });
   await shoot(page, '14-onboarding-kit');
   await page.getByRole('button', { name: /Copier/ }).first().click().catch(() => undefined);
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Enregistrer dans le cloud/ }).click()]);
-  await dl.cancel().catch(() => undefined);
+  await page.getByRole('button', { name: /Register my security key/ }).click();
+  await page.getByTestId('part2-done').waitFor({ timeout: 30000 });
   await page.getByRole('button', { name: 'Open My Wall' }).click();
   await page.waitForURL('**/wallet');
 

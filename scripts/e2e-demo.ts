@@ -3,7 +3,7 @@
 // The only shortcut: this scripted client has no browser, so the passkey step is skipped (headless demo client).
 
 import fs from 'node:fs';
-import { BaseWallet, Contract, Wallet, hashMessage, sha256 } from 'ethers';
+import { BaseWallet, Contract, Wallet, hashMessage, hexlify, randomBytes, sha256 } from 'ethers';
 import {
   EIP1271_ABI,
   RECOVERY_QUESTIONS,
@@ -11,8 +11,13 @@ import {
   encodeRecoveryCode,
   EIP1271_MAGIC,
   SERVICE_URLS,
+  TEST_ONLY_simulatePrf,
   buildSafeTx,
-  combineShares,
+  decryptShareWithPrf,
+  encryptShareWithPrf,
+  newPrfSalt,
+  parseShare2Record,
+  reconstructK3FromShares,
   explorerAddress,
   explorerTx,
   makeProvider,
@@ -22,6 +27,7 @@ import {
   signSafeTx,
   splitRecoveryKey,
   swapOwnerData,
+  type SecurityKeyShare,
 } from '@sq/shared';
 import { internalHeaders, loadDotenv } from '@sq/shared/server';
 
@@ -67,7 +73,7 @@ async function main() {
   const k3 = Wallet.createRandom();
   const shares = await splitRecoveryKey(k3.privateKey);
   info(`device key K1     ${k1.address}`);
-  info(`recovery key K3   ${k3.address} → split into paper / cloud / partner shares`);
+  info(`recovery key K3   ${k3.address} → split into ① paper / ② security key / ③ partner shares`);
   const { address: k2 } = await call('POST', `${C}/clients/${clientId}/cosigner-key`);
   info(`Swissquote K2     ${k2} (generated server-side, never leaves sq-cosigner)`);
 
@@ -87,9 +93,24 @@ async function main() {
       { question: RECOVERY_QUESTIONS[5], answer: 'Mme Dupont' },
     ],
     paperCommitment: sha256(shares.paper),
-    cloudCommitment: sha256(shares.cloud),
+    share2Commitment: sha256(shares.key),
   });
   ok('Share ③ stored at the independent recovery partner (separate process)');
+
+  // Share ② — protected by a physical security key through WebAuthn PRF. This headless client has no authenticator:
+  // TEST ONLY, the PRF output is simulated deterministically (HMAC of a test secret, like a real hmac-secret key).
+  const testKeySecret = hexlify(randomBytes(32)); // stands for the secret inside the physical key (test only)
+  const prfSalt = newPrfSalt();
+  const share2Record = await encryptShareWithPrf({
+    safeAddress: safe,
+    share: shares.key,
+    prfOutput: TEST_ONLY_simulatePrf(testKeySecret, prfSalt),
+    credentialId: 'ZTJlLXRlc3Qtc2VjdXJpdHkta2V5',
+    rpId: 'localhost',
+    prfSalt,
+  });
+  await call('POST', `${C}/clients/${clientId}/recovery-kit/share2`, { method: 'security-key', record: share2Record });
+  ok('Share ② encrypted with the (simulated) security key — Swissquote stores only the ciphertext');
 
   const s = safeContract(safe, provider);
   const owners: string[] = await s.getOwners();
@@ -166,10 +187,17 @@ async function main() {
   ok(`Partner released share ③ (risk score ${dec.riskScore})`);
   const typed = decodeRecoveryCode(encodeRecoveryCode(shares.paper)); // the client types the printed code
   if (!typed.ok) throw new Error(typed.error);
-  const k3hex = await combineShares([typed.share, dec.share]);
-  const k3rebuilt = new Wallet(k3hex);
-  if (k3rebuilt.address !== k3.address) throw new Error('Rebuilt K3 mismatch');
+  const k3rebuilt = await reconstructK3FromShares([typed.share, dec.share], { expectedAddress: k3.address });
   ok(`K3 rebuilt from paper + partner shares: ${k3rebuilt.address}`);
+  // The other valid pairs (offline check, no gas): paper + security key, security key + partner.
+  const kit = await call('GET', `${C}/clients/${clientId}/recovery-kit`);
+  const fromKey = await decryptShareWithPrf(parseShare2Record(kit.share2.record) as SecurityKeyShare, TEST_ONLY_simulatePrf(testKeySecret, prfSalt));
+  await reconstructK3FromShares([typed.share, fromKey], { expectedAddress: k3.address });
+  await reconstructK3FromShares([fromKey, dec.share], { expectedAddress: k3.address });
+  ok('Also rebuilt from paper + security key, and from security key + partner (2 of 3, any pair)');
+  const wrongKey = await decryptShareWithPrf(parseShare2Record(kit.share2.record) as SecurityKeyShare, TEST_ONLY_simulatePrf(hexlify(randomBytes(32)), prfSalt)).catch(() => null);
+  if (wrongKey) throw new Error('Share ② opened with another security key!');
+  ok('Another security key cannot open share ②');
 
   // Public RPC nodes can lag a few seconds behind each other: retry if the nonce we read was stale.
   let rec: any;

@@ -1,5 +1,7 @@
 // recovery-partner — MOCK independent Swiss recovery partner (e.g. notary / trustee).
 // Separate process, own data/ directory. Holds ONLY share ③ of the recovery key (1 of 3 → useless alone).
+// It never holds share ② (the security-key part), not even encrypted: that ciphertext is stored by Swissquote, so
+// no single party ever keeps two of the three parts.
 // Releases it only after strong identity verification + risk scoring.
 
 import { createSecurity, internalHeaders, listenService, localizeResponses, principalOf, segmentsOf, loadDotenv, JsonStore, newId, nowIso, t } from '@sq/shared/server';
@@ -23,7 +25,7 @@ interface ShareRecord {
   kyc: { name: string; dob: string; idNumber: string };
   questions: { question: string; salt: string; hash: string }[];
   paperCommitment: string; // sha256 of the paper share — the partner never holds the paper share itself
-  cloudCommitment?: string; // sha256 of the cloud share (encrypted backup) — never the share itself
+  share2Commitment?: string; // sha256 of share ② (security key / offline file) — never the share itself
   createdAt: string;
 }
 
@@ -35,7 +37,7 @@ interface Session {
   liveness?: 'match' | 'no-match';
   answers?: { correct: number; total: number };
   paperProof?: boolean;
-  proofKind?: 'paper' | 'cloud';
+  proofKind?: 'paper' | 'key';
   decision?: 'released' | 'refused';
   riskScore?: number;
   // factor: English, factorFr: French twin (folded on read by localizeResponses); legacy sessions are French-only
@@ -59,6 +61,12 @@ const store = new JsonStore<{ shares: Record<string, ShareRecord>; sessions: Rec
   'partner',
   () => ({ shares: {}, sessions: {}, attestations: {} }),
 );
+
+// Records enrolled before part ② moved to a physical security key carry a legacy commitment of the former
+// password-encrypted backup file: it is dropped (that part is retired; the client replaces it from Security).
+store.update((d) => {
+  for (const r of Object.values(d.shares)) delete (r as unknown as Record<string, unknown>).cloudCommitment;
+});
 
 class HttpError extends Error {
   constructor(public status: number, message: string, public extra?: Record<string, unknown>) {
@@ -97,14 +105,14 @@ app.get('/health', route(() => ({ service: 'recovery-partner', shares: Object.ke
 app.post(
   '/shares',
   route((req) => {
-    const { clientId, safeAddress, share, kyc, questions, paperCommitment, cloudCommitment } = req.body as {
+    const { clientId, safeAddress, share, kyc, questions, paperCommitment, share2Commitment } = req.body as {
       clientId: string;
       safeAddress: string;
       share: string;
       kyc: ShareRecord['kyc'];
       questions: { question: string; answer: string }[];
       paperCommitment: string;
-      cloudCommitment?: string;
+      share2Commitment?: string;
     };
     if (!clientId || !share || !safeAddress || !paperCommitment) throw new HttpError(400, t('Missing fields', 'Champs manquants'));
     if (!Array.isArray(questions) || questions.length !== 3) throw new HttpError(400, t('Exactly 3 security questions are required', 'Exactement 3 questions de sécurité sont requises'));
@@ -116,7 +124,7 @@ app.post(
       share,
       kyc,
       paperCommitment,
-      cloudCommitment,
+      share2Commitment,
       questions: questions.map((q) => {
         const salt = hexlify(randomBytes(16));
         return { question: q.question, salt, hash: hashAnswer(q.answer, salt) };
@@ -195,11 +203,12 @@ app.post(
   '/sessions/:id/paper-proof',
   route((req) => {
     const s = session(String(req.params.id));
-    // Proof of possession of one of the client's own parts: paper code (①) or decrypted cloud backup (②).
+    // Proof of possession of one of the client's own parts: paper code (①) or part ② opened with the security key
+    // (or the offline file). Only a hash is compared — the partner never receives the client's parts.
     const rec = store.data.shares[s.clientId];
     const c = String(req.body.commitment ?? '').toLowerCase();
-    const kind: 'paper' | 'cloud' = req.body.kind === 'cloud' ? 'cloud' : 'paper';
-    const ok = kind === 'paper' ? c === rec.paperCommitment.toLowerCase() : !!rec.cloudCommitment && c === rec.cloudCommitment.toLowerCase();
+    const kind: 'paper' | 'key' = req.body.kind === 'key' ? 'key' : 'paper';
+    const ok = kind === 'paper' ? c === rec.paperCommitment.toLowerCase() : !!rec.share2Commitment && c === rec.share2Commitment.toLowerCase();
     store.update((d) => Object.assign(d.sessions[s.id], { paperProof: ok, proofKind: kind }));
     return { paperProof: ok, kind };
   }),
@@ -215,8 +224,8 @@ app.post(
     factors.push({ ...biField('factor', 'Signed in to the Swissquote account (separate authentication)', 'Connexion au compte Swissquote (authentification séparée)'), points: 0, hard: true, ok: s.context.swissquoteLogin });
     factors.push({ ...biField('factor', 'Video selfie matches the KYC photo', 'Selfie vidéo conforme à la photo KYC'), points: 0, hard: true, ok: s.liveness === 'match' });
     factors.push({
-      ...(s.proofKind === 'cloud'
-        ? biField('factor', 'Decrypted cloud backup presented', 'Sauvegarde cloud déchiffrée présentée')
+      ...(s.proofKind === 'key'
+        ? biField('factor', 'Recovery part ② opened with the security key (or offline file)', 'Partie ② ouverte avec la clé de sécurité (ou le fichier hors ligne)')
         : biField('factor', 'Paper recovery code presented', 'Code de récupération papier présenté')),
       points: s.paperProof ? 0 : 40,
       ok: !!s.paperProof,

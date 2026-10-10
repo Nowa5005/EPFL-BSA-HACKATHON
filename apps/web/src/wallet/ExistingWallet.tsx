@@ -85,8 +85,8 @@ export default function ExistingWallet({ clientId, onReset }: { clientId: string
         <Card className="space-y-4">
           <Why>
             {tr(
-              'To use it here, restore it: identity check, your recovery code or your cloud backup, then a passkey on this device. Restoring replaces the old device — it doesn’t count as an extra device (at most 1 phone and 1 computer).',
-              'Pour l’utiliser ici, restaurez-le : vérification d’identité, votre code de récupération ou votre sauvegarde cloud, puis une passkey sur cet appareil. Cette restauration remplace l’ancien appareil — elle n’est pas comptée comme un appareil supplémentaire (au maximum 1 téléphone et 1 ordinateur).',
+              'To use it here, restore it: identity check, your recovery code and/or your security key, then a passkey on this device. Restoring replaces the old device — it doesn’t count as an extra device (at most 1 phone and 1 computer).',
+              'Pour l’utiliser ici, restaurez-le : vérification d’identité, votre code de récupération et/ou votre clé de sécurité, puis une passkey sur cet appareil. Cette restauration remplace l’ancien appareil — elle n’est pas comptée comme un appareil supplémentaire (au maximum 1 téléphone et 1 ordinateur).',
             )}
           </Why>
           <ExistingWalletActions clientId={clientId} onReset={onReset} />

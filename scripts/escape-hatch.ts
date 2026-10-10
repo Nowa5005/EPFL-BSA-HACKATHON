@@ -1,12 +1,20 @@
 // ESCAPE HATCH — "What if Swissquote disappears forever?"
 // Moves all funds out of the Safe with the client's OWN two keys: device key (K1) + recovery key (K3 rebuilt
-// from paper kit ① + cloud backup ②). It talks to NO Swissquote service and NO recovery partner: only a public
+// from paper code ① + part ②). It talks to NO Swissquote service and NO recovery partner: only a public
 // Ethereum RPC. Equivalent manual path: https://app.safe.global (Sepolia) with the same two keys.
+//
+// Part ② comes from ONE of:
+//   --security-key <my-wall-security-key-part-*.json>   offline copy of the part locked to the physical security key.
+//        Opening it needs the PRF / hmac-secret output of that key. Without a browser, read it with a FIDO2 tool
+//        (e.g. libfido2: `fido2-assert -G -h …`) using the hmac-secret salt this script prints, then pass it with
+//        --prf-output <hex|base64url> (or ESCAPE_PRF_OUTPUT). In a browser, My Wall does this for you.
+//   --offline <my-wall-offline-backup-*.json>           offline file protected by the backup password
+//        (asked interactively, or ESCAPE_BACKUP_PASSWORD).
 //
 // Usage:
 //   npm run escape-hatch -- --device-key <my-wall-device-key-backup-*.json> --paper <recovery code, or a .txt file containing it>
-//                           --cloud <my-wall-cloud-backup-*.json> --to <destination address>
-//   Password: asked interactively (or ESCAPE_PASSWORD / ESCAPE_CLOUD_PASSWORD env vars).
+//                           (--security-key <part.json> --prf-output <…> | --offline <file.json>) --to <destination address>
+//   Device-key password: asked interactively (or ESCAPE_PASSWORD).
 //   Gas: paid by the device key's own address (it needs ~0.001 Sepolia ETH, from any source), or by GAS_PAYER_KEY.
 
 import fs from 'node:fs';
@@ -17,18 +25,20 @@ import {
   USDC_ADDRESS,
   USDC_DECIMALS,
   buildSafeTx,
-  combineShares,
   decodeRecoveryCode,
-  decryptCloudShare,
+  decryptShareOffline,
+  decryptShareWithPrf,
   execArgs,
   explorerAddress,
   explorerTx,
   makeProvider,
   packSignatures,
+  parseShare2Record,
+  prfHmacSecretSalt,
+  reconstructK3FromShares,
   safeContract,
   signSafeTx,
   usdcTransferData,
-  type CloudBackup,
 } from '@sq/shared';
 
 const arg = (name: string) => {
@@ -57,33 +67,47 @@ async function askPassword(question: string, envVar: string): Promise<string> {
 async function main() {
   const deviceFile = arg('device-key');
   const paperFile = arg('paper');
-  const cloudFile = arg('cloud');
+  const part2File = arg('security-key') ?? arg('offline');
   const to = arg('to');
-  if (!deviceFile || !paperFile || !cloudFile || !to || !isAddress(to)) {
-    console.log('Usage: npm run escape-hatch -- --device-key <backup.json> --paper "<recovery code>" --cloud <cloud-backup.json> --to <0xDestination>');
+  if (!deviceFile || !paperFile || !part2File || !to || !isAddress(to)) {
+    console.log(
+      'Usage: npm run escape-hatch -- --device-key <backup.json> --paper "<recovery code>" (--security-key <part.json> --prf-output <hex> | --offline <offline-backup.json>) --to <0xDestination>',
+    );
     process.exit(1);
   }
   const provider = makeProvider();
   console.log('\n🔓 My Wall escape hatch — no Swissquote server involved, only a public Ethereum RPC.\n');
 
   const device = JSON.parse(fs.readFileSync(deviceFile, 'utf8'));
-  const backup = JSON.parse(fs.readFileSync(cloudFile, 'utf8')) as CloudBackup;
+  const part2 = parseShare2Record(fs.readFileSync(part2File, 'utf8'));
   const paper = { share: readPaper(paperFile) };
   const safeAddress = getAddress(device.safeAddress);
-  if (getAddress(backup.safeAddress) !== safeAddress) throw new Error('These files belong to different wallets');
+  if (getAddress(part2.safeAddress) !== safeAddress) throw new Error('These files belong to different wallets');
 
   const password = await askPassword('Device-key backup password: ', 'ESCAPE_PASSWORD');
   const keystoreJson = typeof device.keystore === 'string' ? device.keystore : JSON.stringify(device.keystore);
   const k1 = await Wallet.fromEncryptedJson(keystoreJson, password).catch(() => {
     throw new Error('Wrong password for the device-key backup');
   });
-  // The cloud backup keeps the password chosen at wallet creation (it may differ after a device recovery).
-  const cloudShare = await decryptCloudShare(backup, password).catch(async () =>
-    decryptCloudShare(backup, await askPassword('Cloud backup password (the one chosen at wallet creation): ', 'ESCAPE_CLOUD_PASSWORD')),
-  );
-  const k3 = new Wallet(await combineShares([paper.share, cloudShare]));
+  let share2: string;
+  if (part2.method === 'security-key') {
+    const raw = arg('prf-output') ?? process.env.ESCAPE_PRF_OUTPUT;
+    if (!raw) {
+      console.log('\nPart ② is locked to your physical security key. Read its PRF output with a FIDO2 tool, then re-run with --prf-output:');
+      console.log(`  relying party (rp id) : ${part2.rpId}`);
+      console.log(`  credential id         : ${part2.credentialId} (base64url)`);
+      console.log(`  hmac-secret salt      : ${Buffer.from(prfHmacSecretSalt(part2.prfSalt).slice(2), 'hex').toString('base64')} (base64)`);
+      console.log('  e.g. libfido2: fido2-assert -G -h -i <params> /dev/hidrawN  (params: client data hash, rp id, credential id, salt)');
+      process.exit(3);
+    }
+    const prf = /^0x[0-9a-fA-F]{64}$/.test(raw) ? Buffer.from(raw.slice(2), 'hex') : Buffer.from(raw, /^[0-9a-fA-F]{64}$/.test(raw) ? 'hex' : 'base64url');
+    share2 = await decryptShareWithPrf(part2, new Uint8Array(prf));
+  } else {
+    share2 = await decryptShareOffline(part2, await askPassword('Backup password of the offline file (not the wallet password): ', 'ESCAPE_BACKUP_PASSWORD'));
+  }
+  const k3 = await reconstructK3FromShares([paper.share, share2]);
   console.log(`✔ device key   ${k1.address}`);
-  console.log(`✔ recovery key ${k3.address} (rebuilt from paper kit ① + cloud backup ②)`);
+  console.log(`✔ recovery key ${k3.address} (rebuilt from paper code ① + ${part2.method === 'security-key' ? 'security key' : 'offline file'} ②)`);
 
   const safe = safeContract(safeAddress, provider);
   const owners: string[] = (await safe.getOwners()).map((o: string) => getAddress(o));

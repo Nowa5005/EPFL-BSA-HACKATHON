@@ -26,7 +26,7 @@ export default function Settings() {
     const l = o.toLowerCase();
     if (l === c?.owners?.device?.toLowerCase()) return { name: tr('Device key', 'Clé de l’appareil'), who: l === device!.deviceAddress.toLowerCase() ? tr('this device (you)', 'cet appareil (vous)') : tr('your other device', 'votre autre appareil'), icon: Smartphone };
     if (l === c?.owners?.cosigner?.toLowerCase()) return { name: tr('Swissquote co-signer', 'Co-signataire Swissquote'), who: tr('Swissquote (HSM in production)', 'Swissquote (HSM en production)'), icon: Building2 };
-    if (l === c?.owners?.recovery?.toLowerCase()) return { name: tr('Recovery key', 'Clé de secours'), who: tr('in 3 parts: paper · cloud · partner', 'en 3 parties : papier · cloud · partenaire'), icon: KeyRound };
+    if (l === c?.owners?.recovery?.toLowerCase()) return { name: tr('Recovery key', 'Clé de secours'), who: tr('in 3 parts: paper · security key · partner', 'en 3 parties : papier · clé de sécurité · partenaire'), icon: KeyRound };
     return { name: tr('Unknown key', 'Clé inconnue'), who: '', icon: KeyRound };
   };
 
