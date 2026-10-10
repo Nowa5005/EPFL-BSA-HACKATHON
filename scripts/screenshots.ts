@@ -92,7 +92,7 @@ async function main() {
   await shoot(page, '14-onboarding-kit');
   await page.getByRole('button', { name: /Copier/ }).first().click().catch(() => undefined);
   const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Enregistrer dans le cloud/ }).click()]);
-  await dl.saveAs(path.join(OUT, '..', 'cloud-backup-sample.json')).catch(() => undefined);
+  await dl.cancel().catch(() => undefined);
   await page.getByRole('button', { name: 'Ouvrir My Wall' }).click();
   await page.waitForURL('**/wallet');
 

@@ -44,3 +44,26 @@ Priority: the **create → sign → recover** journey must work end-to-end on Se
 - ✅ **Full web UI flow passed on real Sepolia** with real USDC (virtual WebAuthn authenticator) — tx links in the README.
 - ✅ Robustness fixes found by the real run: relayer nonce resync after external use of the key; deploy refuses to re-bind an existing wallet to a new device (→ recovery).
 - ⏳ Real Touch ID to be tried by Noa in Chrome.
+
+## My Wall redesign (spec MY_WALL_REDESIGN.md) — acceptance criteria
+- [x] My Wall everywhere; provided logo used unmodified; Swissquote palette, buttons, line icons, radii
+- [x] No emoji left; Lucide line icons
+- [x] Demo starts in the reconstructed Swissquote app; pull-up tab (swipe + tap + keyboard); desktop button next to the account icon
+- [x] Distinct mobile / tablet / desktop layouts with the same functions (checked at 390, 820, 1440 px)
+- [x] Dominant balances; content sheet sliding over them; sticky compact bar; desktop multi-zone grid
+- [x] Simulated ID check (accepted, refused, status in profile), images processed locally only
+- [x] Password: 15 chars, 5 letters (upper + lower), 2 digits, 1 special, no name / birth date; live checklist; unit tests
+- [x] 3 distinct questions out of 15; answers normalised and scrypt-hashed by the partner; "never sufficient alone"
+- [x] No QR code anywhere for keys or backups (text recovery code with per-group check characters)
+- [x] Secrets masked, revealed 30 s after re-authentication, auto re-mask; copy with warning
+- [x] Encrypted keystore export + import (wrong password, altered file, other wallet) with clear messages
+- [x] Statuses détectée / en attente / confirmée / échouée; orange disc + check only on confirmation; reduced-motion variant
+- [x] Complete PDF receipt, no invented name nor secret; from the transaction AND Swaplet; no duplicate (idempotent docId)
+- [x] Swaplet → Documents: search, filters, preview, empty / loading / error states
+- [x] Information in 3 stable categories, read / unread, filters kept (URL)
+- [x] Keyboard, mouse and touch; visible orange focus ring; 44 px targets
+- [x] `npm run e2e` green on Sepolia after the redesign; `npm run reset-demo` resets services + browser state (on next load)
+- [x] Screenshots in `docs/design/screens/` at 3 sizes (2 comparison passes done)
+
+Verified in a real browser (Playwright + virtual WebAuthn, real Sepolia): onboarding, unlock + wrong-password counter, recovery via encrypted cloud backup, recovery-code typo detection, standard send, reinforced send (email code + admin approval), key reveal, backup export / import error cases, PDF receipt content.
+Bugs found and fixed during these runs: session marked unlocked before the passkey check; recovery-kit step skipped by the route guard; relayer nonce desync after external use of its key; deploy re-binding an existing wallet.

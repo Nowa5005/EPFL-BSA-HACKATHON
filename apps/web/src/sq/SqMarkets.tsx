@@ -39,7 +39,7 @@ export default function SqMarkets() {
   }, [reduced, filter]);
 
   return (
-    <div>
+    <div className="mx-auto max-w-[880px]">
       <SqMobileTop />
       <Tabs
         className="mt-1"

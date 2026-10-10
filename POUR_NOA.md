@@ -102,3 +102,32 @@ La démo est **remise à zéro et lancée** : ouvre http://localhost:5173 (utili
 2. « Sign in » → « Create my wallet » → « Create passkey » → pose ton doigt sur Touch ID.
 3. Continue jusqu'au kit de récupération (télécharge les 2 fichiers et garde-les : ils servent pour la démo « Swissquote disparaît »).
 **Comment me répondre :** tape `touch id ok`, ou copie-colle le message d'erreur affiché.
+
+---
+
+## ✅ Refonte « My Wall » terminée — 17:10
+
+Tout ton cahier des charges est en place :
+- **l'app Swissquote reconstituée**, avec la **languette « Mon wallet »** sur téléphone et le **bouton « Mon wallet »** sur ordinateur ;
+- **My Wall en français**, avec les soldes en grand et le volet qui remonte ;
+- **l'activation en 7 étapes** : pièce d'identité simulée, mot de passe de 15 caractères, 3 questions parmi 15, kit **sans QR code** ;
+- **les justificatifs PDF**, aussi rangés dans **Swaplet → Documents** ;
+- **les Informations** en 3 catégories ;
+- **Clés et sécurité** : révélation 30 secondes, sauvegarde chiffrée.
+
+J'ai tout vérifié dans un navigateur sur le vrai réseau de test, et le parcours complet `npm run e2e` passe toujours. Les captures sont dans `docs/design/screens/`, et le nouveau scénario de démo dans `docs/DEMO_SCRIPT.md`.
+
+## [NON BLOQUANT] Comment lancer la démo (version My Wall) — 17:10
+1. Ouvre **Terminal** et tape : `cd ~/EPFL-BSA-HACKATHON` puis Entrée.
+2. Tape `npm run dev` puis Entrée. Attends ≈ 10 secondes. **Laisse la fenêtre ouverte.**
+3. Dans **Chrome**, va sur **http://localhost:5173** et clique « Se connecter » (identifiant `alice`, n'importe quel mot de passe).
+4. Pour voir la version téléphone : clic droit → « Inspecter » → icône téléphone en haut à gauche → choisis « iPhone 14 ». Puis **tire la languette « Mon wallet »** en bas de l'écran.
+5. Suis l'activation : document de démonstration → **Touch ID** → mot de passe (ex. `Lac-Leman-2026-bleu!`) → 3 questions → kit (clique « Afficher » puis « Imprimer » ou « Copier », et « Enregistrer dans le cloud »).
+   Pour repartir de zéro : 2e Terminal → `cd ~/EPFL-BSA-HACKATHON` → `npm run reset-demo`, puis recharge la page.
+
+## [NON BLOQUANT] À tester toi-même : Touch ID — 17:10
+Je n'ai pu tester Touch ID qu'en simulation. Fais l'étape 5 ci-dessus sur ton Mac.
+**Comment me répondre :** tape `touch id ok`, ou copie-colle le message d'erreur affiché.
+
+**Si tu bloques, copie-colle ce prompt à Claude (dans le chat) :**
+> Je fais un hackathon. Sur mon Mac, j'ai lancé `npm run dev` dans le dossier ~/EPFL-BSA-HACKATHON, puis ouvert http://localhost:5173 dans Chrome. Quand je clique « Créer la passkey », il se passe ceci : <colle le message>. Explique-moi pas à pas comme à une débutante sur Mac.

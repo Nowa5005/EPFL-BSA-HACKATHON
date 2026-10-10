@@ -1,8 +1,10 @@
-# SQ Wallet — prototype
+# My Wall — prototype
 
-**The self-custody wallet a Swiss bank could launch.** The client holds the keys; Swissquote adds bank-grade security as a **co-signer that can never move funds alone**; recovery works even if Swissquote disappears.
-A **Safe 2-of-3 smart account on Ethereum Sepolia**: device key (passkey-protected) + Swissquote co-signer + a recovery key split 2-of-3 (paper · encrypted cloud · independent Swiss trustee).
-Built for the *Swissquote Wallet Challenge* (EPFL hackathon, Oct. 2026). Not affiliated with Swissquote; no Swissquote trademarks are used.
+**The self-custody wallet a Swiss bank could launch, one tap away from the Swissquote app.** The client holds the keys; Swissquote adds bank-grade security as a **co-signer that can never move funds alone**; recovery works even if Swissquote disappears.
+A **Safe 2-of-3 smart account on Ethereum Sepolia**: device key (passkey-protected) + Swissquote co-signer + a recovery key split 2-of-3 (paper code · encrypted cloud backup · independent Swiss trustee).
+Built for the *Swissquote Wallet Challenge* (EPFL hackathon, Oct. 2026). Prototype with fictitious data; the Swissquote logo is used only to stage the challenge demo (reconstructed app screens are labelled as such).
+
+![My Wall — desktop](docs/design/screens/20-wallet-desktop.png)
 
 ---
 
@@ -22,11 +24,13 @@ On first start the services generate their keys and print the **relayer address*
 | `npm run dev` | Starts `sq-cosigner` (:4001), `recovery-partner` (:4002), `sq-bank` (:4003) and the web app (:5173) |
 | `npm run e2e` | **Headless end-to-end run on Sepolia**: create → sign → attacker refused → recover (delay) → old key revoked on-chain → sign with the new key. Prints Etherscan links |
 | `npm run escape-hatch -- --device-key … --paper … --cloud … --to 0x…` | Moves all funds with **device key + recovery key only** — no Swissquote server |
-| `npm test` | Unit tests of the policy engine |
+| `npm test` | Unit tests: policy engine, recovery code, question picker, answer normalisation, password policy (22 tests) |
+| `npm run screenshots` | Playwright captures at 3 sizes (virtual passkey authenticator) |
 | `npm run fund-check` | Relayer / treasury balances; tops up treasury gas |
 | `npm run reset-demo` | Resets demo state (keeps the funded keys) |
 
-Demo routes: `/` client app (mobile-first) · `/admin` Swissquote back-office (MOCK) · `/attacker` scripted attack · `/recover` "I lost my device" · `/inbox` mock email/SMS.
+Demo routes: `/sq` reconstructed Swissquote app (entry: **"Mon wallet" pull-up tab** on mobile/tablet, **"Mon wallet" button** on desktop) · `/wallet` My Wall · `/wallet/transactions` · `/wallet/swaplet` (receipts) · `/wallet/info` · `/wallet/security` · `/recover` · `/admin` Swissquote back-office (MOCK) · `/attacker` scripted attack · `/inbox` mock email/SMS.
+The UI is in **French**; code and docs are in English. `npm run screenshots` captures every key screen at 390×844, 820×1180 and 1440×900 into `docs/design/screens/`.
 See **[docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)** for the 3-minute demo.
 
 ---
@@ -96,6 +100,12 @@ Each service is a **separate process with its own `data/` directory** (JSON file
 | Recovery partner (independent Swiss trustee) | **MOCK** service, separate process |
 | HSM for K2 | **MOCK** = JSON file |
 | Headless e2e client (no browser passkey) | Demo-only shortcut, flagged `headless` |
+| Identity-document check at activation (images processed locally, never sent) | **MOCK** (outcome only stored in `sq-bank`) |
+| Transaction receipts (PDF, jsPDF, client-side) and receipts index (idempotent `docId`) | **REAL** logic |
+| "Simuler une réception" (250 USDC, no blockchain tx) | **MOCK**, flagged "simulée" everywhere |
+| Reconstructed Swissquote screens, market data, crypto news | **MOCK** (fictitious) |
+| Recovery code (paper share ①) as checksummed base32 text — no QR code | **REAL** encoding |
+| Device-key backup: ethers keystore v3 (scrypt + AES-128-CTR + MAC) | **REAL** library |
 
 Every mocked element carries a visible **MOCK** badge in the UI.
 
@@ -150,6 +160,22 @@ Free tier + **Premium ~5 CHF/month** (higher limits, gas included, priority huma
 - **Gasless**: the Safe never holds ETH; Swissquote's relayer submits `execTransaction` and pays gas (also for Safe deployment). Anti-abuse: KYC-linked wallets only, 20 sponsored tx/day/client, gas cap per tx, sponsoring only if the policy engine approves. Production: ERC-4337 paymaster or EIP-7702.
 - **Compliant dApp interaction**: dApp whitelist (Uniswap, Aave on Sepolia), sanctions screening (refusal shown), plain-language simulation, **red alert on unlimited `approve`**, reinforced checks for every dApp interaction and above the threshold.
 - **Recovery that refuses a thief with phone + email**: `/attacker` page and `npm run e2e` step 3b.
+
+## My Wall UX highlights
+- **Entry from the Swissquote app**: pull-up "Mon wallet" tab (swipe or tap, keyboard accessible) on touch devices; "Mon wallet" button next to the account icon on desktop.
+- **Unlock** = wallet password (decrypts the device key locally, 5 attempts then a 30 s wait) **then** passkey. A recovery code or private key is never asked to open the wallet.
+- **Activation in 7 steps**: welcome → ID document (simulated) → passkey → password (≥ 15 chars, ≥ 5 letters incl. upper + lower, ≥ 2 digits, ≥ 1 special, no name / birth date — live checklist) → 3 distinct questions out of 15 (answers normalised and scrypt-hashed by the partner, never stored in clear) → wallet creation → recovery kit **without QR code** (masked code, 30 s reveal, print sheet, copy) + encrypted cloud backup.
+- **Transactions**: statuses détectée → en attente → confirmée / échouée (confirmed = 1 block on Sepolia, `CONFIRMATIONS` env); orange check animation **only** on confirmation; PDF receipt (reference `MW-YYYYMMDD-<hash8>`, fees, Europe/Zurich time, full addresses, names only when known, no secrets) available from the transaction and from **Swaplet → Documents** without duplicates.
+- **Keys & security**: public address / device private key / recovery code clearly separated; secrets revealed 30 s after password + passkey re-authentication, re-masked on expiry, page exit or background; encrypted device-key backup export + verification (wrong password, altered file, other wallet).
+- **Informations** in 3 stable categories (my transactions · crypto market (demo content) · My Wall updates with "Action requise"), read/unread, filters kept in the URL.
+
+## Assumptions (documented, not blocking)
+- **Swaplet**: its final role is not defined yet; in the demo it is My Wall's space for exchanges and receipts — "Documents" is complete, "Échanger" is shown as *Prochaine version*.
+- Keys: K1 device / K2 Swissquote / K3 recovery (split 2-of-3); there is **no 12/24-word seed phrase**. Custody model unchanged (2-of-3, non-custodial).
+- Encryption is real (ethers keystore, WebCrypto AES-GCM + PBKDF2); identity verification is simulated (future FINMA-approved video-ident provider, retention and access to be defined).
+- The recovery code is also kept **encrypted with the wallet password** on the device so it can be shown again after re-authentication; the client can delete it (trade-off in THREAT_MODEL.md).
+- Password rules are a UX policy, not a guarantee: the key is also protected by the passkey and Swissquote's co-signature; production needs server-side attempt limiting and session protection.
+- Network confirmation = 1 block on Sepolia. Swissquote home screen is **extrapolated** from the reference; market data and crypto news are fictitious.
 
 ## Repository layout
 ```

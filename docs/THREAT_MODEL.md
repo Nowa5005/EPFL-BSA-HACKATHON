@@ -43,7 +43,14 @@ Swissquote can **block** (refuse to co-sign, e.g. sanctions) but can **never mov
 | T11 | **Replay of a passkey assertion** | No | — | Challenge = SafeTx hash which includes the Safe **nonce** → valid for exactly one transaction; WebAuthn signature counter tracked. |
 | T12 | **Device limit bypass** (attacker adds a 3rd device) | No | — | Server refuses more than 1 mobile + 1 computer; adding a device requires an existing device; a new device registered during recovery stays *pending* until the rotation completes. |
 
-## 4. Known limitations (prototype)
+## 4. Local secrets on the device (My Wall UI)
+- **Unlock** requires the wallet password (scrypt keystore decrypted locally; 5 attempts then a 30 s wait in the demo) **and** a passkey assertion; the session is only marked unlocked after both.
+- **Recovery code kept on the device**: share ① is stored **encrypted with the wallet password** (AES-GCM, PBKDF2) so that it can be shown again after re-authentication. Trade-off: an attacker with the device **and** the password **and** the client's cloud backup (also password-encrypted) could rebuild K3 — the same material as the escape hatch. Mitigations: re-authentication with passkey to reveal, 30 s display, the client can delete it from the device after printing; production would keep it only until the client confirms the paper kit.
+- **Secrets display**: never written to logs, history, notifications or storage in clear; re-masked on expiry, page exit and when the app goes to the background; clipboard cleared after 30 s (best effort).
+- **Security questions**: 3 distinct out of 15, answers normalised then scrypt-hashed with a per-answer salt at the partner; low weight in the risk score, never sufficient alone.
+- **Device-key backup file**: ethers keystore v3 (scrypt + AES-128-CTR + MAC) plus a SHA-256 of the keystore to report accidental corruption before trying the password.
+
+## 5. Known limitations (prototype)
 
 - K2 and the relayer key are JSON files (MOCK HSM). Liveness, SMS/email, sanctions feed, KYC and the recovery partner are mocks (clearly labeled in the UI).
 - The headless e2e demo client skips the passkey step (no browser); the UI always uses real passkeys.
