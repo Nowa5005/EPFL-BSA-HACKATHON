@@ -4,15 +4,13 @@
 // Ethereum RPC. Equivalent manual path: https://app.safe.global (Sepolia) with the same two keys.
 //
 // Usage:
-//   npm run escape-hatch -- --device-key <sq-wallet-device-key-*.json> --paper <sq-wallet-paper-kit-*.png|.txt>
-//                           --cloud <sq-wallet-cloud-backup-*.json> --to <destination address>
+//   npm run escape-hatch -- --device-key <my-wall-device-key-backup-*.json> --paper <recovery code, or a .txt file containing it>
+//                           --cloud <my-wall-cloud-backup-*.json> --to <destination address>
 //   Password: asked interactively (or ESCAPE_PASSWORD / ESCAPE_CLOUD_PASSWORD env vars).
 //   Gas: paid by the device key's own address (it needs ~0.001 Sepolia ETH, from any source), or by GAS_PAYER_KEY.
 
 import fs from 'node:fs';
 import readline from 'node:readline';
-import { PNG } from 'pngjs';
-import jsQR from 'jsqr';
 import { Contract, Wallet, formatEther, formatUnits, getAddress, isAddress } from 'ethers';
 import {
   ERC20_ABI,
@@ -20,7 +18,7 @@ import {
   USDC_DECIMALS,
   buildSafeTx,
   combineShares,
-  decodePaperShare,
+  decodeRecoveryCode,
   decryptCloudShare,
   execArgs,
   explorerAddress,
@@ -38,14 +36,11 @@ const arg = (name: string) => {
   return i > 0 ? process.argv[i + 1] : undefined;
 };
 
-function readPaper(file: string): string {
-  if (file.endsWith('.png')) {
-    const png = PNG.sync.read(fs.readFileSync(file));
-    const code = jsQR(new Uint8ClampedArray(png.data), png.width, png.height);
-    if (!code) throw new Error('No QR code found in the paper kit image');
-    return code.data;
-  }
-  return fs.readFileSync(file, 'utf8').trim();
+function readPaper(arg: string): string {
+  const text = fs.existsSync(arg) ? fs.readFileSync(arg, 'utf8') : arg;
+  const r = decodeRecoveryCode(text);
+  if (!r.ok) throw new Error(`Recovery code: ${r.error}`);
+  return r.share;
 }
 
 async function askPassword(question: string, envVar: string): Promise<string> {
@@ -65,21 +60,22 @@ async function main() {
   const cloudFile = arg('cloud');
   const to = arg('to');
   if (!deviceFile || !paperFile || !cloudFile || !to || !isAddress(to)) {
-    console.log('Usage: npm run escape-hatch -- --device-key <file.json> --paper <kit.png|kit.txt> --cloud <backup.json> --to <0xDestination>');
+    console.log('Usage: npm run escape-hatch -- --device-key <backup.json> --paper "<recovery code>" --cloud <cloud-backup.json> --to <0xDestination>');
     process.exit(1);
   }
   const provider = makeProvider();
-  console.log('\n🔓 SQ Wallet escape hatch — no Swissquote server involved, only a public Ethereum RPC.\n');
+  console.log('\n🔓 My Wall escape hatch — no Swissquote server involved, only a public Ethereum RPC.\n');
 
   const device = JSON.parse(fs.readFileSync(deviceFile, 'utf8'));
   const backup = JSON.parse(fs.readFileSync(cloudFile, 'utf8')) as CloudBackup;
-  const paper = decodePaperShare(readPaper(paperFile));
-  const safeAddress = getAddress(paper.safeAddress);
-  if (getAddress(backup.safeAddress) !== safeAddress || getAddress(device.safeAddress) !== safeAddress) throw new Error('These files belong to different wallets');
+  const paper = { share: readPaper(paperFile) };
+  const safeAddress = getAddress(device.safeAddress);
+  if (getAddress(backup.safeAddress) !== safeAddress) throw new Error('These files belong to different wallets');
 
-  const password = await askPassword('Wallet password (device key): ', 'ESCAPE_PASSWORD');
-  const k1 = await Wallet.fromEncryptedJson(JSON.stringify(device.keystore), password).catch(() => {
-    throw new Error('Wrong wallet password for the device key');
+  const password = await askPassword('Device-key backup password: ', 'ESCAPE_PASSWORD');
+  const keystoreJson = typeof device.keystore === 'string' ? device.keystore : JSON.stringify(device.keystore);
+  const k1 = await Wallet.fromEncryptedJson(keystoreJson, password).catch(() => {
+    throw new Error('Wrong password for the device-key backup');
   });
   // The cloud backup keeps the password chosen at wallet creation (it may differ after a device recovery).
   const cloudShare = await decryptCloudShare(backup, password).catch(async () =>

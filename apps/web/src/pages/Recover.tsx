@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Check, CircleCheck, CircleX, Cloud, FileKey2, Fingerprint, ShieldAlert, Smile, X } from 'lucide-react';
 import { Wallet, sha256 } from 'ethers';
-import jsQR from 'jsqr';
-import { buildSafeTx, combineShares, decodePaperShare, signSafeTx, swapOwnerData } from '@sq/shared';
+import { buildSafeTx, combineShares, decodeRecoveryCode, decryptCloudShare, encryptCloudShare, signSafeTx, swapOwnerData, type CloudBackup } from '@sq/shared';
 import { bank, cosigner, partner } from '../lib/api';
 import { encryptKey, guessDeviceType, lock, registerPasskey, saveDevice, saveSession, setUnlocked } from '../lib/device';
+import { checkPassword } from '../lib/passwordPolicy';
 import { useLocal, usePoll } from '../lib/hooks';
-import { Addr, Button, Card, Field, inputCls, mmss, MockBadge, Notice, ProgressList, Shell, Spinner, Steps, TxLink, useCountdown, Why, cx } from '../components/ui';
+import { Addr, Button, Card, cx, DemoFooter, Field, inputCls, Logo, mmss, MockBadge, Notice, ProgressList, SecretInput, Spinner, Steps, Tabs, TxLink, useCountdown, Why, type ProgState } from '../components/ui';
+import { PasswordChecklist } from '../components/PasswordChecklist';
+import { CheckDisc } from '../components/Confirm';
 
-const STEPS = ['Sign in', 'Identity', 'Paper kit', 'New device', 'Security delay'];
-const PENDING_KEY = 'sqw:pending-recovery';
+const STEPS = ['Connexion', 'Identité', 'Partie de votre clé de secours', 'Nouvel appareil', 'Délai de sécurité'];
+const PENDING_KEY = 'mw:pending-recovery';
 
 interface Pending {
   clientId: string;
@@ -19,6 +22,7 @@ interface Pending {
   credentialId: string;
   recoveryId: string;
   deviceType: 'mobile' | 'desktop';
+  paperShareEnc?: CloudBackup;
 }
 const loadPending = (): Pending | null => {
   try {
@@ -36,6 +40,34 @@ const storePending = (p: Pending | null) => {
   }
 };
 
+/** Groups the typed code by 4 characters (paste accepted). */
+const formatCode = (s: string) =>
+  s
+    .toUpperCase()
+    .replace(/[^0-9A-Z]/g, '')
+    .slice(0, 76)
+    .replace(/(.{4})(?=.)/g, '$1 ');
+
+function Frame({ children, step }: { children: React.ReactNode; step: number }) {
+  return (
+    <div className="mw-page min-h-screen bg-sq-bg">
+      <div className="mx-auto w-full max-w-[560px] px-5 pb-8 pt-4">
+        <div className="mb-4 flex items-center justify-between">
+          <Link to="/sq" className="inline-flex min-h-11 items-center gap-1.5 text-[14px] font-medium text-sq-ink-2">
+            <ArrowLeft size={18} strokeWidth={1.75} /> Swissquote
+          </Link>
+          <span className="flex items-center gap-2 text-[15px] font-semibold">
+            <Logo size={24} /> My Wall
+          </span>
+        </div>
+        <Steps total={STEPS.length} current={Math.min(step, STEPS.length - 1)} label={STEPS[Math.min(step, STEPS.length - 1)]} />
+        <div className="mt-6 space-y-4">{children}</div>
+      </div>
+      <DemoFooter />
+    </div>
+  );
+}
+
 export default function Recover() {
   const { session } = useLocal();
   const location = useLocation();
@@ -45,58 +77,64 @@ export default function Recover() {
       lock();
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [pending, setPending] = useState<Pending | null>(loadPending());
   const [step, setStep] = useState(session ? 1 : 0);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
-
+  const [profile, setProfile] = useState<any>(session?.profile);
+  const [username, setUsername] = useState('alice');
   // identity
   const [sessionId, setSessionId] = useState('');
   const [questions, setQuestions] = useState<string[]>([]);
   const [liveness, setLiveness] = useState<'match' | 'no-match' | null>(null);
   const [answers, setAnswers] = useState(['', '', '']);
-  // paper
-  const [paperText, setPaperText] = useState('');
+  // recovery material
+  const [mode, setMode] = useState<'paper' | 'cloud'>('paper');
+  const [code, setCode] = useState('');
+  const [codeErr, setCodeErr] = useState('');
+  const [cloudFile, setCloudFile] = useState<File | null>(null);
+  const [cloudPw, setCloudPw] = useState('');
   // decision
   const [refusal, setRefusal] = useState<any>(null);
   const [k3, setK3] = useState<Wallet | null>(null);
+  const [paperShare, setPaperShare] = useState<string | null>(null);
   const [attestationId, setAttestationId] = useState('');
   const [safeAddress, setSafeAddress] = useState('');
   // new device
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
-  const [prog, setProg] = useState<any[]>([]);
+  const [prog, setProg] = useState<{ label: string; state: ProgState; detail?: any }[]>([]);
 
-  const [username, setUsername] = useState('alice');
+  useEffect(() => {
+    if (session) bank.get(`/clients/${session.clientId}`).then(setProfile).catch(() => undefined);
+  }, [session?.clientId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (step !== 1 || !session || sessionId) return;
+    partner
+      .post('/sessions', { clientId: session.clientId, context: { swissquoteLogin: true, newDevice: true, unusualIp: false, simSwapRecent: false } })
+      .then((r) => {
+        setSessionId(r.sessionId);
+        setQuestions(r.questions);
+      })
+      .catch((e) => setErr(e.message));
+  }, [step, session, sessionId]);
+
+  const [first, ...rest] = (profile?.name ?? '').split(' ');
+  const pwCheck = checkPassword(pw, { firstName: profile?.firstName ?? first, lastName: profile?.lastName ?? rest.join(' '), birthDate: profile?.birthDate });
 
   const login = async () => {
     setErr('');
     try {
       const r = await bank.post('/login', { username, password: 'demo' });
       saveSession({ token: r.token, clientId: r.clientId, profile: r.profile });
+      setProfile(r.profile);
       setStep(1);
     } catch (e: any) {
       setErr(e.message);
     }
   };
-
-  const startIdentity = async () => {
-    setErr('');
-    try {
-      const r = await partner.post('/sessions', {
-        clientId: session!.clientId,
-        context: { swissquoteLogin: true, newDevice: true, unusualIp: false, simSwapRecent: false },
-      });
-      setSessionId(r.sessionId);
-      setQuestions(r.questions);
-    } catch (e: any) {
-      setErr(e.message);
-    }
-  };
-
-  useEffect(() => {
-    if (step === 1 && session && !sessionId) void startIdentity();
-  }, [step, session]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const submitIdentity = async () => {
     setBusy(true);
@@ -112,40 +150,46 @@ export default function Recover() {
     }
   };
 
-  const readQrFile = async (file: File) => {
-    setErr('');
-    const img = await createImageBitmap(file);
-    const canvas = document.createElement('canvas');
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext('2d')!;
-    ctx.drawImage(img, 0, 0);
-    const data = ctx.getImageData(0, 0, img.width, img.height);
-    const code = jsQR(data.data, data.width, data.height);
-    if (!code) return setErr('No QR code found in this image. Try a sharper photo, or paste the text code.');
-    setPaperText(code.data);
-  };
-
-  const decide = async (withPaper: boolean) => {
+  const decide = async (withMaterial: boolean) => {
     setBusy(true);
     setErr('');
+    setCodeErr('');
     try {
-      let paper: { safeAddress: string; share: string } | null = null;
-      if (withPaper) {
-        paper = decodePaperShare(paperText);
-        await partner.post(`/sessions/${sessionId}/paper-proof`, { commitment: sha256(paper.share) });
+      let ownShare: string | null = null;
+      if (withMaterial && mode === 'paper') {
+        const r = decodeRecoveryCode(code);
+        if (!r.ok) {
+          setCodeErr(r.error);
+          return;
+        }
+        ownShare = r.share;
+        await partner.post(`/sessions/${sessionId}/paper-proof`, { commitment: sha256(ownShare), kind: 'paper' });
+      } else if (withMaterial && mode === 'cloud') {
+        let backup: CloudBackup;
+        try {
+          backup = JSON.parse(await cloudFile!.text());
+        } catch {
+          throw new Error("Ce fichier n'est pas une sauvegarde cloud My Wall.");
+        }
+        if (backup.kind !== 'sqwallet-cloud-backup') throw new Error("Ce fichier n'est pas une sauvegarde cloud My Wall.");
+        try {
+          ownShare = await decryptCloudShare(backup, cloudPw);
+        } catch {
+          throw new Error('Mot de passe incorrect pour cette sauvegarde (celui choisi à la création du wallet).');
+        }
+        await partner.post(`/sessions/${sessionId}/paper-proof`, { commitment: sha256(ownShare), kind: 'cloud' });
       }
       const r = await partner.post(`/sessions/${sessionId}/decide`);
       if (r.decision !== 'released') {
         setRefusal(r);
         return;
       }
-      if (!paper) throw new Error('The paper kit is required to rebuild your recovery key.');
-      const key = await combineShares([paper.share, r.share]);
-      const w = new Wallet(key);
+      if (!ownShare) throw new Error('Une partie de votre clé de secours (code papier ou sauvegarde cloud) est nécessaire.');
+      const w = new Wallet(await combineShares([ownShare, r.share]));
       const client = await cosigner.get(`/clients/${session!.clientId}`);
-      if (w.address.toLowerCase() !== client.owners?.recovery?.toLowerCase()) throw new Error('This paper kit does not belong to this wallet.');
+      if (w.address.toLowerCase() !== client.owners?.recovery?.toLowerCase()) throw new Error('Ce code ou cette sauvegarde n’appartient pas à ce wallet.');
       setK3(w);
+      setPaperShare(mode === 'paper' ? ownShare : null);
       setAttestationId(r.attestationId);
       setSafeAddress(client.safeAddress);
       setStep(3);
@@ -158,10 +202,10 @@ export default function Recover() {
 
   const setupDevice = async () => {
     setErr('');
-    const labels = ['Create a passkey on this new device', 'Generate & encrypt the new device key', 'Sign the key rotation with your recovery key', 'Send the request to Swissquote (security delay starts)'];
-    const p = labels.map((label) => ({ label, state: 'todo' }));
-    const set = (i: number, state: string, detail?: any) => {
-      p[i] = { ...p[i], state, detail } as any;
+    const labels = ['Création d’une passkey sur ce nouvel appareil', 'Nouvelle clé d’appareil, chiffrée avec votre mot de passe', 'Signature du remplacement avec votre clé de secours', 'Envoi de la demande à Swissquote (début du délai de sécurité)'];
+    const p = labels.map((label) => ({ label, state: 'todo' as ProgState, detail: undefined as any }));
+    const set = (i: number, state: ProgState, detail?: any) => {
+      p[i] = { ...p[i], state, detail };
       setProg([...p]);
     };
     setProg([...p]);
@@ -170,158 +214,193 @@ export default function Recover() {
       set(i, 'doing');
       const deviceType = guessDeviceType();
       const reg = await registerPasskey(session!.clientId, deviceType, attestationId);
-      set(i, 'done', 'activates when recovery completes');
+      set(i, 'done', 'Active dès la fin de la récupération');
       set(++i, 'doing');
       const k1 = Wallet.createRandom();
       const keystore = await encryptKey(k1, pw);
+      const paperShareEnc = paperShare ? await encryptCloudShare(safeAddress, paperShare, pw) : undefined;
       set(i, 'done', <Addr a={k1.address} />);
       set(++i, 'doing');
       const on = await cosigner.get(`/clients/${session!.clientId}/onchain`);
       const client = await cosigner.get(`/clients/${session!.clientId}`);
       const tx = buildSafeTx({ to: safeAddress, data: swapOwnerData(on.owners, client.owners.device, k1.address), nonce: on.nonce });
       const signatureK3 = await signSafeTx(k3!, safeAddress, tx);
-      setK3(null); // recovery key leaves memory
-      set(i, 'done', `replace ${client.owners.device.slice(0, 8)}… → ${k1.address.slice(0, 8)}…`);
+      setK3(null); // the recovery key leaves memory
+      set(i, 'done', 'Ancienne clé → nouvelle clé');
       set(++i, 'doing');
       const r = await cosigner.post('/recovery/request', { clientId: session!.clientId, safeTx: tx, signatureK3, partnerAttestationId: attestationId, newCredentialId: reg.credentialId });
       set(i, 'done');
-      const pend: Pending = { clientId: session!.clientId, safeAddress, deviceAddress: k1.address, keystore, credentialId: reg.credentialId, recoveryId: r.id, deviceType };
+      const pend: Pending = { clientId: session!.clientId, safeAddress, deviceAddress: k1.address, keystore, credentialId: reg.credentialId, recoveryId: r.id, deviceType, paperShareEnc };
       storePending(pend);
       setUnlocked(k1);
       setPending(pend);
     } catch (e: any) {
       set(i, 'error');
-      setErr(e?.name === 'NotAllowedError' ? 'Touch ID was cancelled. Please try again.' : e.message);
+      setErr(e?.name === 'NotAllowedError' ? 'Touch ID a été annulé. Réessayez.' : e.message);
     }
   };
 
-  if (pending) return <Waiting pending={pending} onReset={() => { storePending(null); setPending(null); }} />;
+  if (pending)
+    return (
+      <Waiting
+        pending={pending}
+        onReset={() => {
+          storePending(null);
+          setPending(null);
+        }}
+      />
+    );
 
   if (refusal)
     return (
-      <Shell>
+      <Frame step={2}>
         <RefusalCard refusal={refusal} />
-        <div className="mt-4">
-          <Link to="/login">
-            <Button variant="secondary">Back</Button>
-          </Link>
-        </div>
-      </Shell>
+        <Link to="/sq">
+          <Button variant="secondary">Retour à Swissquote</Button>
+        </Link>
+      </Frame>
     );
 
   return (
-    <Shell>
-      <Steps steps={STEPS} current={step} />
-      <div className="mt-5 space-y-4">
-        <h1 className="text-2xl font-semibold tracking-tight">I lost my device</h1>
-        {step === 0 && (
-          <>
-            <Why>First, sign in to your Swissquote account. It is protected by its own credentials, separate from your wallet.</Why>
-            <Card className="space-y-4">
-              <Field label="Swissquote username">
-                <input className={inputCls} value={username} onChange={(e) => setUsername(e.target.value)} />
-              </Field>
-              <Button onClick={login}>Sign in</Button>
-            </Card>
-          </>
-        )}
-
-        {step === 1 && (
-          <>
-            <Why>An independent Swiss recovery partner verifies it is really you. It holds one part of your recovery key — useless alone — and only releases it after these checks.</Why>
-            <Card className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="font-semibold">1. Video selfie</div>
-                <MockBadge label="Mock liveness" />
-              </div>
-              <div className="flex aspect-video items-center justify-center rounded-xl bg-navy-900 text-5xl">🙂</div>
-              <p className="text-xs text-navy-700/70">In production, a certified video-ident provider compares a live selfie with your KYC photo.</p>
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant={liveness === 'match' ? 'primary' : 'secondary'} onClick={() => setLiveness('match')}>
-                  ✓ Face matches
-                </Button>
-                <Button variant={liveness === 'no-match' ? 'danger' : 'secondary'} onClick={() => setLiveness('no-match')}>
-                  ✕ Does not match
-                </Button>
-              </div>
-            </Card>
-            <Card className="space-y-3">
-              <div className="font-semibold">2. Security questions</div>
-              <p className="text-xs text-navy-700/70">Low weight in the decision — never enough on their own.</p>
-              {questions.map((q, j) => (
-                <Field key={q} label={q}>
-                  <input className={inputCls} value={answers[j]} onChange={(e) => setAnswers(answers.map((a, k) => (k === j ? e.target.value : a)))} />
-                </Field>
-              ))}
-              {!questions.length && <Spinner />}
-            </Card>
+    <Frame step={step}>
+      <h1 className="text-[26px] font-semibold tracking-tight">J'ai perdu mon appareil</h1>
+      {step === 0 && (
+        <>
+          <Why>Connectez-vous d’abord à votre compte Swissquote. Il est protégé par ses propres identifiants, distincts de votre wallet.</Why>
+          <Card className="space-y-4">
+            <Field label="Identifiant Swissquote" hint="Démo : alice ou bruno">
+              <input className={inputCls} value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
+            </Field>
             {err && <Notice tone="bad">{err}</Notice>}
-            <Button onClick={submitIdentity} disabled={!liveness || busy || !sessionId}>
-              Continue
-            </Button>
-          </>
-        )}
+            <Button onClick={login}>Se connecter</Button>
+          </Card>
+        </>
+      )}
 
-        {step === 2 && (
-          <>
-            <Why>Your paper kit is part ① of your recovery key. With part ③ from the partner, your recovery key is rebuilt — only on this device.</Why>
+      {step === 1 && (
+        <>
+          <Why>Un partenaire suisse indépendant vérifie que c’est bien vous. Il détient une partie de votre clé de secours — inutile seule — et ne la libère qu’après ces contrôles.</Why>
+          <Card className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold">1. Selfie vidéo</h2>
+              <MockBadge label="Vérification simulée" />
+            </div>
+            <div className="flex aspect-video items-center justify-center rounded-[10px] bg-sq-dark text-white/80">
+              <Smile size={56} strokeWidth={1.25} />
+            </div>
+            <p className="text-[12px] text-sq-muted">En production, un prestataire certifié compare un selfie vidéo à votre photo KYC.</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant={liveness === 'match' ? 'primary' : 'secondary'} onClick={() => setLiveness('match')}>
+                <CircleCheck size={18} strokeWidth={1.75} /> Visage conforme
+              </Button>
+              <Button variant={liveness === 'no-match' ? 'danger' : 'secondary'} onClick={() => setLiveness('no-match')}>
+                <CircleX size={18} strokeWidth={1.75} /> Non conforme
+              </Button>
+            </div>
+          </Card>
+          <Card className="space-y-3">
+            <h2 className="font-semibold">2. Vos questions de récupération</h2>
+            <p className="text-[12px] text-sq-muted">Elles aident à vous reconnaître mais ne suffisent jamais seules.</p>
+            {questions.map((q, j) => (
+              <Field key={q} label={q}>
+                <SecretInput value={answers[j]} onChange={(v) => setAnswers(answers.map((a, k) => (k === j ? v : a)))} autoComplete="off" />
+              </Field>
+            ))}
+            {!questions.length && !err && <Spinner className="text-sq-muted" />}
+          </Card>
+          {err && <Notice tone="bad">{err}</Notice>}
+          <Button onClick={submitIdentity} disabled={!liveness || busy || !sessionId}>
+            Continuer
+          </Button>
+        </>
+      )}
+
+      {step === 2 && (
+        <>
+          <Why>Il faut 2 parties sur 3 de votre clé de secours. Le partenaire fournit la partie ③ ; apportez la vôtre : votre code papier (①) ou votre sauvegarde cloud chiffrée (②).</Why>
+          <Tabs
+            value={mode}
+            onChange={setMode}
+            tabs={[
+              { id: 'paper', label: 'Code papier' },
+              { id: 'cloud', label: 'Sauvegarde cloud' },
+            ]}
+          />
+          {mode === 'paper' ? (
             <Card className="space-y-3">
-              <div className="font-semibold">Scan your paper kit</div>
-              <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-navy-100 p-6 text-center text-sm hover:bg-navy-50">
-                <span className="text-3xl">📷</span>
-                Take a photo / choose the kit image
-                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => e.target.files?.[0] && void readQrFile(e.target.files[0])} />
+              <Field label="Code de récupération" error={codeErr || undefined} hint="19 groupes de 4 caractères. Le collage est accepté.">
+                <textarea
+                  className={cx(inputCls, 'h-28 resize-none font-mono text-[15px] uppercase leading-relaxed tracking-wider')}
+                  value={code}
+                  onChange={(e) => {
+                    setCode(formatCode(e.target.value));
+                    setCodeErr('');
+                  }}
+                  spellCheck={false}
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  placeholder="XXXX XXXX XXXX …"
+                  aria-label="Code de récupération"
+                />
+              </Field>
+            </Card>
+          ) : (
+            <Card className="space-y-3">
+              <label className="flex min-h-[88px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[10px] border-2 border-dashed border-sq-line text-center text-[14px] text-sq-ink-2 hover:bg-sq-bg/60">
+                <Cloud size={24} strokeWidth={1.5} />
+                {cloudFile ? cloudFile.name : 'Choisir le fichier de sauvegarde (my-wall-cloud-backup-….json)'}
+                <input type="file" accept="application/json,.json" className="sr-only" onChange={(e) => setCloudFile(e.target.files?.[0] ?? null)} />
               </label>
-              <Field label="…or paste the text code">
-                <textarea className={cx(inputCls, 'h-20 font-mono text-xs')} value={paperText} onChange={(e) => setPaperText(e.target.value.trim())} placeholder="sqwallet:recovery:v1:0x…" />
+              <Field label="Mot de passe choisi à la création du wallet">
+                <SecretInput value={cloudPw} onChange={setCloudPw} autoComplete="off" />
               </Field>
-              {paperText && <Notice tone="ok">Paper kit read ✓</Notice>}
             </Card>
-            {err && <Notice tone="bad">{err}</Notice>}
-            <Button onClick={() => decide(true)} disabled={!paperText || busy}>
-              {busy ? <Spinner /> : 'Verify & continue'}
-            </Button>
-            <Button variant="ghost" onClick={() => decide(false)} disabled={busy}>
-              I don't have my paper kit
-            </Button>
-          </>
-        )}
+          )}
+          {err && <Notice tone="bad">{err}</Notice>}
+          <Button onClick={() => decide(true)} disabled={busy || (mode === 'paper' ? code.replace(/ /g, '').length < 4 : !cloudFile || !cloudPw)}>
+            {busy ? <Spinner /> : 'Vérifier et continuer'}
+          </Button>
+          <Button variant="ghost" onClick={() => decide(false)} disabled={busy}>
+            Je n'ai ni le code ni la sauvegarde
+          </Button>
+        </>
+      )}
 
-        {step === 3 && (
-          <>
-            <Notice tone="ok" title="Identity confirmed — recovery key rebuilt on this device">
-              The partner released its part. Now set up this device.
-            </Notice>
-            {!prog.length ? (
-              <form
-                className="space-y-4"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void setupDevice();
-                }}
-              >
-                <Card className="space-y-4">
-                  <Field label="New wallet password" hint="At least 8 characters">
-                    <input type="password" className={inputCls} value={pw} onChange={(e) => setPw(e.target.value)} />
-                  </Field>
-                  <Field label="Repeat password">
-                    <input type="password" className={inputCls} value={pw2} onChange={(e) => setPw2(e.target.value)} />
-                  </Field>
-                </Card>
-                <Button type="submit" disabled={pw.length < 8 || pw !== pw2}>
-                  👆 Link this device with Touch ID
-                </Button>
-              </form>
-            ) : (
-              <Card>
-                <ProgressList items={prog} />
+      {step === 3 && (
+        <>
+          <Notice tone="ok" title="Identité confirmée — clé de secours reconstituée sur cet appareil">
+            Le partenaire a libéré sa partie. Configurez maintenant ce nouvel appareil.
+          </Notice>
+          {!prog.length ? (
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (pwCheck.ok && pw === pw2) void setupDevice();
+              }}
+            >
+              <Card className="space-y-4">
+                <Field label="Nouveau mot de passe du wallet" error={pw && !pwCheck.ok ? pwCheck.message : undefined}>
+                  <SecretInput value={pw} onChange={setPw} />
+                </Field>
+                <PasswordChecklist rules={pwCheck.rules} />
+                <Field label="Confirmez le mot de passe" error={pw2 && pw2 !== pw ? 'Les deux mots de passe ne correspondent pas.' : undefined}>
+                  <SecretInput value={pw2} onChange={setPw2} />
+                </Field>
               </Card>
-            )}
-            {err && <Notice tone="bad">{err}</Notice>}
-          </>
-        )}
-      </div>
-    </Shell>
+              <Button type="submit" disabled={!pwCheck.ok || pw !== pw2}>
+                <Fingerprint size={18} strokeWidth={1.75} /> Lier cet appareil avec Touch ID
+              </Button>
+            </form>
+          ) : (
+            <Card>
+              <ProgressList items={prog} />
+            </Card>
+          )}
+          {err && <Notice tone="bad">{err}</Notice>}
+        </>
+      )}
+    </Frame>
   );
 }
 
@@ -329,27 +408,31 @@ export function RefusalCard({ refusal }: { refusal: any }) {
   return (
     <Card className="space-y-4">
       <div className="flex items-center gap-3">
-        <span className="flex size-12 items-center justify-center rounded-full bg-bad-50 text-2xl text-bad-600">🛑</span>
+        <span className="flex size-12 items-center justify-center rounded-full bg-sq-bad-50 text-sq-down">
+          <ShieldAlert size={24} strokeWidth={1.75} />
+        </span>
         <div>
-          <div className="text-lg font-semibold">Recovery refused</div>
-          <div className="text-sm text-navy-700/70">
-            Risk score {refusal.riskScore} (limit {refusal.threshold}). Nothing was released.
+          <div className="text-[18px] font-semibold">Récupération refusée</div>
+          <div className="text-[14px] text-sq-muted">
+            Score de risque {refusal.riskScore} (limite {refusal.threshold}). Rien n’a été libéré.
           </div>
         </div>
       </div>
-      <ul className="space-y-2 text-sm">
+      <ul className="space-y-2 text-[14px]">
         {refusal.factors.map((f: any) => (
           <li key={f.factor} className="flex items-start gap-2">
-            <span className={cx('mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] text-white', f.ok ? 'bg-ok-600' : 'bg-bad-600')}>{f.ok ? '✓' : '✕'}</span>
+            <span className={cx('mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-white', f.ok ? 'bg-sq-up' : 'bg-sq-down')} aria-label={f.ok ? 'Réussi' : 'Échec'}>
+              {f.ok ? <Check size={12} strokeWidth={3} /> : <X size={12} strokeWidth={3} />}
+            </span>
             <span>
               {f.factor}
-              {f.hard && !f.ok && <b className="text-bad-600"> — mandatory</b>}
-              {!f.hard && f.points > 0 && <span className="text-navy-700/60"> (+{f.points} risk)</span>}
+              {f.hard && !f.ok && <b className="text-sq-down"> — obligatoire</b>}
+              {!f.hard && f.points > 0 && <span className="text-sq-muted"> (+{f.points} risque)</span>}
             </span>
           </li>
         ))}
       </ul>
-      <Why>The real owner has been notified in their Swissquote account. If you are the owner, contact Swissquote: a human-assisted recovery is possible with a video identification.</Why>
+      <Why>Le vrai titulaire a été alerté dans son compte Swissquote. Si vous êtes le titulaire, contactez Swissquote : une récupération assistée par un conseiller est possible avec une identification vidéo.</Why>
     </Card>
   );
 }
@@ -369,51 +452,51 @@ function Waiting({ pending, onReset }: { pending: Pending; onReset: () => void }
         credentialId: pending.credentialId,
         deviceType: pending.deviceType,
         createdAt: new Date().toISOString(),
+        paperShareEnc: pending.paperShareEnc,
       });
       storePending(null);
     }
   }, [r?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <Shell>
-      <Steps steps={STEPS} current={r?.status === 'completed' ? 5 : 4} />
-      <div className="mt-5 space-y-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Security delay</h1>
-        {!r ? (
-          <Spinner />
-        ) : r.status === 'pending-delay' || r.status === 'executing' ? (
-          <>
-            <Card className="flex flex-col items-center gap-2 py-8 text-center">
-              <div className="num text-5xl font-semibold">{mmss(left)}</div>
-              <div className="text-sm text-navy-700/70">{r.status === 'executing' ? 'Rotating keys on Ethereum…' : 'until your new device is activated'}</div>
-              <div className="text-xs text-navy-700/50">2 minutes in this demo · 48 hours in production</div>
-            </Card>
-            <Why>We have notified you by email, SMS and in your Swissquote account. If someone else started this recovery, the real owner can cancel it with one tap during the delay.</Why>
-            <Link to="/inbox" target="_blank" className="block">
-              <Button variant="secondary">Open the mock inbox (cancel button) ↗</Button>
-            </Link>
-          </>
-        ) : r.status === 'completed' ? (
-          <>
-            <Card className="flex flex-col items-center gap-2 py-8 text-center">
-              <span className="flex size-14 items-center justify-center rounded-full bg-ok-600 text-2xl text-white">✓</span>
-              <div className="text-xl font-semibold">Access recovered</div>
-              <div className="text-sm text-navy-700/80">Your old device can no longer sign — revoked on-chain.</div>
-              <TxLink hash={r.txHash} />
-            </Card>
-            <Button onClick={() => nav('/wallet')}>Go to my wallet</Button>
-          </>
-        ) : (
-          <>
-            <Notice tone={r.status === 'cancelled' ? 'warn' : 'bad'} title={r.status === 'cancelled' ? 'Recovery cancelled' : 'Recovery failed'}>
-              {r.status === 'cancelled' ? 'The recovery was cancelled from the Swissquote account. Nothing changed on-chain.' : r.error}
-            </Notice>
-            <Button variant="secondary" onClick={onReset}>
-              Start again
+    <Frame step={r?.status === 'completed' ? 5 : 4}>
+      <h1 className="text-[26px] font-semibold tracking-tight">Délai de sécurité</h1>
+      {!r ? (
+        <Spinner />
+      ) : r.status === 'pending-delay' || r.status === 'executing' ? (
+        <>
+          <Card className="flex flex-col items-center gap-2 py-10 text-center">
+            <div className="num text-[48px] font-semibold">{mmss(left)}</div>
+            <div className="text-[14px] text-sq-muted">{r.status === 'executing' ? 'Remplacement des clés sur Ethereum…' : 'avant l’activation de votre nouvel appareil'}</div>
+            <div className="text-[12px] text-sq-muted">2 minutes dans cette démo · 48 heures en production</div>
+          </Card>
+          <Why>Nous vous avons prévenu par email, SMS et dans votre compte Swissquote. Si quelqu’un d’autre a lancé cette récupération, le vrai titulaire peut l’annuler d’un geste pendant le délai.</Why>
+          <Link to="/inbox" target="_blank" className="block">
+            <Button variant="secondary">
+              <FileKey2 size={18} strokeWidth={1.75} /> Ouvrir la boîte de réception (bouton d’annulation)
             </Button>
-          </>
-        )}
-      </div>
-    </Shell>
+          </Link>
+        </>
+      ) : r.status === 'completed' ? (
+        <>
+          <Card className="flex flex-col items-center gap-3 py-10 text-center">
+            <CheckDisc />
+            <div className="text-[20px] font-semibold">Accès récupéré</div>
+            <div className="text-[14px] text-sq-muted">Votre ancien appareil ne peut plus signer : il a été révoqué sur la blockchain.</div>
+            <TxLink hash={r.txHash} />
+          </Card>
+          <Button onClick={() => nav('/wallet')}>Ouvrir My Wall</Button>
+        </>
+      ) : (
+        <>
+          <Notice tone={r.status === 'cancelled' ? 'warn' : 'bad'} title={r.status === 'cancelled' ? 'Récupération annulée' : 'Récupération échouée'}>
+            {r.status === 'cancelled' ? 'La récupération a été annulée depuis le compte Swissquote. Rien n’a changé sur la blockchain.' : r.error}
+          </Notice>
+          <Button variant="secondary" onClick={onReset}>
+            Recommencer
+          </Button>
+        </>
+      )}
+    </Frame>
   );
 }

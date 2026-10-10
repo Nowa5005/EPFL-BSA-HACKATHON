@@ -41,6 +41,7 @@ export interface TxRequest {
   policy: PolicyResult;
   signatureK1: string;
   deviceAddress: string;
+  note?: string;
   status: TxStatus;
   otp?: { code: string; expiresAt: string; verified: boolean };
   coolingOffUntil?: string;
@@ -89,6 +90,8 @@ export interface Db {
   challenges: Record<string, { challenge: string; expiresAt: string; purpose: string }>;
   activity: ActivityEvent[];
   inbox: InboxMessage[];
+  walletTxs?: Record<string, import('./walletTx').WalletTx>;
+  documents?: Record<string, import('./walletTx').DocumentEntry>;
 }
 
 export const db = new JsonStore<Db>(DATA_DIR, 'db', () => ({
@@ -121,7 +124,7 @@ export function notify(m: Omit<InboxMessage, 'id' | 'ts'>) {
 
 export function getClient(clientId: string): Client {
   const c = db.data.clients[clientId];
-  if (!c) throw new HttpError(404, 'Unknown client');
+  if (!c) throw new HttpError(404, 'Client inconnu');
   return c;
 }
 

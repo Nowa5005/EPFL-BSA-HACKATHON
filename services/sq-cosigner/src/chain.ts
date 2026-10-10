@@ -21,6 +21,8 @@ const rpcs = process.env.SEPOLIA_RPC_URLS ? process.env.SEPOLIA_RPC_URLS.split('
 export const provider = makeProvider(rpcs);
 export const relayer = new NonceManager(relayerWallet().connect(provider));
 export const relayerAddress = relayerWallet().address;
+/** Blocks to wait before a transaction counts as « confirmée » (1 on Sepolia for the demo). */
+export const CONFIRMATIONS = Number(process.env.CONFIRMATIONS ?? 1);
 
 // Serialize relayer submissions (one nonce sequence).
 let queue: Promise<unknown> = Promise.resolve();
@@ -94,7 +96,13 @@ export async function simulateInner(safeAddress: string, tx: SafeTx) {
 }
 
 /** K2 co-signs, the relayer submits execTransaction and pays the gas. */
-export async function cosignAndExecute(clientId: string, safeAddress: string, tx: SafeTx, otherSig: { signer: string; signature: string }) {
+export async function cosignAndExecute(
+  clientId: string,
+  safeAddress: string,
+  tx: SafeTx,
+  otherSig: { signer: string; signature: string },
+  onSent?: (hash: string) => void,
+) {
   const k2 = cosignerWallet(clientId);
   const sigK2 = await signSafeTx(k2, safeAddress, tx);
   const signatures = packSignatures([otherSig, { signer: k2.address, signature: sigK2 }]);
@@ -104,7 +112,8 @@ export async function cosignAndExecute(clientId: string, safeAddress: string, tx
     const gasLimit = (est * 13n) / 10n;
     if (gasLimit > BigInt(POLICY.maxSponsoredGas)) throw new Error(`Gas ${gasLimit} above sponsoring cap`);
     const sent = await safe.execTransaction(...execArgs(tx, signatures), { gasLimit });
-    const receipt: TransactionReceipt | null = await sent.wait();
+    onSent?.(sent.hash);
+    const receipt: TransactionReceipt | null = await sent.wait(CONFIRMATIONS);
     if (!receipt || receipt.status !== 1) throw new Error('Transaction reverted');
     const failure = receipt.logs.some((l) => {
       try {

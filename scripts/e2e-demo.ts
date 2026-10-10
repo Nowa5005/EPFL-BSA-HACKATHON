@@ -6,6 +6,9 @@ import fs from 'node:fs';
 import { BaseWallet, Contract, Wallet, hashMessage, sha256 } from 'ethers';
 import {
   EIP1271_ABI,
+  RECOVERY_QUESTIONS,
+  decodeRecoveryCode,
+  encodeRecoveryCode,
   EIP1271_MAGIC,
   SERVICE_URLS,
   buildSafeTx,
@@ -69,11 +72,12 @@ async function main() {
     share: shares.partner,
     kyc: { name: 'E2E Demo Client', dob: '1990-01-01', idNumber: 'E2E' },
     questions: [
-      { question: 'First pet?', answer: 'Rex' },
-      { question: 'Street you grew up on?', answer: 'Rue du Lac' },
-      { question: 'Favourite teacher?', answer: 'Mme Dupont' },
+      { question: RECOVERY_QUESTIONS[1], answer: 'Rex' },
+      { question: RECOVERY_QUESTIONS[3], answer: 'Rue du Lac' },
+      { question: RECOVERY_QUESTIONS[5], answer: 'Mme Dupont' },
     ],
     paperCommitment: sha256(shares.paper),
+    cloudCommitment: sha256(shares.cloud),
   });
   ok('Share ③ stored at the independent recovery partner (separate process)');
 
@@ -129,7 +133,9 @@ async function main() {
   const dec = await call('POST', `${P}/sessions/${ses.sessionId}/decide`);
   if (dec.decision !== 'released') throw new Error(`Partner refused: ${JSON.stringify(dec)}`);
   ok(`Partner released share ③ (risk score ${dec.riskScore})`);
-  const k3hex = await combineShares([shares.paper, dec.share]);
+  const typed = decodeRecoveryCode(encodeRecoveryCode(shares.paper)); // the client types the printed code
+  if (!typed.ok) throw new Error(typed.error);
+  const k3hex = await combineShares([typed.share, dec.share]);
   const k3rebuilt = new Wallet(k3hex);
   if (k3rebuilt.address !== k3.address) throw new Error('Rebuilt K3 mismatch');
   ok(`K3 rebuilt from paper + partner shares: ${k3rebuilt.address}`);

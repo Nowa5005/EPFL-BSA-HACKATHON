@@ -24,6 +24,7 @@ import {
   usdcContract,
 } from '@sq/shared';
 
+const COSIGNER_URL = process.env.COSIGNER_URL ?? 'http://localhost:4001';
 const DATA_DIR = process.env.BANK_DATA_DIR ?? path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data');
 const provider = makeProvider(process.env.SEPOLIA_RPC_URLS ? process.env.SEPOLIA_RPC_URLS.split(',') : RPC_URLS);
 
@@ -31,8 +32,12 @@ interface BankClient {
   clientId: string;
   username: string;
   name: string;
+  firstName: string;
+  lastName: string;
+  birthDate: string; // YYYY-MM-DD
   email: string;
   phone: string;
+  idVerification?: { status: 'accepted' | 'refused'; method: 'id-card' | 'passport'; date: string; simulated: true };
   kyc: { status: 'verified'; dob: string; nationality: string; idDocument: string; address: string; verifiedAt: string; photo: string; riskClass: 'low' | 'medium' | 'high' };
   accounts: { CHF: number; USDC: number };
   verifiedWallets: { address: string; method: string; verifiedAt: string; proofTx?: string; label: string }[];
@@ -50,11 +55,14 @@ function seedClients(): Record<string, BankClient> {
     clientId: 'CH-100234',
     username: 'alice',
     name: 'Alice Muster',
+    firstName: 'Alice',
+    lastName: 'Muster',
+    birthDate: '1992-03-14',
     email: 'alice.muster@example.ch',
     phone: '+41 79 123 45 67',
     kyc: {
       status: 'verified',
-      dob: '1991-04-12',
+      dob: '1992-03-14',
       nationality: 'CH',
       idDocument: 'Swiss ID card X1234567 (exp. 2031)',
       address: 'Avenue de la Gare 10, 1003 Lausanne',
@@ -71,9 +79,12 @@ function seedClients(): Record<string, BankClient> {
     clientId: 'CH-100235',
     username: 'bruno',
     name: 'Bruno Beispiel',
+    firstName: 'Bruno',
+    lastName: 'Beispiel',
+    birthDate: '1988-11-02',
     email: 'bruno.beispiel@example.ch',
     phone: '+41 78 765 43 21',
-    kyc: { ...alice.kyc, dob: '1985-09-30', idDocument: 'Swiss passport S7654321 (exp. 2030)', address: 'Bahnhofstrasse 1, 8001 Zürich' },
+    kyc: { ...alice.kyc, dob: '1988-11-02', idDocument: 'Swiss passport S7654321 (exp. 2030)', address: 'Bahnhofstrasse 1, 8001 Zürich' },
     accounts: { CHF: 8_120, USDC: 500 },
     verifiedWallets: [],
     transfers: [],
@@ -96,7 +107,7 @@ const route = (fn: (req: Request, res: Response) => unknown) => (req: Request, r
   Promise.resolve(fn(req, res)).then((r) => !res.headersSent && res.json(r ?? { ok: true })).catch(next);
 const client = (id: string) => {
   const c = store.data.clients[id];
-  if (!c) throw new HttpError(404, 'Unknown client');
+  if (!c) throw new HttpError(404, 'Client inconnu');
   return c;
 };
 
@@ -118,7 +129,7 @@ app.post(
   route((req) => {
     const { username } = req.body as { username: string; password?: string };
     const c = Object.values(store.data.clients).find((x) => x.username === String(username ?? '').toLowerCase().trim());
-    if (!c) throw new HttpError(401, 'Unknown Swissquote user (try "alice")');
+    if (!c) throw new HttpError(401, 'Utilisateur Swissquote inconnu (essayez « alice » ou « bruno »)');
     const token = newId();
     store.update((d) => (d.sessions[token] = { clientId: c.clientId, createdAt: nowIso() }));
     return { token, clientId: c.clientId, profile: c };
@@ -127,7 +138,7 @@ app.post(
 
 app.get('/sessions/:token', route((req) => {
   const s = store.data.sessions[String(req.params.token)];
-  if (!s) throw new HttpError(401, 'Invalid session');
+  if (!s) throw new HttpError(401, 'Session invalide');
   return s;
 }));
 
@@ -140,9 +151,9 @@ app.post(
     const c = client(String(req.params.id));
     const { address, message, signature, label = 'SQ Wallet' } = req.body as { address: string; message: string; signature: string; label?: string };
     const safe = getAddress(address);
-    if (!message.includes(c.clientId) || !message.includes(safe)) throw new HttpError(400, 'Statement does not match client and wallet');
+    if (!message.includes(c.clientId) || !message.includes(safe)) throw new HttpError(400, 'La déclaration ne correspond pas au client et au wallet');
     const result: string = await new Contract(safe, EIP1271_ABI, provider).isValidSignature(hashMessage(message), signature).catch(() => '0x');
-    if (result.toLowerCase() !== EIP1271_MAGIC) throw new HttpError(401, 'EIP-1271 proof of ownership is invalid');
+    if (result.toLowerCase() !== EIP1271_MAGIC) throw new HttpError(401, 'Preuve de propriété EIP-1271 invalide');
     store.update((d) => {
       const cl = d.clients[c.clientId];
       cl.verifiedWallets = cl.verifiedWallets.filter((w) => w.address !== safe);
@@ -153,6 +164,19 @@ app.post(
   }),
 );
 
+/** Simulated identity-document check: only the outcome is stored, never the images. */
+app.post(
+  '/clients/:id/id-verification',
+  route((req) => {
+    const c = client(String(req.params.id));
+    const { status, method } = req.body as { status: 'accepted' | 'refused'; method: 'id-card' | 'passport' };
+    if (!['accepted', 'refused'].includes(status) || !['id-card', 'passport'].includes(method)) throw new HttpError(400, 'Données invalides');
+    const idVerification = { status, method, date: nowIso(), simulated: true as const };
+    store.update((d) => (d.clients[c.clientId].idVerification = idVerification));
+    return idVerification;
+  }),
+);
+
 /** Account → wallet: debits the mock USDC account, sends REAL test USDC from the Swissquote treasury. */
 app.post(
   '/clients/:id/transfer-to-wallet',
@@ -160,20 +184,31 @@ app.post(
     const c = client(String(req.params.id));
     const amount = Number(req.body.amount);
     const to = getAddress(req.body.address);
-    if (!(amount > 0)) throw new HttpError(400, 'Invalid amount');
-    if (!c.verifiedWallets.some((w) => w.address === to)) throw new HttpError(403, 'Travel Rule: destination wallet is not a verified wallet of this client');
-    if (c.accounts.USDC < amount) throw new HttpError(400, 'Insufficient USDC on your Swissquote account');
+    if (!(amount > 0)) throw new HttpError(400, 'Montant invalide');
+    if (!c.verifiedWallets.some((w) => w.address === to)) throw new HttpError(403, "Travel Rule : ce wallet n'est pas un wallet vérifié de ce client");
+    if (c.accounts.USDC < amount) throw new HttpError(400, 'USDC insuffisants sur votre compte Swissquote');
     const raw = parseUnits(String(amount), USDC_DECIMALS);
     const usdc = new Contract(USDC_ADDRESS, ERC20_ABI, treasury);
     const bal: bigint = await usdc.balanceOf(treasury.address);
-    if (bal < raw) throw new HttpError(503, `Treasury test-USDC too low on Sepolia (${formatUnits(bal, USDC_DECIMALS)} USDC). Fund ${treasury.address} at faucet.circle.com.`);
+    if (bal < raw) throw new HttpError(503, `Réserve d'USDC de test insuffisante sur Sepolia (${formatUnits(bal, USDC_DECIMALS)} USDC). Alimentez ${treasury.address} sur faucet.circle.com.`);
     const tx = await usdc.transfer(to, raw);
-    await tx.wait();
-    const t = { id: newId(), ts: nowIso(), direction: 'to-wallet' as const, amount, asset: 'USDC' as const, txHash: tx.hash, status: 'confirmed' };
+    // Respond as soon as the hash is known (« en attente »); the wallet side follows it until confirmed.
+    const t = { id: newId(), ts: nowIso(), direction: 'to-wallet' as const, amount, asset: 'USDC' as const, txHash: tx.hash as string, status: 'pending' };
     store.update((d) => {
       d.clients[c.clientId].accounts.USDC -= amount;
       d.clients[c.clientId].transfers.unshift(t);
     });
+    await fetch(`${COSIGNER_URL}/clients/${c.clientId}/receipts/track`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ txHash: tx.hash, source: 'swissquote-account', fromName: 'Compte Swissquote', amount: String(amount) }),
+    }).catch(() => undefined);
+    tx.wait()
+      .then((rc: any) => store.update((d) => {
+        const x = d.clients[c.clientId]?.transfers.find((y) => y.id === t.id);
+        if (x) x.status = rc?.status === 1 ? 'confirmed' : 'failed';
+      }))
+      .catch(() => undefined);
     return { ...t, explorer: explorerTx(tx.hash) };
   }),
 );
@@ -184,9 +219,9 @@ app.post(
   route(async (req) => {
     const c = client(String(req.params.id));
     const { txHash } = req.body as { txHash: string };
-    if (c.transfers.some((t) => t.txHash === txHash)) throw new HttpError(409, 'Already credited');
+    if (c.transfers.some((t) => t.txHash === txHash)) throw new HttpError(409, 'Déjà crédité');
     const receipt = await provider.getTransactionReceipt(txHash);
-    if (!receipt || receipt.status !== 1) throw new HttpError(400, 'Transaction not found or failed');
+    if (!receipt || receipt.status !== 1) throw new HttpError(400, 'Transaction introuvable ou échouée');
     const iface = new Contract(USDC_ADDRESS, ERC20_ABI).interface;
     let amountRaw = 0n;
     for (const l of receipt.logs) {
@@ -194,7 +229,7 @@ app.post(
       const p = iface.parseLog(l);
       if (p?.name === 'Transfer' && getAddress(p.args[1]) === treasury.address && c.verifiedWallets.some((w) => w.address === getAddress(p.args[0]))) amountRaw += p.args[2] as bigint;
     }
-    if (amountRaw === 0n) throw new HttpError(400, 'No USDC transfer from a verified wallet to the Swissquote account found');
+    if (amountRaw === 0n) throw new HttpError(400, "Aucun transfert d'USDC depuis un wallet vérifié vers le compte Swissquote");
     const amount = Number(formatUnits(amountRaw, USDC_DECIMALS));
     const t = { id: newId(), ts: nowIso(), direction: 'from-wallet' as const, amount, asset: 'USDC' as const, txHash, status: 'credited' };
     store.update((d) => {

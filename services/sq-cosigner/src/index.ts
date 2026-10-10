@@ -39,6 +39,7 @@ import {
   simulateInner,
 } from './chain';
 import { evaluatePolicy, usdcEquivalent, DAPP_WHITELIST, SANCTIONED } from './policy';
+import { confirmWalletTx, docIdOf, referenceOf, simulateReceive, trackIncoming, upsertWalletTx, type WalletTx } from './walletTx';
 import {
   authOptionsForAction,
   authOptionsForHash,
@@ -99,8 +100,8 @@ app.post(
   '/clients',
   route((req) => {
     const { clientId, name, email, headless } = req.body as { clientId: string; name: string; email: string; headless?: boolean };
-    if (!clientId || !name || !email) throw new HttpError(400, 'clientId, name, email required');
-    if (headless && !HEADLESS_ALLOWED) throw new HttpError(403, 'Headless clients are disabled');
+    if (!clientId || !name || !email) throw new HttpError(400, 'clientId, name, email requis');
+    if (headless && !HEADLESS_ALLOWED) throw new HttpError(403, 'Clients sans navigateur désactivés');
     db.update((d) => {
       d.clients[clientId] ??= { clientId, name, email, devices: [], contacts: [], usage: { day: '', spentUsdc: 0, sponsoredTx: 0 }, privacy: 'full', headless: !!headless };
     });
@@ -123,6 +124,10 @@ app.get(
       nonce: state.nonce.toString(),
       eth: formatEther(bal.eth),
       usdc: formatUnits(bal.usdc, USDC_DECIMALS),
+      // demo-only fictitious receptions, shown separately from the real on-chain balance
+      simulatedUsdc: Object.values(db.data.walletTxs ?? {})
+        .filter((t) => t.clientId === c.clientId && t.simulated && t.status === 'confirmed')
+        .reduce((n, t) => n + Number(t.amount), 0),
     };
   }),
 );
@@ -159,7 +164,7 @@ app.post(
       type: recoveryAttestationId ? 'device.pending' : 'device.registered',
       message: recoveryAttestationId ? `New ${deviceType} passkey registered (activates when recovery completes)` : `Passkey registered on ${label} (${deviceType})`,
     });
-    if (!recoveryAttestationId) notify({ clientId, channel: 'email', subject: 'New device linked to your SQ Wallet', body: `A passkey was registered on "${label}". If this was not you, contact Swissquote immediately.` });
+    if (!recoveryAttestationId) notify({ clientId, channel: 'email', subject: 'Nouvel appareil lié à My Wall', body: `Une passkey a été enregistrée sur « ${label} ». Si ce n'est pas vous, contactez Swissquote immédiatement.` });
     return { credentialId: dev.credentialId, status: dev.status };
   }),
 );
@@ -189,12 +194,12 @@ app.post(
     const c = getClient(clientId);
     if (c.safeAddress) {
       if (c.owners && getAddress(deviceAddress) === getAddress(c.owners.device)) return { safeAddress: c.safeAddress, txHash: c.deployTxHash, alreadyDeployed: true };
-      throw new HttpError(409, 'A wallet already exists for this client. On a new device, use "I lost my device" to recover it.');
+      throw new HttpError(409, "Un wallet existe déjà pour ce client. Sur un nouvel appareil, utilisez « J'ai perdu mon appareil » pour le récupérer.");
     }
-    if (!c.headless && !c.devices.some((d) => d.status === 'active')) throw new HttpError(400, 'Register a passkey first (device binding)');
+    if (!c.headless && !c.devices.some((d) => d.status === 'active')) throw new HttpError(400, "Créez d'abord une passkey (liaison à l'appareil).");
     const cosigner = getOrCreateCosigner(clientId);
     const owners = [getAddress(deviceAddress), cosigner, getAddress(recoveryAddress)];
-    if (new Set(owners.map((o) => o.toLowerCase())).size !== 3) throw new HttpError(400, 'Owners must be distinct');
+    if (new Set(owners.map((o) => o.toLowerCase())).size !== 3) throw new HttpError(400, 'Les clés doivent être distinctes');
     const salt = BigInt(hexlify(randomBytes(8)));
     const { safeAddress, txHash } = await relayerTask(() => deploySafe(relayer, owners, salt));
     db.update((d) => {
@@ -203,8 +208,8 @@ app.post(
       cl.deployTxHash = txHash;
       cl.owners = { device: owners[0], cosigner, recovery: owners[2] };
     });
-    logActivity({ clientId, actor: 'swissquote', type: 'wallet.deployed', message: `Safe 2-of-3 deployed at ${short(safeAddress)} (gas paid by Swissquote)`, txHash });
-    notify({ clientId, channel: 'email', subject: 'Your SQ Wallet is ready', body: `Your self-custody wallet ${safeAddress} has been created. Keep your recovery kit safe.` });
+    logActivity({ clientId, actor: 'swissquote', type: 'wallet.deployed', message: `Wallet ouvert sur Ethereum (Safe 2 sur 3, ${short(safeAddress)}) — frais offerts par Swissquote`, txHash });
+    notify({ clientId, channel: 'email', subject: 'Votre wallet My Wall est prêt', body: `Votre wallet ${safeAddress} a été créé. Conservez votre kit de récupération en lieu sûr.` });
     return { safeAddress, txHash, owners: { device: owners[0], cosigner, recovery: owners[2] }, explorer: explorerTx(txHash) };
   }),
 );
@@ -215,15 +220,15 @@ app.post(
   route(async (req) => {
     const { clientId, message, signatureK1 } = req.body as { clientId: string; message: string; signatureK1: string };
     const c = getClient(clientId);
-    if (!c.safeAddress || !c.owners) throw new HttpError(400, 'Wallet not deployed');
-    if (!message.includes(c.safeAddress) || !message.includes(clientId)) throw new HttpError(400, 'Statement must name this client and wallet');
+    if (!c.safeAddress || !c.owners) throw new HttpError(400, "Wallet pas encore ouvert");
+    if (!message.includes(c.safeAddress) || !message.includes(clientId)) throw new HttpError(400, 'La déclaration doit mentionner ce client et ce wallet');
     const dataHash = hashMessage(message);
     const signer = getAddress(verifyTypedData(safeDomain(c.safeAddress), SAFE_MESSAGE_TYPES, { message: dataHash }, signatureK1));
-    if (signer !== getAddress(c.owners.device)) throw new HttpError(401, 'Statement not signed by the device key');
+    if (signer !== getAddress(c.owners.device)) throw new HttpError(401, "Déclaration non signée par la clé de l'appareil");
     const k2 = cosignerWallet(clientId);
     const sigK2 = await signSafeMessage(k2, c.safeAddress, dataHash);
     const signature = packSignatures([{ signer, signature: signatureK1 }, { signer: k2.address, signature: sigK2 }]);
-    logActivity({ clientId, actor: 'swissquote', type: 'wallet.ownership-proof', message: 'EIP-1271 proof of ownership co-signed (Travel Rule self-hosted wallet verification)' });
+    logActivity({ clientId, actor: 'swissquote', type: 'wallet.ownership-proof', message: 'Preuve de propriété EIP-1271 co-signée (vérification Travel Rule du wallet)' });
     return { dataHash, signature };
   }),
 );
@@ -241,7 +246,7 @@ app.post(
       if (ex) ex.name = name;
       else cl.contacts.push({ name, address: addr, addedAt: nowIso(), verifiedOwnership: !!verifiedOwnership });
     });
-    logActivity({ clientId: c.clientId, actor: 'client', type: 'contact.added', message: `Contact "${name}" (${short(addr)}) added — trusted after ${COOLING_OFF_SEC}s cooling-off` });
+    logActivity({ clientId: c.clientId, actor: 'client', type: 'contact.added', message: `Contact « ${name} » (${short(addr)}) ajouté — reconnu après ${COOLING_OFF_SEC} s de délai de réflexion` });
     return publicClient(getClient(c.clientId));
   }),
 );
@@ -251,18 +256,18 @@ app.post(
   route((req) => {
     const c = getClient(String(req.params.id));
     const privacy = req.body.privacy as Client['privacy'];
-    if (!['full', 'balance-only', 'none'].includes(privacy)) throw new HttpError(400, 'Invalid privacy setting');
+    if (!['full', 'balance-only', 'none'].includes(privacy)) throw new HttpError(400, 'Réglage de confidentialité invalide');
     db.update((d) => (d.clients[c.clientId].privacy = privacy));
-    logActivity({ clientId: c.clientId, actor: 'client', type: 'settings.privacy', message: `Consolidated view for Swissquote set to "${privacy}"` });
+    logActivity({ clientId: c.clientId, actor: 'client', type: 'settings.privacy', message: `Vue consolidée Swissquote : « ${({ full: 'complète', 'balance-only': 'solde uniquement', none: 'aucune' } as Record<string, string>)[privacy]} »` });
     return publicClient(getClient(c.clientId));
   }),
 );
 
 // ───────────────────────────── Transactions ─────────────────────────────
 async function analyse(c: Client, safeTx: SafeTx) {
-  if (!c.safeAddress) throw new HttpError(400, 'Wallet not deployed');
+  if (!c.safeAddress) throw new HttpError(400, "Wallet pas encore ouvert");
   const [state, balances, safeTxHash] = await Promise.all([safeState(c.safeAddress), balancesOf(c.safeAddress), checkedSafeTxHash(c.safeAddress, safeTx)]);
-  if (BigInt(safeTx.nonce) !== state.nonce) throw new HttpError(409, `Stale nonce (wallet nonce is ${state.nonce})`);
+  if (BigInt(safeTx.nonce) !== state.nonce) throw new HttpError(409, `Transaction périmée (une autre opération est passée entre-temps). Recommencez.`);
   const contactName = (a: string) => c.contacts.find((x) => x.address.toLowerCase() === a.toLowerCase())?.name;
   const decoded = decodeSafeTx(safeTx, c.safeAddress, contactName);
   const usage = usageOf(c);
@@ -277,10 +282,10 @@ async function analyse(c: Client, safeTx: SafeTx) {
   });
   const simulation = await simulateInner(c.safeAddress, safeTx);
   if (!simulation.success) {
-    policy.checks.push({ id: 'simulation', label: 'Simulation (eth_call)', status: 'fail', detail: simulation.error });
+    policy.checks.push({ id: 'simulation', label: 'Simulation sur Ethereum', status: 'fail', detail: simulation.error });
     policy.decision = 'reject';
-    policy.reasons.push(`Simulation failed: ${simulation.error}`);
-  } else policy.checks.push({ id: 'simulation', label: 'Simulation (eth_call)', status: 'pass', detail: 'The transaction would succeed' });
+    policy.reasons.push(`Simulation en échec : ${simulation.error}`);
+  } else policy.checks.push({ id: 'simulation', label: 'Simulation sur Ethereum', status: 'pass', detail: 'La transaction réussirait' });
   let after: { eth: string; usdc: string } = { eth: formatEther(balances.eth - BigInt(safeTx.value)), usdc: formatUnits(balances.usdc, USDC_DECIMALS) };
   if (decoded.kind === 'erc20-transfer' && decoded.token === 'USDC') after.usdc = formatUnits(balances.usdc - BigInt(decoded.amountRaw!), USDC_DECIMALS);
   return {
@@ -311,8 +316,31 @@ async function execute(r: TxRequest) {
     d.txRequests[r.id].status = 'executing';
     d.txRequests[r.id].updatedAt = nowIso();
   });
+  // Money movements also appear in the client's transaction history (détectée → en attente → confirmée).
+  const dec0 = decodeSafeTx(r.safeTx, r.safeAddress);
+  const isTransfer = (dec0.kind === 'erc20-transfer' && dec0.token === 'USDC') || dec0.kind === 'eth-transfer';
+  const contact = isTransfer ? db.data.clients[r.clientId].contacts.find((c) => c.address.toLowerCase() === dec0.recipient!.toLowerCase()) : undefined;
+  const wtx = isTransfer
+    ? upsertWalletTx({
+        clientId: r.clientId,
+        kind: 'send',
+        status: 'detected',
+        asset: dec0.token === 'USDC' ? 'USDC' : 'ETH',
+        amount: dec0.amount!,
+        from: r.safeAddress,
+        to: dec0.recipient!,
+        counterpartyName: contact ? (contact.verifiedOwnership ? 'Compte Swissquote' : contact.name) : undefined,
+        source: 'wallet',
+        feesSponsored: true,
+        requestId: r.id,
+        note: r.note,
+      })
+    : null;
   try {
-    const { txHash } = await cosignAndExecute(r.clientId, r.safeAddress, r.safeTx, { signer: r.deviceAddress, signature: r.signatureK1 });
+    const { txHash } = await cosignAndExecute(r.clientId, r.safeAddress, r.safeTx, { signer: r.deviceAddress, signature: r.signatureK1 }, (hash) => {
+      if (wtx) upsertWalletTx({ id: wtx.id, clientId: r.clientId, status: 'pending', txHash: hash });
+    });
+    if (wtx) confirmWalletTx(wtx.id);
     db.update((d) => {
       Object.assign(d.txRequests[r.id], { status: 'executed', txHash, updatedAt: nowIso() });
       const cl = d.clients[r.clientId];
@@ -321,32 +349,33 @@ async function execute(r: TxRequest) {
       const dec = decodeSafeTx(r.safeTx, r.safeAddress);
       u.spentUsdc += usdcEquivalent(dec, r.safeTx);
     });
-    logActivity({ clientId: r.clientId, actor: 'swissquote', type: 'tx.executed', message: `${r.summary} — co-signed by Swissquote, gas sponsored`, txHash });
-    notify({ clientId: r.clientId, channel: 'app', subject: 'Transaction confirmed', body: `${r.summary}. ${explorerTx(txHash)}` });
+    logActivity({ clientId: r.clientId, actor: 'swissquote', type: 'tx.executed', message: `${r.summary} — co-signé par Swissquote, frais offerts`, txHash });
+    notify({ clientId: r.clientId, channel: 'app', subject: 'Transaction confirmée', body: `${r.summary}. ${explorerTx(txHash)}` });
     return txHash;
   } catch (e) {
     const error = shortErr(e);
+    if (wtx) upsertWalletTx({ id: wtx.id, clientId: r.clientId, status: 'failed', error });
     db.update((d) => Object.assign(d.txRequests[r.id], { status: 'failed', error, updatedAt: nowIso() }));
-    logActivity({ clientId: r.clientId, actor: 'system', type: 'tx.failed', message: `${r.summary} failed: ${error}` });
-    throw new HttpError(502, `Execution failed: ${error}`);
+    logActivity({ clientId: r.clientId, actor: 'system', type: 'tx.failed', message: `${r.summary} — échec : ${error}` });
+    throw new HttpError(502, `L'exécution a échoué : ${error}`);
   }
 }
 
 app.post(
   '/tx/submit',
   route(async (req) => {
-    const { clientId, safeTx, signatureK1, webauthn } = req.body as { clientId: string; safeTx: SafeTx; signatureK1: string; webauthn?: any };
+    const { clientId, safeTx, signatureK1, webauthn, note } = req.body as { clientId: string; safeTx: SafeTx; signatureK1: string; webauthn?: any; note?: string };
     const c = getClient(clientId);
-    if (!c.owners || !c.safeAddress) throw new HttpError(400, 'Wallet not deployed');
-    if (c.frozen) throw new HttpError(423, 'Wallet co-signing is frozen by Swissquote compliance');
+    if (!c.owners || !c.safeAddress) throw new HttpError(400, "Wallet pas encore ouvert");
+    if (c.frozen) throw new HttpError(423, 'La co-signature est suspendue par la conformité Swissquote');
     const a = await analyse(c, safeTx);
     // 1. Biometric passkey bound to this exact transaction
     await verifyAssertion(clientId, webauthn, { hash: a.safeTxHash });
     // 2. Device key signature from the current on-chain device owner
     const signer = recoverSigner(c.safeAddress, safeTx, signatureK1);
     if (!a.state.owners.includes(signer) || signer.toLowerCase() === c.owners.cosigner.toLowerCase())
-      throw new HttpError(401, 'Signature is not from an authorised key of this wallet');
-    if (signer.toLowerCase() !== c.owners.device.toLowerCase()) throw new HttpError(401, 'Day-to-day transactions must be signed by the device key');
+      throw new HttpError(401, "La signature ne provient pas d'une clé autorisée de ce wallet");
+    if (signer.toLowerCase() !== c.owners.device.toLowerCase()) throw new HttpError(401, "Les opérations courantes doivent être signées par la clé de l'appareil");
 
     const base: TxRequest = {
       id: newId(),
@@ -359,6 +388,7 @@ app.post(
       policy: a.policy,
       signatureK1,
       deviceAddress: signer,
+      note: typeof note === 'string' && note.trim() ? note.trim().slice(0, 140) : undefined,
       status: 'awaiting-otp',
       createdAt: nowIso(),
       updatedAt: nowIso(),
@@ -367,14 +397,14 @@ app.post(
     if (a.policy.decision === 'reject') {
       base.status = 'rejected';
       db.update((d) => (d.txRequests[base.id] = base));
-      logActivity({ clientId, actor: 'swissquote', type: 'tx.rejected', message: `Refused: ${a.decoded.summary} — ${a.policy.reasons.join('; ')}`, data: { requestId: base.id } });
-      throw new HttpError(403, 'Swissquote refused to co-sign this transaction', { policy: a.policy, decoded: a.decoded, requestId: base.id });
+      logActivity({ clientId, actor: 'swissquote', type: 'tx.rejected', message: `Refusé : ${a.decoded.summary} — ${a.policy.reasons.join(' ; ')}`, data: { requestId: base.id } });
+      throw new HttpError(403, 'Swissquote refuse de co-signer cette transaction', { policy: a.policy, decoded: a.decoded, requestId: base.id });
     }
 
     if (a.policy.decision === 'approve') {
       base.status = 'executing';
       db.update((d) => (d.txRequests[base.id] = base));
-      logActivity({ clientId, actor: 'client', type: 'tx.signed', message: `Signed with passkey + device key: ${a.decoded.summary}` });
+      logActivity({ clientId, actor: 'client', type: 'tx.signed', message: `Signé avec passkey + clé de l'appareil : ${a.decoded.summary}` });
       const txHash = await execute(base);
       return { status: 'executed', requestId: base.id, txHash, explorer: explorerTx(txHash), policy: a.policy, decoded: a.decoded };
     }
@@ -383,8 +413,8 @@ app.post(
     const code = String(Math.floor(100000 + Math.random() * 900000));
     base.otp = { code, expiresAt: new Date(Date.now() + POLICY.otpTtlSec * 1000).toISOString(), verified: false };
     db.update((d) => (d.txRequests[base.id] = base));
-    notify({ clientId, channel: 'email', subject: `Your SQ Wallet code: ${code}`, body: `Enter ${code} to confirm: ${a.decoded.summary}. Never share this code. If you did not request it, cancel the transaction.`, action: { label: 'This was not me — cancel', kind: 'cancel-tx', id: base.id } });
-    logActivity({ clientId, actor: 'swissquote', type: 'tx.step-up', message: `Reinforced checks required: ${a.decoded.summary} (${a.policy.reasons.join('; ')})`, data: { requestId: base.id } });
+    notify({ clientId, channel: 'email', subject: `Votre code My Wall : ${code}`, body: `Saisissez ${code} pour confirmer : ${a.decoded.summary}. Ne communiquez jamais ce code. Si vous n'êtes pas à l'origine de cette demande, annulez l'opération.`, action: { label: "Ce n'est pas moi — annuler", kind: 'cancel-tx', id: base.id } });
+    logActivity({ clientId, actor: 'swissquote', type: 'tx.step-up', message: `Contrôles renforcés requis : ${a.decoded.summary} (${a.policy.reasons.join(' ; ')})`, data: { requestId: base.id } });
     return { status: 'step-up', requestId: base.id, policy: a.policy, decoded: a.decoded };
   }),
 );
@@ -396,7 +426,7 @@ function txView(r: TxRequest) {
 
 app.get('/tx/:id', route((req) => {
   const r = db.data.txRequests[String(req.params.id)];
-  if (!r) throw new HttpError(404, 'Unknown request');
+  if (!r) throw new HttpError(404, 'Demande inconnue');
   return txView(r);
 }));
 
@@ -406,15 +436,15 @@ app.post(
   '/tx/:id/otp',
   route((req) => {
     const r = db.data.txRequests[String(req.params.id)];
-    if (!r || r.status !== 'awaiting-otp') throw new HttpError(400, 'No code expected for this request');
-    if (!r.otp || new Date(r.otp.expiresAt) < new Date()) throw new HttpError(400, 'Code expired');
+    if (!r || r.status !== 'awaiting-otp') throw new HttpError(400, 'Aucun code attendu pour cette demande');
+    if (!r.otp || new Date(r.otp.expiresAt) < new Date()) throw new HttpError(400, 'Code expiré');
     if (String(req.body.code).trim() !== r.otp.code) {
-      logActivity({ clientId: r.clientId, actor: 'client', type: 'tx.otp-failed', message: 'Wrong confirmation code entered' });
-      throw new HttpError(401, 'Wrong code');
+      logActivity({ clientId: r.clientId, actor: 'client', type: 'tx.otp-failed', message: 'Code de confirmation erroné saisi' });
+      throw new HttpError(401, 'Code incorrect');
     }
     const until = new Date(Date.now() + COOLING_OFF_SEC * 1000).toISOString();
     db.update((d) => Object.assign(d.txRequests[r.id], { status: 'awaiting-approval', coolingOffUntil: until, otp: { ...r.otp!, verified: true }, updatedAt: nowIso() }));
-    logActivity({ clientId: r.clientId, actor: 'client', type: 'tx.otp-ok', message: `Email code confirmed. Cooling-off until ${until.slice(11, 19)} UTC; awaiting compliance approval (four-eyes)` });
+    logActivity({ clientId: r.clientId, actor: 'client', type: 'tx.otp-ok', message: `Code email confirmé. Délai de réflexion jusqu'à ${new Date(until).toLocaleTimeString('fr-CH', { timeZone: 'Europe/Zurich' })} ; validation conformité (quatre yeux) en attente` });
     return txView(db.data.txRequests[r.id]);
   }),
 );
@@ -423,10 +453,10 @@ app.post(
   '/tx/:id/cancel',
   route((req) => {
     const r = db.data.txRequests[String(req.params.id)];
-    if (!r) throw new HttpError(404, 'Unknown request');
-    if (['executed', 'executing'].includes(r.status)) throw new HttpError(409, 'Already executed');
+    if (!r) throw new HttpError(404, 'Demande inconnue');
+    if (['executed', 'executing'].includes(r.status)) throw new HttpError(409, 'Déjà exécutée');
     db.update((d) => Object.assign(d.txRequests[r.id], { status: 'cancelled', updatedAt: nowIso() }));
-    logActivity({ clientId: r.clientId, actor: 'client', type: 'tx.cancelled', message: `Cancelled: ${r.summary}` });
+    logActivity({ clientId: r.clientId, actor: 'client', type: 'tx.cancelled', message: `Annulé : ${r.summary}` });
     return txView(db.data.txRequests[r.id]);
   }),
 );
@@ -450,8 +480,8 @@ app.post(
   '/admin/tx/:id/decision',
   route(async (req) => {
     const r = db.data.txRequests[String(req.params.id)];
-    if (!r) throw new HttpError(404, 'Unknown request');
-    if (r.status !== 'awaiting-approval' && r.status !== 'awaiting-otp') throw new HttpError(409, `Request is ${r.status}`);
+    if (!r) throw new HttpError(404, 'Demande inconnue');
+    if (r.status !== 'awaiting-approval' && r.status !== 'awaiting-otp') throw new HttpError(409, `Demande déjà traitée (${r.status})`);
     const { decision, agent = 'compliance.officer@swissquote (mock)', note } = req.body as { decision: 'approved' | 'rejected'; agent?: string; note?: string };
     db.update((d) => {
       const x = d.txRequests[r.id];
@@ -459,8 +489,8 @@ app.post(
       if (decision === 'rejected') x.status = 'rejected';
       x.updatedAt = nowIso();
     });
-    logActivity({ clientId: r.clientId, actor: 'compliance', type: `tx.${decision}`, message: `Compliance ${decision}: ${r.summary}${note ? ` (${note})` : ''}` });
-    if (decision === 'rejected') notify({ clientId: r.clientId, channel: 'app', subject: 'Transaction refused by compliance', body: `${r.summary}${note ? ` — ${note}` : ''}` });
+    logActivity({ clientId: r.clientId, actor: 'compliance', type: `tx.${decision}`, message: `Conformité — ${decision === 'approved' ? 'validé' : 'refusé'} : ${r.summary}${note ? ` (${note})` : ''}` });
+    if (decision === 'rejected') notify({ clientId: r.clientId, channel: 'app', subject: 'Opération refusée par la conformité', body: `${r.summary}${note ? ` — ${note}` : ''}` });
     void tick();
     return txView(db.data.txRequests[r.id]);
   }),
@@ -472,7 +502,7 @@ app.post(
     const c = getClient(String(req.params.id));
     const frozen = !!req.body.frozen;
     db.update((d) => (d.clients[c.clientId].frozen = frozen));
-    logActivity({ clientId: c.clientId, actor: 'compliance', type: frozen ? 'client.frozen' : 'client.unfrozen', message: frozen ? 'Co-signing frozen (Swissquote can block, never move funds)' : 'Co-signing resumed' });
+    logActivity({ clientId: c.clientId, actor: 'compliance', type: frozen ? 'client.frozen' : 'client.unfrozen', message: frozen ? 'Co-signature suspendue (Swissquote peut bloquer, jamais déplacer les fonds)' : 'Co-signature rétablie' });
     return publicClient(getClient(c.clientId));
   }),
 );
@@ -480,10 +510,10 @@ app.post(
 // ───────────────────────────── Recovery (owner rotation) ─────────────────────────────
 async function checkAttestation(attestationId: string, c: Client) {
   const res = await fetch(`${PARTNER_URL}/attestations/${attestationId}`).catch(() => null);
-  if (!res || !res.ok) throw new HttpError(403, 'Recovery partner attestation not found');
+  if (!res || !res.ok) throw new HttpError(403, 'Attestation du partenaire de récupération introuvable');
   const att = (await res.json()) as { clientId: string; decision: string; riskScore: number; expiresAt: string };
-  if (att.clientId !== c.clientId || att.decision !== 'released') throw new HttpError(403, 'Recovery partner did not approve this recovery');
-  if (new Date(att.expiresAt) < new Date()) throw new HttpError(403, 'Recovery attestation expired');
+  if (att.clientId !== c.clientId || att.decision !== 'released') throw new HttpError(403, "Le partenaire de récupération n'a pas validé cette récupération");
+  if (new Date(att.expiresAt) < new Date()) throw new HttpError(403, 'Attestation de récupération expirée');
   return att;
 }
 
@@ -498,23 +528,23 @@ app.post(
       newCredentialId?: string;
     };
     const c = getClient(clientId);
-    if (!c.safeAddress || !c.owners) throw new HttpError(400, 'Wallet not deployed');
+    if (!c.safeAddress || !c.owners) throw new HttpError(400, "Wallet pas encore ouvert");
     const att = await checkAttestation(partnerAttestationId, c);
     const state = await safeState(c.safeAddress);
     // Must be swapOwner(prev, currentDevice, newDevice) on this Safe
     if (safeTx.to.toLowerCase() !== c.safeAddress.toLowerCase() || safeTx.operation !== 0 || BigInt(safeTx.value) !== 0n)
-      throw new HttpError(400, 'Recovery transaction must be a call to the wallet itself');
+      throw new HttpError(400, 'La récupération doit porter sur le wallet lui-même');
     const parsed = safeIface.parseTransaction({ data: safeTx.data });
-    if (parsed?.name !== 'swapOwner') throw new HttpError(400, 'Recovery transaction must be swapOwner');
+    if (parsed?.name !== 'swapOwner') throw new HttpError(400, 'La récupération doit être un remplacement de clé (swapOwner)');
     const [, oldOwner, newOwner] = parsed.args as unknown as [string, string, string];
-    if (getAddress(oldOwner) !== getAddress(c.owners.device)) throw new HttpError(400, 'Only the device key can be rotated');
-    if (getAddress(oldOwner) === getAddress(c.owners.cosigner) || getAddress(oldOwner) === getAddress(c.owners.recovery)) throw new HttpError(400, 'Cannot rotate this key');
-    if (BigInt(safeTx.nonce) !== state.nonce) throw new HttpError(409, 'Stale nonce');
+    if (getAddress(oldOwner) !== getAddress(c.owners.device)) throw new HttpError(400, "Seule la clé de l'appareil peut être remplacée");
+    if (getAddress(oldOwner) === getAddress(c.owners.cosigner) || getAddress(oldOwner) === getAddress(c.owners.recovery)) throw new HttpError(400, 'Cette clé ne peut pas être remplacée');
+    if (BigInt(safeTx.nonce) !== state.nonce) throw new HttpError(409, 'Opération périmée, recommencez');
     const hash = await checkedSafeTxHash(c.safeAddress, safeTx);
     const signer = recoverSigner(c.safeAddress, safeTx, signatureK3);
-    if (signer !== getAddress(c.owners.recovery)) throw new HttpError(401, 'Not signed by the recovery key');
+    if (signer !== getAddress(c.owners.recovery)) throw new HttpError(401, 'Non signé par la clé de secours');
     const open = Object.values(db.data.recoveries).find((r) => r.clientId === clientId && r.status === 'pending-delay');
-    if (open) throw new HttpError(409, 'A recovery is already in progress');
+    if (open) throw new HttpError(409, 'Une récupération est déjà en cours');
 
     const executeAfter = new Date(Date.now() + RECOVERY_DELAY_SEC * 1000).toISOString();
     const r = {
@@ -534,14 +564,14 @@ app.post(
       createdAt: nowIso(),
     };
     db.update((d) => (d.recoveries[r.id] = r));
-    logActivity({ clientId, actor: 'client', type: 'recovery.requested', message: `Device recovery requested: ${short(r.oldDevice)} → ${short(r.newDevice)}. Security delay until ${executeAfter.slice(11, 19)} UTC` });
+    logActivity({ clientId, actor: 'client', type: 'recovery.requested', message: `Récupération demandée : ${short(r.oldDevice)} → ${short(r.newDevice)}. Délai de sécurité jusqu'à ${new Date(executeAfter).toLocaleTimeString('fr-CH', { timeZone: 'Europe/Zurich' })}` });
     for (const channel of ['email', 'sms', 'app'] as const)
       notify({
         clientId,
         channel,
-        subject: '⚠️ Wallet recovery started',
-        body: `A recovery of your SQ Wallet was started from a new device. It will complete at ${executeAfter.slice(11, 19)} UTC. If this was not you, cancel now.`,
-        action: { label: 'This was not me — cancel', kind: 'cancel-recovery', id: r.id },
+        subject: 'Récupération de wallet en cours',
+        body: `Une récupération de votre wallet My Wall a été lancée depuis un nouvel appareil. Elle aboutira à ${new Date(executeAfter).toLocaleTimeString('fr-CH', { timeZone: 'Europe/Zurich' })}. Si ce n'est pas vous, annulez maintenant.`,
+        action: { label: "Ce n'est pas moi — annuler", kind: 'cancel-recovery', id: r.id },
       });
     return r;
   }),
@@ -549,7 +579,7 @@ app.post(
 
 app.get('/recovery/:id', route((req) => {
   const r = db.data.recoveries[String(req.params.id)];
-  if (!r) throw new HttpError(404, 'Unknown recovery');
+  if (!r) throw new HttpError(404, 'Récupération inconnue');
   return r;
 }));
 
@@ -559,14 +589,14 @@ app.post(
   '/recovery/:id/cancel',
   route((req) => {
     const r = db.data.recoveries[String(req.params.id)];
-    if (!r) throw new HttpError(404, 'Unknown recovery');
-    if (r.status !== 'pending-delay') throw new HttpError(409, `Recovery is ${r.status}`);
+    if (!r) throw new HttpError(404, 'Récupération inconnue');
+    if (r.status !== 'pending-delay') throw new HttpError(409, `Récupération déjà traitée (${r.status})`);
     db.update((d) => {
       d.recoveries[r.id].status = 'cancelled';
       const cl = d.clients[r.clientId];
       cl.devices = cl.devices.map((dev) => (dev.status === 'pending-recovery' ? { ...dev, status: 'revoked' } : dev));
     });
-    logActivity({ clientId: r.clientId, actor: 'client', type: 'recovery.cancelled', message: `Recovery cancelled by the client (${req.body?.by ?? 'Swissquote account'}). Nothing changed on-chain.` });
+    logActivity({ clientId: r.clientId, actor: 'client', type: 'recovery.cancelled', message: `Récupération annulée par le client (${req.body?.by ?? 'compte Swissquote'}). Rien n'a changé sur la blockchain.` });
     return db.data.recoveries[r.id];
   }),
 );
@@ -578,7 +608,7 @@ app.post(
     const { clientId, message, riskScore } = req.body as { clientId: string; message: string; riskScore?: number };
     getClient(clientId);
     logActivity({ clientId, actor: 'partner', type: 'recovery.refused', message, data: { riskScore } });
-    notify({ clientId, channel: 'app', subject: '🚫 Blocked recovery attempt', body: `${message} Your wallet is safe. If you still have your device, no action is needed.` });
+    notify({ clientId, channel: 'app', subject: 'Tentative de récupération bloquée', body: `${message} Votre wallet est en sécurité. Si vous avez toujours votre appareil, aucune action n'est nécessaire.` });
     return { ok: true };
   }),
 );
@@ -596,13 +626,53 @@ async function executeRecovery(id: string) {
         dev.status === 'pending-recovery' ? { ...dev, status: 'active' } : dev.status === 'active' ? { ...dev, status: 'revoked' } : dev,
       );
     });
-    logActivity({ clientId: r.clientId, actor: 'swissquote', type: 'recovery.completed', message: `Old device key ${short(r.oldDevice)} revoked on-chain, new key ${short(r.newDevice)} active`, txHash });
-    notify({ clientId: r.clientId, channel: 'email', subject: 'Wallet recovery completed', body: `Your old device can no longer sign. ${explorerTx(txHash)}` });
+    logActivity({ clientId: r.clientId, actor: 'swissquote', type: 'recovery.completed', message: `Ancienne clé d'appareil ${short(r.oldDevice)} révoquée sur la blockchain, nouvelle clé ${short(r.newDevice)} active`, txHash });
+    notify({ clientId: r.clientId, channel: 'email', subject: 'Récupération terminée', body: `Votre ancien appareil ne peut plus signer. ${explorerTx(txHash)}` });
   } catch (e) {
     db.update((d) => Object.assign(d.recoveries[id], { status: 'failed', error: shortErr(e) }));
-    logActivity({ clientId: r.clientId, actor: 'system', type: 'recovery.failed', message: `Recovery failed: ${shortErr(e)}` });
+    logActivity({ clientId: r.clientId, actor: 'system', type: 'recovery.failed', message: `Récupération échouée : ${shortErr(e)}` });
   }
 }
+
+// ───────────────────────────── Wallet transactions & receipts ─────────────────────────────
+const txWithDoc = (t: WalletTx) => ({ ...t, docId: t.status === 'confirmed' ? docIdOf(t) : undefined, reference: referenceOf(t), explorer: t.txHash ? explorerTx(t.txHash) : undefined });
+
+app.get('/clients/:id/wallet-txs', route((req) =>
+  Object.values(db.data.walletTxs ?? {})
+    .filter((t) => t.clientId === req.params.id)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map(txWithDoc),
+));
+
+app.get('/wallet-txs/:id', route((req) => {
+  const t = db.data.walletTxs?.[String(req.params.id)];
+  if (!t) throw new HttpError(404, 'Transaction inconnue');
+  return txWithDoc(t);
+}));
+
+app.get('/clients/:id/documents', route((req) =>
+  Object.values(db.data.documents ?? {})
+    .filter((d) => d.clientId === req.params.id)
+    .map((d) => ({ ...d, tx: txWithDoc(db.data.walletTxs![d.walletTxId]) }))
+    .sort((a, b) => (b.tx.confirmedAt ?? b.createdAt).localeCompare(a.tx.confirmedAt ?? a.createdAt)),
+));
+
+/** Demo: fictitious incoming payment (MOCK, no blockchain transaction). */
+app.post('/clients/:id/simulate-receive', route((req) => {
+  const c = getClient(String(req.params.id));
+  if (!c.safeAddress) throw new HttpError(400, 'Wallet pas encore ouvert');
+  return txWithDoc(simulateReceive(c.clientId, c.safeAddress, String(req.body?.amount ?? '250')));
+}));
+
+/** Server-to-server (sq-bank) or client: follow an incoming on-chain USDC transfer until it is confirmed. */
+app.post('/clients/:id/receipts/track', route((req) => {
+  const c = getClient(String(req.params.id));
+  if (!c.safeAddress) throw new HttpError(400, 'Wallet pas encore ouvert');
+  const { txHash, source = 'external', fromName, amount } = req.body as { txHash: string; source?: WalletTx['source']; fromName?: string; amount?: string };
+  if (!/^0x[0-9a-fA-F]{64}$/.test(txHash ?? '')) throw new HttpError(400, 'Hash de transaction invalide');
+  logActivity({ clientId: c.clientId, actor: 'system', type: 'wallet-tx.pending', message: `Réception détectée${fromName ? ` depuis ${fromName}` : ''} — en attente de confirmation sur Ethereum`, txHash });
+  return txWithDoc(trackIncoming(c.clientId, c.safeAddress, txHash, source, fromName, amount));
+}));
 
 // ───────────────────────────── Inbox & activity ─────────────────────────────
 app.get('/clients/:id/inbox', route((req) => db.data.inbox.filter((m) => m.clientId === req.params.id).slice(-100).reverse()));
@@ -619,6 +689,8 @@ app.post(
       d.challenges = {};
       d.activity = [];
       d.inbox = [];
+      d.walletTxs = {};
+      d.documents = {};
     });
     console.log('[cosigner] demo state reset');
     return { reset: true };

@@ -14,7 +14,9 @@ if (d) {
       saveDevice(null);
       saveSession(null);
       try {
-        localStorage.removeItem('sqw:pending-recovery');
+        localStorage.removeItem('mw:pending-recovery');
+        localStorage.removeItem('mw:read');
+        localStorage.removeItem('mw:unlock-fails');
       } catch {
         /* ignore */
       }

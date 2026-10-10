@@ -2,6 +2,7 @@
 // the passkey credential id, and the Swissquote session. K1 is only decrypted in memory.
 
 import { Wallet, encryptKeystoreJson, type HDNodeWallet } from 'ethers';
+import { decryptCloudShare, type CloudBackup } from '@sq/shared';
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
 import { cosigner } from './api';
 
@@ -13,6 +14,9 @@ export interface DeviceRecord {
   credentialId?: string;
   deviceType: 'mobile' | 'desktop';
   createdAt: string;
+  /** Recovery code (share ①) kept on this device ENCRYPTED with the wallet password, so it can be shown again
+   *  after re-authentication. Trade-off documented in THREAT_MODEL.md; the client can delete it. */
+  paperShareEnc?: CloudBackup;
 }
 
 export interface BankSession {
@@ -21,8 +25,11 @@ export interface BankSession {
   profile: any;
 }
 
-const DEVICE_KEY = 'sqw:device';
-const SESSION_KEY = 'sqw:session';
+const DEVICE_KEY = 'mw:device';
+const SESSION_KEY = 'mw:session';
+const FAILS_KEY = 'mw:unlock-fails';
+export const MAX_UNLOCK_ATTEMPTS = 5;
+export const UNLOCK_LOCKOUT_SEC = 30;
 
 const safeGet = (k: string, s: Storage = localStorage) => {
   try {
@@ -68,16 +75,74 @@ export function setUnlocked(w: Wallet | HDNodeWallet) {
   emit();
 }
 
-export async function unlock(password: string, onProgress?: (p: number) => void) {
-  const d = getDevice();
-  if (!d) throw new Error('No wallet on this device');
+// ── unlock attempts (demo: 5 attempts, then 30 s wait) ──
+export function unlockState(): { fails: number; lockedUntil: number } {
   try {
-    unlocked = await Wallet.fromEncryptedJson(d.keystore, password, onProgress);
+    return JSON.parse(localStorage.getItem(FAILS_KEY) ?? '') ?? { fails: 0, lockedUntil: 0 };
   } catch {
-    throw new Error('Wrong password');
+    return { fails: 0, lockedUntil: 0 };
   }
+}
+const setUnlockState = (s: { fails: number; lockedUntil: number }) => safeSet(FAILS_KEY, JSON.stringify(s));
+
+export class UnlockError extends Error {
+  constructor(
+    message: string,
+    public remaining: number,
+    public lockedUntil = 0,
+  ) {
+    super(message);
+  }
+}
+
+/** Decrypts the device key with the password (never sent anywhere). */
+export async function decryptDeviceKey(password: string, onProgress?: (p: number) => void) {
+  const d = getDevice();
+  if (!d) throw new Error('Aucun wallet sur cet appareil');
+  return Wallet.fromEncryptedJson(d.keystore, password, onProgress);
+}
+
+export async function unlock(password: string, onProgress?: (p: number) => void) {
+  const st = unlockState();
+  if (st.lockedUntil > Date.now()) throw new UnlockError('Trop de tentatives. Patientez avant de réessayer.', 0, st.lockedUntil);
+  try {
+    unlocked = await decryptDeviceKey(password, onProgress);
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith('Aucun')) throw e;
+    const fails = st.fails + 1;
+    if (fails >= MAX_UNLOCK_ATTEMPTS) {
+      const lockedUntil = Date.now() + UNLOCK_LOCKOUT_SEC * 1000;
+      setUnlockState({ fails: 0, lockedUntil });
+      throw new UnlockError(`Mot de passe incorrect. Trop de tentatives : patientez ${UNLOCK_LOCKOUT_SEC} secondes.`, 0, lockedUntil);
+    }
+    setUnlockState({ fails, lockedUntil: 0 });
+    const remaining = MAX_UNLOCK_ATTEMPTS - fails;
+    throw new UnlockError(`Mot de passe incorrect. Il vous reste ${remaining} essai${remaining > 1 ? 's' : ''}.`, remaining);
+  }
+  setUnlockState({ fails: 0, lockedUntil: 0 });
   emit();
   return unlocked;
+}
+
+/** Re-authentication before showing a secret: wallet password + passkey. Returns the decrypted key. */
+export async function reauthenticate(password: string, clientId: string, onProgress?: (p: number) => void) {
+  let w: Wallet | HDNodeWallet;
+  try {
+    w = await decryptDeviceKey(password, onProgress);
+  } catch {
+    throw new Error('Mot de passe incorrect.');
+  }
+  const { cosigner } = await import('./api');
+  const options = await cosigner.post('/webauthn/auth/options', { clientId, purpose: 'reveal-secret' });
+  const response = await startAuthentication({ optionsJSON: options });
+  await cosigner.post('/webauthn/auth/verify', { clientId, purpose: 'reveal-secret', response });
+  return w;
+}
+
+export async function revealPaperCode(password: string): Promise<string | null> {
+  const d = getDevice();
+  if (!d?.paperShareEnc) return null;
+  return decryptCloudShare(d.paperShareEnc, password);
 }
 
 export async function encryptKey(w: Wallet | HDNodeWallet, password: string, onProgress?: (p: number) => void) {
@@ -88,9 +153,9 @@ export async function encryptKey(w: Wallet | HDNodeWallet, password: string, onP
 export const guessDeviceType = (): 'mobile' | 'desktop' => (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'mobile' : 'desktop');
 export const deviceLabel = () => {
   const ua = navigator.userAgent;
-  const os = /iPhone/.test(ua) ? 'iPhone' : /Android/.test(ua) ? 'Android phone' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows PC' : 'Device';
-  const br = /Edg\//.test(ua) ? 'Edge' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : /Firefox\//.test(ua) ? 'Firefox' : 'Browser';
-  return `${br} on ${os}`;
+  const os = /iPhone/.test(ua) ? 'iPhone' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'PC Windows' : 'appareil';
+  const br = /Edg\//.test(ua) ? 'Edge' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : /Firefox\//.test(ua) ? 'Firefox' : 'Navigateur';
+  return `${br} sur ${os}`;
 };
 
 /** Creates the passkey (Touch ID / Face ID) — device binding. */
