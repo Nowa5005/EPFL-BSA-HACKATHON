@@ -19,6 +19,7 @@ import {
 } from '@sq/shared';
 import { fetchWalletRates, newId, nowIso, t, type WalletRates } from '@sq/shared/server';
 import { both } from '@sq/shared';
+import { validateWidgetsPatch } from '@sq/shared/widgets';
 import { feeChf } from './rates';
 import { db, DEFAULT_PREFERENCES, getClient, HttpError, logActivity, notify, type Client, type Preferences, type Scheduled, type Subscription } from './db';
 import { authOptionsForAction, authOptionsForHash, verifyAssertion } from './webauthn';
@@ -186,14 +187,24 @@ export function registerFeatureRoutes(app: Express, route: Route, publicClient: 
     const c = getClient(String(req.params.id));
     const cur = { ...DEFAULT_PREFERENCES, ...c.preferences };
     const b = req.body as Partial<Preferences> & { reset?: boolean };
+    // Home widget layouts (N6): strict shape check, unknown ids dropped, required widgets re-added; each layout
+    // (mobile / desktop) is replaced independently. "reset" (display personalisation) keeps the widget layouts:
+    // they have their own "Reset to default" in Customize mode.
+    let widgets = cur.widgets;
+    if (b.widgets !== undefined) {
+      const v = validateWidgetsPatch(b.widgets);
+      if (!v.ok) throw new HttpError(400, t(`Invalid widget layout: ${v.error}`, `Disposition des widgets invalide : ${v.error}`));
+      widgets = { ...cur.widgets, ...v.value };
+    }
     const next: Preferences = b.reset
-      ? { ...DEFAULT_PREFERENCES }
+      ? { ...DEFAULT_PREFERENCES, ...(widgets ? { widgets } : {}) }
       : {
           background: ['default', 'white', 'sand', 'mist'].includes(b.background as string) ? (b.background as Preferences['background']) : cur.background,
           accent: ['orange', 'blue', 'green', 'violet'].includes(b.accent as string) ? (b.accent as Preferences['accent']) : cur.accent,
           highlight: typeof b.highlight === 'boolean' ? b.highlight : cur.highlight,
           hiddenWallets: Array.isArray(b.hiddenWallets) ? b.hiddenWallets.filter((x) => ['mywall-usdc', 'mywall-eth', 'swissquote-account'].includes(x)) : cur.hiddenWallets,
           hideAmounts: typeof b.hideAmounts === 'boolean' ? b.hideAmounts : cur.hideAmounts,
+          ...(widgets ? { widgets } : {}),
         };
     db.update((d) => (d.clients[c.clientId].preferences = next));
     return publicClient(getClient(c.clientId));

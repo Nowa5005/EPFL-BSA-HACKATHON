@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./server": "./src/server.ts",
-    "./protection": "./src/protection.ts"
+    "./protection": "./src/protection.ts",
+    "./widgets": "./src/widgets.ts"
   }
 }

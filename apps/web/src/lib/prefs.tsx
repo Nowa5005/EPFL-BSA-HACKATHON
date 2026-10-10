@@ -7,6 +7,7 @@ import { cosigner } from './api';
 import { fmt } from '../components/ui';
 import { useAmountsVisible } from './privacy';
 import { tr } from './i18n';
+import type { WidgetLayouts } from '@sq/shared/widgets';
 
 export interface Preferences {
   background: 'default' | 'white' | 'sand' | 'mist';
@@ -15,6 +16,8 @@ export interface Preferences {
   hiddenWallets: string[];
   /** @deprecated Manual masking was removed (N1). Kept in stored preferences for backward compatibility; ignored. */
   hideAmounts?: boolean;
+  /** Home widget layouts, phone and desktop (N6; lib/widgets.tsx). */
+  widgets?: WidgetLayouts;
 }
 export const DEFAULT_PREFS: Preferences = { background: 'default', accent: 'orange', highlight: false, hiddenWallets: [], hideAmounts: false };
 
