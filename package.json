@@ -28,9 +28,12 @@
     "fund-check": "tsx scripts/fund-check.ts",
     "check-bind": "tsx scripts/check-bind.ts",
     "reset-demo": "tsx scripts/reset-demo.ts",
-    "test": "node --import tsx --test services/sq-cosigner/test/*.test.ts services/market-data/test/*.test.ts services/sq-bank/test/*.test.ts packages/shared/test/*.test.ts apps/web/test/*.test.ts",
+    "test": "node --import tsx --test services/sq-cosigner/test/*.test.ts services/market-data/test/*.test.ts services/sq-bank/test/*.test.ts packages/shared/test/*.test.ts apps/web/test/*.test.ts contracts/test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit",
-    "screenshots": "tsx scripts/screenshots.ts"
+    "screenshots": "tsx scripts/screenshots.ts",
+    "build:contracts": "tsx scripts/build-contracts.ts",
+    "test:contracts": "tsx scripts/build-contracts.ts --check && node --import tsx --test contracts/test/*.test.ts",
+    "deploy:guard": "tsx scripts/deploy-guard.ts"
   },
   "repository": {
     "type": "git",
@@ -38,10 +41,13 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "@openzeppelin/contracts": "5.4.0",
     "@types/node": "^24.0.0",
     "@types/pngjs": "^6.0.5",
     "concurrently": "^9.2.0",
+    "hardhat": "^2.29.1",
     "playwright": "^1.64.0",
+    "solc": "0.8.30",
     "tsx": "^4.20.0",
     "typescript": "~5.9.0"
   },
