@@ -17,6 +17,7 @@ import { checkPassword } from '../lib/passwordPolicy';
 import { useLocal } from '../lib/hooks';
 import { Button, Card, cx, dateOnly, DemoFooter, Field, inputCls, Logo, MockBadge, Notice, ProgressList, SecretInput, Spinner, Steps, TxLink, Why, type ProgState } from '../components/ui';
 import { PasswordChecklist } from '../components/PasswordChecklist';
+import { BiometricsOptions } from '../components/BiometricsOptions';
 
 const STEP_LABELS = ['Bienvenue', "Pièce d'identité", 'Passkey', 'Mot de passe', 'Questions', 'Création du wallet', 'Kit de récupération'];
 type Prog = { label: string; state: ProgState; detail?: any }[];
@@ -193,14 +194,17 @@ export default function Onboarding() {
           {step === 2 && (
             <>
               <h1 className="text-[26px] font-semibold tracking-tight">Lier {deviceType === 'mobile' ? 'ce téléphone' : 'cet ordinateur'}</h1>
-              <Why>Nous créons une passkey sur cet appareil. Chaque action sensible demandera votre empreinte ou votre visage : un téléphone volé seul ne sert à rien. Au maximum 1 téléphone et 1 ordinateur par client.</Why>
+              <Why>Nous créons une passkey sur cet appareil. Chaque action sensible demandera une vérification par votre appareil (empreinte, visage ou code de l’appareil) : un téléphone volé seul ne sert à rien. Au maximum 1 téléphone et 1 ordinateur par client.</Why>
               <Card className="flex flex-col items-center gap-3 py-10 text-center">
                 <span className="flex size-16 items-center justify-center rounded-full bg-sq-bg">
                   <Fingerprint size={32} strokeWidth={1.5} className="text-sq-orange" />
                 </span>
-                <div className="font-semibold">Touch ID / Face ID</div>
+                <div className="font-semibold">Touch ID, Face ID ou code de l’appareil</div>
                 <div className="text-[14px] text-sq-muted">Vos données biométriques ne quittent jamais l’appareil.</div>
               </Card>
+              <BiometricsOptions>
+                <p className="text-sq-muted">Vous pourrez configurer un code de secours juste après l’activation, dans Clés et sécurité.</p>
+              </BiometricsOptions>
               {err && <Notice tone="bad" title="Passkey non créée">{err}</Notice>}
               <Button onClick={createPasskey} disabled={busy}>
                 {busy ? (

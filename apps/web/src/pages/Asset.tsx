@@ -3,6 +3,7 @@ import { ArrowUpRight } from 'lucide-react';
 import { MOCK_ETH_CHF, MOCK_USDC_CHF, USDC_ADDRESS } from '@sq/shared';
 import { useLocal, useWalletData, useWalletTxs } from '../lib/hooks';
 import { Addr, Amount, Card, CopyButton, fmt, NetBadge, Notice, PageHeader } from '../components/ui';
+import { Money } from '../lib/prefs';
 import { TxListCompact } from '../wallet/TxList';
 
 export default function Asset() {
@@ -21,7 +22,7 @@ export default function Asset() {
       <Card className="text-center">
         <Amount value={amount * rate} className="text-[32px]" />
         <div className="num mt-1 text-[14px] text-sq-muted">
-          {fmt(amount, sym === 'ETH' ? 5 : 2)} {sym} · 1 {sym} ≈ {fmt(rate)} CHF (indicatif)
+          <Money value={amount} decimals={sym === 'ETH' ? 5 : 2} unit={sym} unitClassName="ml-1" /> · 1 {sym} ≈ {fmt(rate)} CHF (indicatif)
         </div>
         <div className="mt-2 flex justify-center">
           <NetBadge />

@@ -69,3 +69,7 @@ body {
   .print-only, .print-only * { visibility: visible; }
   .print-only { display: block; position: absolute; inset: 0; padding: 32px; }
 }
+
+/* "Mettre en évidence les informations importantes" (display preference) */
+.mw-highlight .mw-important { box-shadow: 0 0 0 2px var(--color-sq-orange); font-weight: 600; }
+.mw-highlight .mw-important-text { color: var(--color-sq-orange-600); font-weight: 600; }

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Check, ChevronLeft, CircleAlert, Copy, ExternalLink, Eye, EyeOff, Info, Loader2, ShieldCheck, TriangleAlert, X } from 'lucide-react';
 import type { PolicyCheck } from '@sq/shared';
 import { MOCK_USDC_CHF } from '@sq/shared';
+import { useMasked } from '../lib/prefs';
 
 export function cx(...c: (string | false | null | undefined)[]) {
   return c.filter(Boolean).join(' ');
@@ -60,7 +61,7 @@ export function StatusPill({ status, className }: { status: TxStatus; className?
     failed: { cls: 'bg-sq-bad-50 text-sq-down', icon: <X size={13} strokeWidth={2.5} /> },
   }[status];
   return (
-    <span className={cx('inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[12px] font-medium', s.cls, className)}>
+    <span className={cx('inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[12px] font-medium', s.cls, (status === 'pending' || status === 'failed') && 'mw-important', className)}>
       {s.icon}
       {STATUS_LABEL[status]}
     </span>
@@ -258,7 +259,7 @@ export function Notice({ tone = 'info', title, children, className }: { tone?: '
     bad: { cls: 'bg-sq-bad-50 border-sq-down/20', icon: <CircleAlert size={18} strokeWidth={1.75} className="text-sq-down" /> },
   }[tone];
   return (
-    <div role={tone === 'bad' ? 'alert' : undefined} className={cx('flex gap-3 rounded-[10px] border p-3.5 text-[14px]', t.cls, className)}>
+    <div role={tone === 'bad' ? 'alert' : undefined} className={cx('flex gap-3 rounded-[10px] border p-3.5 text-[14px]', t.cls, (tone === 'warn' || tone === 'bad') && 'mw-important', className)}>
       <span className="mt-0.5 shrink-0">{t.icon}</span>
       <div className="min-w-0">
         {title && <div className="font-semibold text-sq-ink">{title}</div>}
@@ -356,9 +357,10 @@ export const usdcToChf = (n: number) => n * MOCK_USDC_CHF;
 
 /** Big amount + smaller, lighter currency (Swissquote style). */
 export function Amount({ value, currency = 'CHF', decimals = 2, className }: { value: number; currency?: string; decimals?: number; className?: string }) {
+  const masked = useMasked();
   return (
-    <span className={cx('num whitespace-nowrap font-semibold tracking-tight', className)}>
-      {fmt(value, decimals)}
+    <span className={cx('num whitespace-nowrap font-semibold tracking-tight', className)} aria-label={masked ? 'Montant masqué' : undefined}>
+      {masked ? '••••••' : fmt(value, decimals)}
       <span className="ml-1 text-[0.6em] font-normal">{currency}</span>
     </span>
   );

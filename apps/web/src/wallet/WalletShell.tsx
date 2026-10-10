@@ -1,6 +1,9 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { ArrowLeftRight, ChevronLeft, Ellipsis, FileText, House, Info, Mail, ShieldCheck } from 'lucide-react';
+import { ArrowLeftRight, CalendarClock, ChevronLeft, Ellipsis, FileText, House, Info, KeySquare, Mail, Palette, ShieldCheck, Sparkles } from 'lucide-react';
+import { cosigner } from '../lib/api';
+import { useLocal } from '../lib/hooks';
+import { setPrefs, themeStyle, usePrefs } from '../lib/prefs';
 import { ConfirmationLayer } from '../components/Confirm';
 import { cx, DemoFooter, Logo, useMedia } from '../components/ui';
 import { AccountButton } from '../sq/SqShell';
@@ -15,23 +18,29 @@ const DESKTOP_TABS = [
   { to: '/wallet/swaplet', label: 'Swaplet' },
   { to: '/wallet/info', label: 'Informations' },
   { to: '/wallet/security', label: 'Sécurité' },
+  { to: '/wallet/more', label: 'Plus' },
 ];
 
 const MOBILE_TABS = [
   { to: '/wallet', label: 'Accueil', icon: House, end: true },
   { to: '/wallet/transactions', label: 'Transactions', icon: ArrowLeftRight },
   { to: '/wallet/swaplet', label: 'Swaplet', icon: FileText },
-  { to: '/wallet/more', label: 'Plus', icon: Ellipsis, also: ['/wallet/info', '/wallet/security', '/dapps', '/settings', '/inbox'] },
+  { to: '/wallet/more', label: 'Plus', icon: Ellipsis, also: ['/wallet/info', '/wallet/security', '/dapps', '/settings', '/inbox', '/wallet/approvals', '/wallet/scheduled', '/wallet/plans'] },
 ];
 
 export function WalletShell({ children, wide }: { children: ReactNode; wide?: boolean }) {
   const isDesktop = useMedia('(min-width: 1024px)');
   const loc = useLocation();
   const [compact, setCompact] = useState<string | null>(null);
+  const { device } = useLocal();
+  const { prefs } = usePrefs();
+  useEffect(() => {
+    if (device?.clientId) cosigner.get(`/clients/${device.clientId}`).then((c) => setPrefs(c.preferences)).catch(() => undefined);
+  }, [device?.clientId]);
 
   return (
     <CompactCtx.Provider value={setCompact}>
-      <div className="min-h-screen bg-sq-bg">
+      <div className={cx('min-h-screen bg-sq-bg', prefs.highlight && 'mw-highlight')} style={themeStyle(prefs)}>
         <ConfirmationLayer />
         {isDesktop ? (
           <header className="sticky top-0 z-30 border-b border-sq-line bg-white">
@@ -60,6 +69,9 @@ export function WalletShell({ children, wide }: { children: ReactNode; wide?: bo
               <Link to="/inbox" aria-label="Boîte de réception (simulée)" className="flex size-11 items-center justify-center rounded-full hover:bg-sq-chip/60">
                 <Mail size={20} strokeWidth={1.75} />
               </Link>
+              <Link to="/wallet/plans" className="inline-flex min-h-11 items-center text-[14px] font-semibold text-sq-orange-600 hover:underline">
+                Abonnements
+              </Link>
               <AccountButton />
             </div>
           </header>
@@ -79,6 +91,9 @@ export function WalletShell({ children, wide }: { children: ReactNode; wide?: bo
                   </>
                 )}
               </div>
+              <Link to="/wallet/plans" className="inline-flex min-h-11 items-center px-1 text-[13px] font-semibold text-sq-orange-600">
+                Abonnements
+              </Link>
               <Link to="/inbox" aria-label="Boîte de réception (simulée)" className="flex size-11 items-center justify-center rounded-full hover:bg-sq-chip/60">
                 <Mail size={20} strokeWidth={1.75} />
               </Link>
@@ -116,8 +131,11 @@ export function MoreMenu() {
   const items = [
     { to: '/wallet/info', label: 'Informations', desc: 'Vos transactions, marché crypto, nouveautés', icon: Info },
     { to: '/wallet/security', label: 'Clés et sécurité', desc: 'Adresse, clé de l’appareil, code de récupération, sauvegarde', icon: ShieldCheck },
+    { to: '/wallet/approvals', label: 'Applications autorisées', desc: 'Autorisations de dépense accordées, révocation', icon: KeySquare },
+    { to: '/wallet/scheduled', label: 'Dépenses planifiées et rappels', desc: 'À confirmer à l’échéance, jamais envoyées automatiquement', icon: CalendarClock },
+    { to: '/wallet/plans', label: 'Abonnements et frais', desc: 'Gratuit, Plus, Pro — comparateur de coût', icon: Sparkles },
     { to: '/dapps', label: 'dApps', desc: 'Applications approuvées par Swissquote', icon: ArrowLeftRight },
-    { to: '/settings', label: 'Paramètres', desc: 'Profil, appareils, confidentialité', icon: Ellipsis },
+    { to: '/settings', label: 'Paramètres', desc: 'Profil, appareils, confidentialité, personnalisation', icon: Palette },
     { to: '/inbox', label: 'Boîte de réception', desc: 'Emails et SMS (simulés)', icon: Mail },
   ];
   return (

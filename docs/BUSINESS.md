@@ -14,8 +14,8 @@ A self-custody wallet **one click away from the Swissquote account**: the client
 | Stream | Description |
 |---|---|
 | **Free tier** | Wallet, recovery kit, standard limits, 20 sponsored transactions/day |
-| **Premium ~5 CHF/month** | Higher limits, unlimited gas sponsoring, priority **human-assisted recovery**, **inheritance** (designate heirs through the recovery procedure) |
-| **Spread on transfers & swaps** | Account ↔ wallet conversions (CHF ↔ USDC), in-wallet swaps |
+| **Plus / Pro** (7 € or 15 € per month, 70 € / 150 € per year, or 12 instalments) | Service commission on eligible exchanges cut by 50 % / 75 % (0.40 % / 0.20 % instead of 0.80 %); premium services (priority human-assisted recovery, inheritance) can be bundled. Details and benchmark: [PRICING.md](PRICING.md) |
+| **Service commission on eligible exchanges** | 0.80 % (Free) / 0.40 % (Plus) / 0.20 % (Pro) on swaps only — never on transfers in or out, no hidden spread on top of the partner rate |
 | **Curated dApp access** | Distribution fees from whitelisted dApps (staking, tokenised assets) |
 
 ## Retention & acquisition
@@ -31,16 +31,7 @@ A self-custody wallet **one click away from the Swissquote account**: the client
 Swissquote pays network fees as an **acquisition / retention cost**. On Ethereum L1 a sponsored transfer costs ~0.10–2 CHF depending on congestion; on an L2 (Base, Arbitrum…) < 0.01 CHF. Abuse is bounded: KYC-linked wallets only, 20 sponsored tx/day/client, gas cap per tx, sponsorship only when the policy engine approves.
 
 ## Illustrative calculation
-| Assumption | Value |
-|---|---|
-| Swissquote clients | ~600'000 |
-| Adoption of the wallet | 10 % → 60'000 wallets |
-| Premium conversion | 5 % of clients → 30'000 × 5 CHF × 12 = **1.8 M CHF/year** |
-| Transfers & swaps | 60'000 × 4'000 CHF/year volume × 0.5 % spread = **1.2 M CHF/year** |
-| Gas sponsoring cost (L2) | 60'000 × 100 tx × 0.01 CHF = **–0.06 M CHF/year** (L1: ×50–100) |
-| Avoided outflows | if 10 % of crypto withdrawals stay in the ecosystem → retained trading revenue (not quantified) |
-
-**→ ~3 M CHF/year direct revenue** under these assumptions, plus retention, plus lower compliance & support costs.
+See **[PRICING.md §4](PRICING.md)** for the assumptions (30 000 active users, 85 / 12 / 3 % plan mix, monthly swap volumes per tier, payment, gas, support and VAT). Under those assumptions: ≈ 35.8 k € subscriptions + ≈ 111.6 k € commissions − ≈ 22.9 k € variable costs ≈ **124.5 k € / month contribution before fixed costs (≈ 1.5 M € / year)** — very sensitive to the swap-volume assumptions, and not a net-profit figure.
 
 ## Roadmap
 1. Pilot on an L2 (Base / Arbitrum) to make gas sponsoring near-free; ERC-4337 paymaster or EIP-7702.

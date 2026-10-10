@@ -131,3 +131,15 @@ Je n'ai pu tester Touch ID qu'en simulation. Fais l'étape 5 ci-dessus sur ton M
 
 **Si tu bloques, copie-colle ce prompt à Claude (dans le chat) :**
 > Je fais un hackathon. Sur mon Mac, j'ai lancé `npm run dev` dans le dossier ~/EPFL-BSA-HACKATHON, puis ouvert http://localhost:5173 dans Chrome. Quand je clique « Créer la passkey », il se passe ceci : <colle le message>. Explique-moi pas à pas comme à une débutante sur Mac.
+
+---
+
+## ✅ Nouvelles fonctionnalités et sécurité renforcée — 19:20
+
+Ajouté (détail dans `docs/DEMO_SCRIPT.md`, rubrique « New features ») : aperçu complet avant signature (frais, soldes avant/après, autorisations), alerte et plafond pour les autorisations illimitées, applications autorisées et révocation, vérification du destinataire (adresses qui se ressemblent), dépenses planifiées et rappels, abonnements Gratuit / Plus / Pro (paiement de démonstration, aucun débit), échange de démonstration, personnalisation, masquage des montants, messagerie (ouvre ta propre messagerie, l’app n’envoie rien), code de secours, et l’interrupteur « Geler la co-signature ».
+
+## [IMPORTANT, NON BLOQUANT] Ne supprime pas le fichier `.env` — 19:20
+Les clés de Swissquote (relayer et co-signataire) sont maintenant **chiffrées**. Le mot de passe qui les déverrouille est dans le fichier caché `.env` à la racine du projet (il n’est jamais envoyé sur GitHub).
+- Si ce fichier est supprimé, ces clés deviennent illisibles : le relayer (et ses ETH de test) serait perdu. Les wallets restent récupérables par la porte de sortie, mais la démo ne marcherait plus sans tout recréer.
+- Si tu veux une copie de sécurité : copie le fichier `.env` sur une clé USB ou dans ton gestionnaire de mots de passe. Ne le colle jamais dans un chat.
+**Comment me répondre :** rien à faire, sauf si tu veux que je t’aide à en faire une copie.

@@ -17,6 +17,7 @@ if (d) {
         localStorage.removeItem('mw:pending-recovery');
         localStorage.removeItem('mw:read');
         localStorage.removeItem('mw:unlock-fails');
+        Object.keys(localStorage).filter((k) => k.startsWith('mw:draft:')).forEach((k) => localStorage.removeItem(k));
       } catch {
         /* ignore */
       }

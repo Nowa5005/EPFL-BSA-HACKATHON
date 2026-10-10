@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { cosigner } from '../lib/api';
 import { useLocal, usePoll } from '../lib/hooks';
 import { Button, Card, dateTime, MockBadge, Notice, PageHeader } from '../components/ui';
+import { Composer } from '../components/Composer';
 
 const CHANNEL: Record<string, string> = { email: 'Email', sms: 'SMS', app: 'App' };
 
@@ -50,7 +51,19 @@ export default function Inbox() {
   return (
     <div className="mx-auto max-w-[640px]">
       <PageHeader title={<>Boîte de réception <MockBadge label="Emails et SMS simulés" /></>} subtitle="Les SMS et emails ne servent qu’à notifier ou comme facteur secondaire — jamais suffisants seuls." />
-      {clientId ? <InboxList clientId={clientId} /> : <Card>Connectez-vous d’abord.</Card>}
+      {clientId ? (
+        <div className="space-y-3">
+          <ComposerWithContacts clientId={clientId} />
+          <InboxList clientId={clientId} />
+        </div>
+      ) : (
+        <Card>Connectez-vous d’abord.</Card>
+      )}
     </div>
   );
+}
+
+function ComposerWithContacts({ clientId }: { clientId: string }) {
+  const { data } = usePoll(() => cosigner.get(`/clients/${clientId}`).then((c) => c.contacts ?? []), 60000, [clientId]);
+  return <Composer clientId={clientId} contacts={data ?? []} />;
 }

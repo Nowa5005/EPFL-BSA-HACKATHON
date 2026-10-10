@@ -6,3 +6,5 @@ export * from './recovery';
 export * from './decode';
 export * from './questions';
 export * from './recoveryCode';
+export * from './pricing';
+export * from './recipient';

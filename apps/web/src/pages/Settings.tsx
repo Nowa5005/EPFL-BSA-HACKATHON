@@ -6,6 +6,7 @@ import { bank, cosigner } from '../lib/api';
 import { guessDeviceType, lock, registerPasskey, saveSession } from '../lib/device';
 import { useLocal, usePoll, useWalletData } from '../lib/hooks';
 import { Addr, Button, Card, cx, dateOnly, MockBadge, Notice, PageHeader, Why } from '../components/ui';
+import { Personalization } from '../components/Personalization';
 
 export default function Settings() {
   const nav = useNavigate();
@@ -131,6 +132,8 @@ export default function Settings() {
         ))}
         <p className="text-[12px] text-sq-muted">Une blockchain publique reste publique : ce réglage contrôle l’affichage consolidé et l’usage des données par Swissquote, pas la visibilité sur la blockchain.</p>
       </Card>
+
+      <Personalization clientId={device!.clientId} />
 
       <Card className="space-y-2">
         <div className="flex items-center justify-between">

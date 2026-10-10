@@ -50,7 +50,15 @@ Swissquote can **block** (refuse to co-sign, e.g. sanctions) but can **never mov
 - **Security questions**: 3 distinct out of 15, answers normalised then scrypt-hashed with a per-answer salt at the partner; low weight in the risk score, never sufficient alone.
 - **Device-key backup file**: ethers keystore v3 (scrypt + AES-128-CTR + MAC) plus a SHA-256 of the keystore to report accidental corruption before trying the password.
 
-## 5. Known limitations (prototype)
+## 5. Wallet-level hardening (this iteration)
+- **K2 / relayer keys encrypted at rest** (ethers keystore, `SERVICE_MASTER_KEY` from the environment / secret store); atomic, idempotent migration with address checks. A stolen `keys.json` alone is useless; `.env` and `data/` are git-ignored. Residual risk: an attacker with both the data directory and the master key (same machine) — production: HSM.
+- **Co-signer never trusts the client's summary**: it decodes the calldata, accepts only known operations in canonical form, re-simulates, and signs only the exact SafeTx of a single-use, unexpired preview. T13 *tampered calldata after confirmation* → refused (test + e2e).
+- **Passkey challenge bound to chain, Safe, SafeTx hash, nonce and preview id** → no replay across transactions (T11 strengthened).
+- **Client-side freeze** (passkey only): T14 *client suspects compromise* → freezes Swissquote's signature in one tap; funds stay reachable with K1 + K3.
+- **Backup code**: helps users without working biometrics without weakening passkey-only actions (freeze, reveal amounts/secrets, device registration). Hash only, rate-limited, single-use challenges. Residual risk: a phished backup code + unlocked device + wallet password could confirm a standard operation — still subject to policy, limits, step-up and the co-signer.
+- **Address poisoning** (look-alike recipient) flagged with the differing characters; unlimited approvals flagged with a cap option; authorised apps can be revoked.
+
+## 6. Known limitations (prototype)
 
 - K2 and the relayer key are JSON files (MOCK HSM). Liveness, SMS/email, sanctions feed, KYC and the recovery partner are mocks (clearly labeled in the UI).
 - The headless e2e demo client skips the passkey step (no browser); the UI always uses real passkeys.

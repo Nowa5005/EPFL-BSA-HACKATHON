@@ -67,3 +67,18 @@ Priority: the **create → sign → recover** journey must work end-to-end on Se
 
 Verified in a real browser (Playwright + virtual WebAuthn, real Sepolia): onboarding, unlock + wrong-password counter, recovery via encrypted cloud backup, recovery-code typo detection, standard send, reinforced send (email code + admin approval), key reveal, backup export / import error cases, PDF receipt content.
 Bugs found and fixed during these runs: session marked unlocked before the passkey check; recovery-kit step skipped by the route guard; relayer nonce desync after external use of its key; deploy re-binding an existing wallet.
+
+## Iteration 3 — wallet-level security, pricing, UX controls (prompt "Claude Terminal — My Wall")
+- [x] Simulation before signing: debited, estimated received, network fee and service commission separately, balances before/after, approvals with asset + cap; unlimited approval warning + cap limiting (recomputes tx + preview); failed simulation shown explicitly
+- [x] Before/after portfolio; demo swap quote with minimum received, slippage, ETH for fees
+- [x] Authorised apps centre (on-chain allowances, date when known) + revocation through the normal confirmation flow
+- [x] Preview expiry (60 s, single use, bound to the exact SafeTx); configurable thresholds (fee ≥ 25 % and ≥ 0.50 CHF; quote ≥ 0.5 %); any change of recipient/amount/asset/contract/cap = new preview
+- [x] Recipient verification (full address, EIP-55 checksum, look-alike detection with highlighted characters, new-recipient flag)
+- [x] Personalisation (background, accent, highlight, hidden wallets; reset) persisted server-side
+- [x] Message composer (contacts with email + mock referent), local draft, mailto only, sensitive-content guard
+- [x] Biometrics alternatives + 12-char backup code (hash only, rate-limited, single-use challenges; not for freeze/reveal)
+- [x] Scheduled payments & reminders (Europe/Zurich, edit/delete, due → "à confirmer" + notification, never auto-signed)
+- [x] Plans Free / Plus / Pro (monthly, annual, 12 instalments), server-side entitlements & integer commission maths, comparator, fee explanations, demo payment mode; benchmark + margin estimate in docs/PRICING.md
+- [x] K2 / relayer keys encrypted at rest + verified migration; independent SafeTx validation; passkey ↔ SafeTx binding; freeze co-signing
+- [x] Amount masking everywhere, reveal with passkey only
+- [x] Tests: 33 unit tests incl. the 3 security tests; `npm run e2e` green on Sepolia (with a tampered-calldata check); browser functional run on Sepolia for every new feature

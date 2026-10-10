@@ -7,6 +7,7 @@ import { Download, FileText, X } from 'lucide-react';
 import { buildReceipt, downloadReceiptPdf } from '../lib/receipt';
 import { useLocal, useWalletTxs, type WalletTxView } from '../lib/hooks';
 import { cx, fmt, Spinner } from './ui';
+import { useMasked } from '../lib/prefs';
 
 export function CheckDisc({ size = 64 }: { size?: number }) {
   return (
@@ -45,7 +46,8 @@ export function useCountUp(to: number, from: number, ms = 600) {
 }
 
 export function ConfirmedCard({ tx, clientName, onClose, title }: { tx: WalletTxView; clientName: string; onClose?: () => void; title?: string }) {
-  const label = title ?? `${tx.kind === 'receive' ? 'Réception confirmée' : 'Envoi confirmé'} — ${fmt(Number(tx.amount), tx.asset === 'ETH' ? 5 : 2)} ${tx.asset}`;
+  const masked = useMasked();
+  const label = title ?? `${tx.kind === 'receive' ? 'Réception confirmée' : 'Envoi confirmé'} — ${masked ? '••••••' : fmt(Number(tx.amount), tx.asset === 'ETH' ? 5 : 2)} ${tx.asset}`;
   return (
     <div className="flex items-start gap-4">
       <CheckDisc />
@@ -108,7 +110,7 @@ export function ConfirmationLayer() {
     <div className="pointer-events-none fixed inset-x-0 top-[max(8px,env(safe-area-inset-top))] z-40 flex flex-col items-center gap-2 px-4">
       {pending.length > 0 && !shown && (
         <div className="mw-toast pointer-events-auto rounded-full border border-sq-line bg-white px-4 py-2 shadow-sm">
-          <PendingIndicator text={`Réception de ${pending[0].amount === '?' ? '' : `${pending[0].amount} ${pending[0].asset} `}en attente de confirmation…`} />
+          <PendingIndicator text="Réception en attente de confirmation…" />
         </div>
       )}
       {shown && (

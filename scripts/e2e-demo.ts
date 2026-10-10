@@ -102,13 +102,27 @@ async function main() {
   await sleep((cool + 2) * 1000);
 
   const sendPing = async (signer: BaseWallet, label: string) => {
+    let prep: any;
+    let tx: any;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      tx = buildSafeTx({ to: bob, value: 0n, nonce: await s.nonce() });
+      prep = await call('POST', `${C}/tx/prepare`, { clientId, safeTx: tx }, true);
+      if (prep._status !== 409) break;
+      await sleep(4000); // lagging RPC node: stale nonce
+    }
+    info(`simulation: "${prep.decoded.summary}" — decision ${prep.policy.decision}`);
+    const sig = await signSafeTx(signer, safe, tx);
+    return call('POST', `${C}/tx/submit`, { clientId, previewId: prep.previewId, safeTx: tx, signatureK1: sig }, true).then((r) => ({ ...r, label }));
+  };
+  {
     const nonce = await s.nonce();
     const tx = buildSafeTx({ to: bob, value: 0n, nonce });
     const prep = await call('POST', `${C}/tx/prepare`, { clientId, safeTx: tx });
-    info(`simulation: "${prep.decoded.summary}" — decision ${prep.policy.decision}`);
-    const sig = await signSafeTx(signer, safe, tx);
-    return call('POST', `${C}/tx/submit`, { clientId, safeTx: tx, signatureK1: sig }, true).then((r) => ({ ...r, label }));
-  };
+    const tampered = { ...tx, value: '1' };
+    const r = await call('POST', `${C}/tx/submit`, { clientId, previewId: prep.previewId, safeTx: tampered, signatureK1: await signSafeTx(k1, safe, tampered) }, true);
+    if (r._status !== 409) throw new Error(`Tampered tx not refused: ${JSON.stringify(r)}`);
+    ok(`Transaction modified after its preview → refused by the co-signer: "${r.error}"`);
+  }
   const tx1 = await sendPing(k1, 'K1');
   if (tx1.status !== 'executed') throw new Error(`tx1 not executed: ${JSON.stringify(tx1)}`);
   ok(`Executed (signed K1 + K2, Safe holds 0 ETH): ${explorerTx(tx1.txHash)}`);
@@ -140,10 +154,17 @@ async function main() {
   if (k3rebuilt.address !== k3.address) throw new Error('Rebuilt K3 mismatch');
   ok(`K3 rebuilt from paper + partner shares: ${k3rebuilt.address}`);
 
-  const owners2: string[] = await s.getOwners();
-  const rot = buildSafeTx({ to: safe, data: swapOwnerData(owners2, k1.address, k1new.address), nonce: await s.nonce() });
-  const sigK3 = await signSafeTx(k3rebuilt, safe, rot);
-  const rec = await call('POST', `${C}/recovery/request`, { clientId, safeTx: rot, signatureK3: sigK3, partnerAttestationId: dec.attestationId });
+  // Public RPC nodes can lag a few seconds behind each other: retry if the nonce we read was stale.
+  let rec: any;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const owners2: string[] = await s.getOwners();
+    const rot = buildSafeTx({ to: safe, data: swapOwnerData(owners2, k1.address, k1new.address), nonce: await s.nonce() });
+    const sigK3 = await signSafeTx(k3rebuilt, safe, rot);
+    rec = await call('POST', `${C}/recovery/request`, { clientId, safeTx: rot, signatureK3: sigK3, partnerAttestationId: dec.attestationId }, true);
+    if (rec._status !== 409) break;
+    await sleep(4000);
+  }
+  if (rec._status >= 400) throw new Error(`recovery request failed: ${JSON.stringify(rec)}`);
   ok(`Rotation requested. Security delay until ${rec.executeAfter} (client notified everywhere, can cancel)`);
 
   let status = rec.status;

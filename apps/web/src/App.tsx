@@ -23,6 +23,9 @@ import TxDetail from './wallet/TxDetail';
 import InfoPage from './wallet/Info';
 import Swaplet from './wallet/Swaplet';
 import Security from './wallet/Security';
+import Approvals from './wallet/Approvals';
+import Scheduled from './wallet/Scheduled';
+import Plans from './wallet/Plans';
 
 /** My Wall pages: Swissquote session + a wallet on this device + unlocked (password + passkey). */
 function WalletRoute({ children }: { children: ReactNode }) {
@@ -93,6 +96,9 @@ export default function App() {
         <Route path="/wallet/swaplet" element={<WalletRoute><Swaplet /></WalletRoute>} />
         <Route path="/wallet/security" element={<WalletRoute><Security /></WalletRoute>} />
         <Route path="/wallet/more" element={<WalletRoute><MoreMenu /></WalletRoute>} />
+        <Route path="/wallet/approvals" element={<WalletRoute><Approvals /></WalletRoute>} />
+        <Route path="/wallet/scheduled" element={<WalletRoute><Scheduled /></WalletRoute>} />
+        <Route path="/wallet/plans" element={<WalletRoute><Plans /></WalletRoute>} />
         <Route path="/send" element={<WalletRoute><Send /></WalletRoute>} />
         <Route path="/asset/:symbol" element={<WalletRoute><Asset /></WalletRoute>} />
         <Route path="/dapps" element={<WalletRoute><Dapps /></WalletRoute>} />

@@ -13,6 +13,7 @@ import { checkPassword } from '../lib/passwordPolicy';
 import { useLocal } from '../lib/hooks';
 import { Button, Card, CopyButton, cx, Field, MockBadge, Notice, SecretInput, Spinner, Why } from '../components/ui';
 import { PasswordChecklist } from '../components/PasswordChecklist';
+import { BackupCodeCard, FreezeCard } from './SecurityExtras';
 
 const REVEAL_SEC = 30;
 type Secret = { kind: 'k1' | 'code'; value: string; until: number };
@@ -51,6 +52,8 @@ export default function Security() {
         <h1 className="text-[22px] font-semibold tracking-tight">Clés et sécurité</h1>
         <p className="mt-1 text-[14px] text-sq-muted">Votre wallet n'utilise pas de phrase secrète : la sécurité repose sur 3 clés, dont 2 sont nécessaires.</p>
       </div>
+
+      <FreezeCard clientId={session!.clientId} />
 
       <Card className="space-y-2">
         <SectionHead icon={<WalletIcon size={20} strokeWidth={1.75} />} title="Adresse publique du wallet" tag="Publique" />
@@ -98,6 +101,8 @@ export default function Security() {
       />
 
       {asking && <Reauth clientId={session!.clientId} onCancel={() => setAsking(null)} onDone={onAuthed} />}
+
+      <BackupCodeCard clientId={session!.clientId} />
 
       <BackupCard />
     </div>

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowDownLeft, ArrowUpRight, ChevronRight, ExternalLink, Landmark, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, ChevronRight, ExternalLink, Eye, EyeOff, Landmark, ShieldCheck, Sparkles } from 'lucide-react';
+import { PLANS } from '@sq/shared';
+import { hideAgain, Money, revealAmounts, savePrefs, useMasked, usePrefs } from '../lib/prefs';
 import { MOCK_ETH_CHF, MOCK_USDC_CHF, explorerAddress } from '@sq/shared';
 import { bank, cosigner } from '../lib/api';
 import { useLocal, usePoll, useWalletData, useWalletTxs } from '../lib/hooks';
@@ -23,6 +25,8 @@ export default function Home() {
   const transferRef = useRef<HTMLDivElement>(null);
   const nav = useNavigate();
 
+  const { prefs, revealed } = usePrefs();
+  const masked = useMasked();
   const usdc = Number(data?.onchain?.usdc ?? 0);
   const eth = Number(data?.onchain?.eth ?? 0);
   const sim = Number(data?.onchain?.simulatedUsdc ?? 0);
@@ -37,13 +41,26 @@ export default function Home() {
   useEffect(() => {
     const el = sentinel.current;
     if (!el) return;
-    const io = new IntersectionObserver(([e]) => setCompact(!e.isIntersecting && e.boundingClientRect.top < 100 ? `My Wall · ${fmt(total)} CHF` : null), { rootMargin: '-72px 0px 0px 0px' });
+    const io = new IntersectionObserver(([e]) => setCompact(!e.isIntersecting && e.boundingClientRect.top < 100 ? `My Wall · ${masked ? '••••••' : fmt(total)} CHF` : null), { rootMargin: '-72px 0px 0px 0px' });
     io.observe(el);
     return () => {
       io.disconnect();
       setCompact(null);
     };
-  }, [total, setCompact]);
+  }, [total, setCompact, masked]);
+
+  const [maskErr, setMaskErr] = useState('');
+  const hidden = (id: string) => prefs.hiddenWallets.includes(id);
+  const toggleMask = async () => {
+    setMaskErr('');
+    try {
+      if (!prefs.hideAmounts) await savePrefs(clientId, { hideAmounts: true });
+      else if (revealed) hideAgain();
+      else await revealAmounts(clientId);
+    } catch (e: any) {
+      setMaskErr(e?.name === 'NotAllowedError' ? 'Vérification annulée : les montants restent masqués.' : `Les montants restent masqués : ${e.message}. Configurez une passkey compatible (Paramètres › Appareils).`);
+    }
+  };
 
   const revoked = data?.onchain?.deployed && data.onchain.owners && !data.onchain.owners.map((o: string) => o.toLowerCase()).includes(device!.deviceAddress.toLowerCase());
 
@@ -55,7 +72,13 @@ export default function Home() {
   const hero = (
     <section aria-label="Soldes" className={cx(isDesktop ? 'grid grid-cols-12 items-end gap-6 pb-8' : 'pb-6 pt-3 text-center')}>
       <div className={cx(isDesktop && 'col-span-5')}>
-        <div className="text-[15px] text-sq-ink-2">Valeur totale · {session?.profile?.name?.split(' ')[0]}</div>
+        <div className={cx('flex items-center gap-1 text-[15px] text-sq-ink-2', !isDesktop && 'justify-center')}>
+          Valeur totale · {session?.profile?.name?.split(' ')[0]}
+          <button type="button" onClick={toggleMask} className="ml-1 flex size-10 items-center justify-center rounded-full hover:bg-sq-chip/60" aria-label={masked ? 'Afficher les montants (vérification par passkey)' : 'Masquer les montants'} title={masked ? 'Afficher les montants' : 'Masquer les montants'}>
+            {masked ? <Eye size={18} strokeWidth={1.75} /> : <EyeOff size={18} strokeWidth={1.75} />}
+          </button>
+        </div>
+        {maskErr && <p className="text-[12px] text-sq-down">{maskErr}</p>}
         <Amount value={shownTotal} className={cx('mt-1 block', isDesktop ? 'text-[48px]' : 'text-[40px]')} />
         <div className={cx('mt-1.5 flex flex-wrap items-center gap-2 text-[12px] text-sq-muted', !isDesktop && 'justify-center')}>
           <span>taux indicatifs</span>
@@ -66,13 +89,18 @@ export default function Home() {
         </div>
         {sim > 0 && (
           <div className="mt-1 text-[12px] text-sq-muted">
-            dont {fmt(sim)} USDC simulés <MockBadge label="Démo" />
+            dont <Money value={sim} unit="USDC" unitClassName="ml-1" /> simulés <MockBadge label="Démo" />
           </div>
         )}
       </div>
       <div className={cx(isDesktop ? 'col-span-4 grid grid-cols-2 gap-3' : 'mt-5 grid grid-cols-2 gap-3 text-left')}>
-        <AssetTile sym="USDC" name="USD Coin" amount={usdc + sim} chfv={(usdc + sim) * MOCK_USDC_CHF} />
-        <AssetTile sym="ETH" name="Ether" amount={eth} chfv={eth * MOCK_ETH_CHF} decimals={4} />
+        {!hidden('mywall-usdc') && <AssetTile sym="USDC" name="USD Coin" amount={usdc + sim} chfv={(usdc + sim) * MOCK_USDC_CHF} />}
+        {!hidden('mywall-eth') && <AssetTile sym="ETH" name="Ether" amount={eth} chfv={eth * MOCK_ETH_CHF} decimals={4} />}
+        {prefs.hiddenWallets.length > 0 && (
+          <Link to="/settings" className="col-span-2 text-[12px] text-sq-muted underline underline-offset-2">
+            {prefs.hiddenWallets.length} élément(s) masqué(s) de l’affichage — Paramètres
+          </Link>
+        )}
       </div>
       <div className={cx(isDesktop ? 'col-span-3 flex justify-end gap-2' : 'mt-6 flex justify-center gap-6')}>
         <RoundAction icon={<ArrowUpRight size={20} strokeWidth={1.75} />} label="Envoyer" to="/send" />
@@ -110,9 +138,11 @@ export default function Home() {
 
   const side = (
     <div className="min-w-0 space-y-4">
-      <div ref={transferRef}>
-        <BankTransfer clientId={clientId} safe={device!.safeAddress!} bankData={bankInfo.data} onDone={() => void reload()} />
-      </div>
+      {!hidden('swissquote-account') && (
+        <div ref={transferRef}>
+          <BankTransfer clientId={clientId} safe={device!.safeAddress!} bankData={bankInfo.data} onDone={() => void reload()} />
+        </div>
+      )}
       <Card>
         <Link to="/wallet/security" className="flex items-center gap-3">
           <ShieldCheck size={22} strokeWidth={1.75} className="text-sq-ink-2" />
@@ -124,8 +154,22 @@ export default function Home() {
         </Link>
       </Card>
       <div className="rounded-[10px] border border-sq-line bg-white px-4 py-3 text-[13px] text-sq-ink-2">
-        <span className="font-semibold text-sq-ink">Frais offerts par Swissquote.</span> Vous n'avez jamais besoin d'ETH pour payer les frais.
-        {data?.client?.usage ? ` ${data.client.usage.sponsoredTx}/20 transactions offertes utilisées aujourd'hui.` : ''}
+        <div className="mb-1 font-semibold text-sq-ink">Vos frais</div>
+        <ul className="space-y-0.5">
+          <li>
+            <Link to="/wallet/plans#frais" className="underline-offset-2 hover:underline">Envoyer*</Link> : aucune commission, frais réseau offerts par Swissquote
+          </li>
+          <li>
+            <Link to="/wallet/plans#frais" className="underline-offset-2 hover:underline">Recevoir*</Link> : gratuit
+          </li>
+          <li>
+            Échanger : commission {((PLANS[(data?.client?.plan ?? 'free') as 'free'].commissionBps) / 100).toFixed(2)} % (offre {PLANS[(data?.client?.plan ?? 'free') as 'free'].name})
+          </li>
+        </ul>
+        {data?.client?.usage ? <div className="mt-1 text-sq-muted">{data.client.usage.sponsoredTx}/20 transactions offertes utilisées aujourd'hui.</div> : null}
+        <Link to="/wallet/plans#frais" className="mt-1 inline-block text-[12px] text-sq-muted underline underline-offset-2">
+          * Détail des frais applicables
+        </Link>
       </div>
     </div>
   );
@@ -212,9 +256,11 @@ function AssetTile({ sym, name, amount, chfv, decimals = 2 }: { sym: string; nam
         <ChevronRight size={16} strokeWidth={1.75} className="text-sq-muted" />
       </div>
       <div className="num mt-1 text-[17px] font-semibold">
-        {fmt(amount, decimals)} <span className="text-[12px] font-normal">{sym}</span>
+        <Money value={amount} decimals={decimals} unit={sym} unitClassName="ml-1 text-[12px] font-normal" />
       </div>
-      <div className="num text-[12px] text-sq-muted">{fmt(chfv)} CHF</div>
+      <div className="num text-[12px] text-sq-muted">
+        <Money value={chfv} unit="CHF" unitClassName="ml-1" />
+      </div>
     </Link>
   );
 }
@@ -248,11 +294,11 @@ function BankTransfer({ clientId, safe, bankData, onDone }: { clientId: string; 
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-[10px] border border-sq-line px-3 py-2.5">
           <div className="text-[12px] text-sq-muted">CHF</div>
-          <div className="num text-[15px] font-semibold">{bankData ? fmt(bankData.accounts.CHF) : '—'}</div>
+          <div className="num text-[15px] font-semibold">{bankData ? <Money value={bankData.accounts.CHF} /> : '—'}</div>
         </div>
         <div className="rounded-[10px] border border-sq-line px-3 py-2.5">
           <div className="text-[12px] text-sq-muted">USDC</div>
-          <div className="num text-[15px] font-semibold">{bankData ? fmt(bankData.accounts.USDC) : '—'}</div>
+          <div className="num text-[15px] font-semibold">{bankData ? <Money value={bankData.accounts.USDC} /> : '—'}</div>
         </div>
       </div>
       <p className={cx('text-[12px]', verified ? 'text-sq-up' : 'text-sq-warn')}>

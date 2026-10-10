@@ -56,8 +56,11 @@ export function evaluatePolicy(input: PolicyInput): PolicyResult {
     add({ id: 'self-call', label: 'Configuration du wallet inchangée', status: 'fail', detail: 'Les changements de clés passent par la procédure de récupération (avec délai)' });
   }
 
-  // 3. Sanctions screening on every counterparty
-  const parties = [tx.to, decoded.recipient, decoded.spender].filter(Boolean).map(lc);
+  // Revoking an approval (allowance → 0) only reduces risk: always allowed at standard level.
+  const isRevocation = decoded.kind === 'erc20-approve' && decoded.amountRaw === '0';
+
+  // 3. Sanctions screening on every counterparty (a revocation may target a sanctioned spender: allowed)
+  const parties = [tx.to, decoded.recipient, isRevocation ? undefined : decoded.spender].filter(Boolean).map(lc);
   const hit = parties.find((p) => SANCTIONED[p]);
   add(
     hit
@@ -76,7 +79,8 @@ export function evaluatePolicy(input: PolicyInput): PolicyResult {
   );
 
   // 5. dApp interaction: whitelist + step-up
-  const isDapp = decoded.kind === 'contract-call' || decoded.kind === 'erc20-approve';
+  const isDapp = decoded.kind === 'contract-call' || (decoded.kind === 'erc20-approve' && !isRevocation);
+  if (isRevocation) add({ id: 'revoke', label: 'Révocation d’autorisation', status: 'pass', detail: 'Retirer un accès réduit le risque : toujours permis' });
   if (isDapp) {
     const target = decoded.kind === 'erc20-approve' ? lc(decoded.spender) : lc(tx.to);
     const dapp = DAPP_WHITELIST[target];

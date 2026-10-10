@@ -6,10 +6,13 @@ loadDotenv();
 
 import express, { type NextFunction, type Request, type Response } from 'express';
 import cors from 'cors';
-import { formatEther, formatUnits, getAddress, randomBytes, hexlify, hashMessage, verifyTypedData } from 'ethers';
+import { formatEther, formatUnits, getAddress, randomBytes, hexlify, hashMessage, verifyTypedData, MaxUint256 } from 'ethers';
+import { randomInt } from 'node:crypto';
 import {
   PORTS,
   POLICY,
+  MOCK_ETH_CHF,
+  conditionsChanged,
   SERVICE_URLS,
   USDC_DECIMALS,
   decodeSafeTx,
@@ -23,7 +26,7 @@ import {
   short,
   type SafeTx,
 } from '@sq/shared';
-import { db, getClient, HttpError, logActivity, notify, usageOf, type Client, type TxRequest } from './db';
+import { db, DEFAULT_PREFERENCES, getClient, HttpError, logActivity, notify, usageOf, type Client, type TxRequest } from './db';
 import { cosignerWallet, getOrCreateCosigner } from './keys';
 import {
   balancesOf,
@@ -37,7 +40,12 @@ import {
   safeState,
   shortErr,
   simulateInner,
+  estimateFees,
 } from './chain';
+import { validateSafeTx } from './validate';
+import { consumePreview, createPreview } from './previews';
+import { verifyBackupCode } from './backupCode';
+import { effectiveTier, registerFeatureRoutes, tickScheduled } from './features';
 import { evaluatePolicy, usdcEquivalent, DAPP_WHITELIST, SANCTIONED } from './policy';
 import { confirmWalletTx, docIdOf, referenceOf, simulateReceive, trackIncoming, upsertWalletTx, type WalletTx } from './walletTx';
 import {
@@ -79,6 +87,12 @@ function publicClient(c: Client) {
     usage: usageOf(c),
     privacy: c.privacy,
     headless: !!c.headless,
+    frozen: !!c.frozen,
+    frozenBy: c.frozenBy ?? null,
+    preferences: { ...DEFAULT_PREFERENCES, ...c.preferences },
+    backupCode: c.backupCode ? { configured: true, createdAt: c.backupCode.createdAt, locked: !!c.backupCode.lockedUntil && new Date(c.backupCode.lockedUntil).getTime() > Date.now() } : { configured: false },
+    plan: effectiveTier(c),
+    demoFeeChf: c.demoFeeChf ?? null,
   };
 }
 
@@ -238,13 +252,16 @@ app.post(
   '/clients/:id/contacts',
   route((req) => {
     const c = getClient(String(req.params.id));
-    const { name, address, verifiedOwnership } = req.body as { name: string; address: string; verifiedOwnership?: boolean };
+    const { name, address, verifiedOwnership, email } = req.body as { name: string; address: string; verifiedOwnership?: boolean; email?: string };
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, 'Adresse email invalide');
     const addr = getAddress(address);
     db.update((d) => {
       const cl = d.clients[c.clientId];
       const ex = cl.contacts.find((x) => x.address.toLowerCase() === addr.toLowerCase());
-      if (ex) ex.name = name;
-      else cl.contacts.push({ name, address: addr, addedAt: nowIso(), verifiedOwnership: !!verifiedOwnership });
+      if (ex) {
+        ex.name = name;
+        if (email !== undefined) ex.email = email || undefined;
+      } else cl.contacts.push({ name, address: addr, addedAt: nowIso(), verifiedOwnership: !!verifiedOwnership, email: email || undefined });
     });
     logActivity({ clientId: c.clientId, actor: 'client', type: 'contact.added', message: `Contact « ${name} » (${short(addr)}) ajouté — reconnu après ${COOLING_OFF_SEC} s de délai de réflexion` });
     return publicClient(getClient(c.clientId));
@@ -264,9 +281,22 @@ app.post(
 );
 
 // ───────────────────────────── Transactions ─────────────────────────────
+const spenderName = (c: Client, a: string) => DAPP_WHITELIST[a.toLowerCase()]?.name ?? c.contacts.find((x) => x.address.toLowerCase() === a.toLowerCase())?.name;
+
+/** Network fee estimate in CHF (or the demo override, clearly flagged). */
+async function feeEstimate(c: Client, safeAddress: string, safeTx: SafeTx) {
+  const f = await estimateFees(safeAddress, safeTx);
+  const eth = formatEther(f.wei);
+  const chf = Math.round(Number(eth) * MOCK_ETH_CHF * 100) / 100;
+  if (typeof c.demoFeeChf === 'number') return { available: true, chf: c.demoFeeChf, eth, gasUnits: f.gasUnits, demo: true };
+  return { available: f.available, chf, eth, gasUnits: f.gasUnits, demo: false };
+}
+
+/** Everything the client sees before signing — recomputed by the co-signer from the calldata itself. */
 async function analyse(c: Client, safeTx: SafeTx) {
   if (!c.safeAddress) throw new HttpError(400, "Wallet pas encore ouvert");
-  const [state, balances, safeTxHash] = await Promise.all([safeState(c.safeAddress), balancesOf(c.safeAddress), checkedSafeTxHash(c.safeAddress, safeTx)]);
+  const intent = validateSafeTx(safeTx, c.safeAddress); // independent decoding; throws on anything unsupported
+  const [state, balances, safeTxHash, fee] = await Promise.all([safeState(c.safeAddress), balancesOf(c.safeAddress), checkedSafeTxHash(c.safeAddress, safeTx), feeEstimate(c, c.safeAddress, safeTx)]);
   if (BigInt(safeTx.nonce) !== state.nonce) throw new HttpError(409, `Transaction périmée (une autre opération est passée entre-temps). Recommencez.`);
   const contactName = (a: string) => c.contacts.find((x) => x.address.toLowerCase() === a.toLowerCase())?.name;
   const decoded = decodeSafeTx(safeTx, c.safeAddress, contactName);
@@ -285,18 +315,46 @@ async function analyse(c: Client, safeTx: SafeTx) {
     policy.checks.push({ id: 'simulation', label: 'Simulation sur Ethereum', status: 'fail', detail: simulation.error });
     policy.decision = 'reject';
     policy.reasons.push(`Simulation en échec : ${simulation.error}`);
-  } else policy.checks.push({ id: 'simulation', label: 'Simulation sur Ethereum', status: 'pass', detail: 'La transaction réussirait' });
-  let after: { eth: string; usdc: string } = { eth: formatEther(balances.eth - BigInt(safeTx.value)), usdc: formatUnits(balances.usdc, USDC_DECIMALS) };
-  if (decoded.kind === 'erc20-transfer' && decoded.token === 'USDC') after.usdc = formatUnits(balances.usdc - BigInt(decoded.amountRaw!), USDC_DECIMALS);
+  } else policy.checks.push({ id: 'simulation', label: 'Simulation sur Ethereum', status: 'pass', detail: 'L’opération réussirait (estimation, pas une garantie)' });
+
+  const usdcAfter = intent.kind === 'erc20-transfer' ? balances.usdc - BigInt(intent.amountRaw) : balances.usdc;
+  const ethAfter = intent.kind === 'eth-transfer' ? balances.eth - BigInt(intent.value) : balances.eth;
+  const debits = intent.kind === 'erc20-transfer' ? [{ asset: 'USDC', amount: formatUnits(intent.amountRaw, USDC_DECIMALS) }] : intent.kind === 'eth-transfer' ? [{ asset: 'ETH', amount: formatEther(intent.value) }] : [];
+  const receives =
+    intent.kind === 'erc20-transfer'
+      ? [{ party: contactName(intent.to) ?? intent.to, asset: 'USDC', amount: formatUnits(intent.amountRaw, USDC_DECIMALS) }]
+      : intent.kind === 'eth-transfer'
+        ? [{ party: contactName(intent.to) ?? intent.to, asset: 'ETH', amount: formatEther(intent.value) }]
+        : [];
+  const approvals =
+    intent.kind === 'erc20-approve'
+      ? [
+          {
+            token: 'USDC',
+            tokenAddress: intent.token,
+            spender: intent.spender,
+            spenderName: spenderName(c, intent.spender),
+            amount: BigInt(intent.amountRaw) >= MaxUint256 / 2n ? 'illimité' : formatUnits(intent.amountRaw, USDC_DECIMALS),
+            amountRaw: intent.amountRaw,
+            unlimited: BigInt(intent.amountRaw) >= MaxUint256 / 2n,
+            revocation: intent.amountRaw === '0',
+          },
+        ]
+      : [];
   return {
+    intent,
     safeTxHash,
     decoded,
     policy,
     simulation,
     state: { ...state, nonce: state.nonce.toString() },
     balances: { eth: formatEther(balances.eth), usdc: formatUnits(balances.usdc, USDC_DECIMALS) },
-    balancesAfter: after,
-    fees: { paidBy: 'Swissquote', clientCostChf: 0 },
+    balancesAfter: { eth: formatEther(ethAfter), usdc: formatUnits(usdcAfter, USDC_DECIMALS) },
+    debits,
+    receives,
+    approvals,
+    fee,
+    fees: { paidBy: 'Swissquote', clientCostChf: 0, network: fee, serviceCommission: { bps: 0, amount: '0', note: 'Aucune commission sur les envois, réceptions et autorisations' } },
   };
 }
 
@@ -306,8 +364,9 @@ app.post(
     const { clientId, safeTx } = req.body as { clientId: string; safeTx: SafeTx };
     const c = getClient(clientId);
     const a = await analyse(c, safeTx);
-    const authOptions = c.headless ? null : await authOptionsForHash(c, a.safeTxHash);
-    return { ...a, authOptions };
+    const p = createPreview({ clientId, safeAddress: c.safeAddress!, safeTx, safeTxHash: a.safeTxHash, intent: a.intent, fee: a.fee });
+    const authOptions = c.headless ? null : await authOptionsForHash(c, p.challenge);
+    return { ...a, previewId: p.id, expiresAt: p.expiresAt, authOptions, backupCodeAvailable: !!c.backupCode };
   }),
 );
 
@@ -364,13 +423,32 @@ async function execute(r: TxRequest) {
 app.post(
   '/tx/submit',
   route(async (req) => {
-    const { clientId, safeTx, signatureK1, webauthn, note } = req.body as { clientId: string; safeTx: SafeTx; signatureK1: string; webauthn?: any; note?: string };
+    const { clientId, previewId, safeTx: submitted, signatureK1, webauthn, backupCode, note } = req.body as {
+      clientId: string;
+      previewId: string;
+      safeTx?: SafeTx;
+      signatureK1: string;
+      webauthn?: any;
+      backupCode?: string;
+      note?: string;
+    };
     const c = getClient(clientId);
     if (!c.owners || !c.safeAddress) throw new HttpError(400, "Wallet pas encore ouvert");
-    if (c.frozen) throw new HttpError(423, 'La co-signature est suspendue par la conformité Swissquote');
-    const a = await analyse(c, safeTx);
-    // 1. Biometric passkey bound to this exact transaction
-    await verifyAssertion(clientId, webauthn, { hash: a.safeTxHash });
+    if (c.frozen) throw new HttpError(423, c.frozenBy === 'client' ? 'Vous avez gelé la co-signature de ce wallet : dégelez-la dans Sécurité pour continuer.' : 'La co-signature est suspendue par la conformité Swissquote');
+    if (!previewId) throw new HttpError(400, 'Aperçu manquant : vérifiez l’opération avant de la confirmer.');
+    // 0. The exact SafeTx that was simulated and shown (single use, not expired, unchanged byte for byte)
+    const p = consumePreview(previewId, clientId, submitted);
+    const safeTx = p.safeTx;
+    const a = await analyse(c, safeTx); // re-validated and re-simulated by the co-signer
+    if (p.fee.available && a.fee.available && conditionsChanged(p.fee.chf, a.fee.chf, POLICY.feeChange))
+      throw new HttpError(409, `Les frais estimés sont passés de ${p.fee.chf.toFixed(2)} à ${a.fee.chf.toFixed(2)} CHF. Vérifiez les nouvelles conditions avant de continuer.`, {
+        code: 'conditions-changed',
+        previous: p.fee.chf,
+        current: a.fee.chf,
+      });
+    // 1. User verification bound to this exact preview: passkey, or the backup code (single-use preview = no replay)
+    if (backupCode) verifyBackupCode(clientId, backupCode);
+    else await verifyAssertion(clientId, webauthn, { hash: p.challenge });
     // 2. Device key signature from the current on-chain device owner
     const signer = recoverSigner(c.safeAddress, safeTx, signatureK1);
     if (!a.state.owners.includes(signer) || signer.toLowerCase() === c.owners.cosigner.toLowerCase())
@@ -404,13 +482,13 @@ app.post(
     if (a.policy.decision === 'approve') {
       base.status = 'executing';
       db.update((d) => (d.txRequests[base.id] = base));
-      logActivity({ clientId, actor: 'client', type: 'tx.signed', message: `Signé avec passkey + clé de l'appareil : ${a.decoded.summary}` });
+      logActivity({ clientId, actor: 'client', type: 'tx.signed', message: `Signé avec ${backupCode ? 'code de secours' : 'passkey'} + clé de l'appareil : ${a.decoded.summary}` });
       const txHash = await execute(base);
       return { status: 'executed', requestId: base.id, txHash, explorer: explorerTx(txHash), policy: a.policy, decoded: a.decoded };
     }
 
     // Step-up: OTP + cooling-off + four-eyes approval
-    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const code = String(randomInt(100000, 1000000)); // CSPRNG
     base.otp = { code, expiresAt: new Date(Date.now() + POLICY.otpTtlSec * 1000).toISOString(), verified: false };
     db.update((d) => (d.txRequests[base.id] = base));
     notify({ clientId, channel: 'email', subject: `Votre code My Wall : ${code}`, body: `Saisissez ${code} pour confirmer : ${a.decoded.summary}. Ne communiquez jamais ce code. Si vous n'êtes pas à l'origine de cette demande, annulez l'opération.`, action: { label: "Ce n'est pas moi — annuler", kind: 'cancel-tx', id: base.id } });
@@ -501,7 +579,10 @@ app.post(
   route((req) => {
     const c = getClient(String(req.params.id));
     const frozen = !!req.body.frozen;
-    db.update((d) => (d.clients[c.clientId].frozen = frozen));
+    db.update((d) => {
+      d.clients[c.clientId].frozen = frozen;
+      d.clients[c.clientId].frozenBy = frozen ? 'compliance' : undefined;
+    });
     logActivity({ clientId: c.clientId, actor: 'compliance', type: frozen ? 'client.frozen' : 'client.unfrozen', message: frozen ? 'Co-signature suspendue (Swissquote peut bloquer, jamais déplacer les fonds)' : 'Co-signature rétablie' });
     return publicClient(getClient(c.clientId));
   }),
@@ -534,8 +615,9 @@ app.post(
     // Must be swapOwner(prev, currentDevice, newDevice) on this Safe
     if (safeTx.to.toLowerCase() !== c.safeAddress.toLowerCase() || safeTx.operation !== 0 || BigInt(safeTx.value) !== 0n)
       throw new HttpError(400, 'La récupération doit porter sur le wallet lui-même');
-    const parsed = safeIface.parseTransaction({ data: safeTx.data });
-    if (parsed?.name !== 'swapOwner') throw new HttpError(400, 'La récupération doit être un remplacement de clé (swapOwner)');
+    const intent = validateSafeTx(safeTx, c.safeAddress, { allowOwnerChange: true }); // same strict checks as any co-signature
+    if (intent.kind !== 'swap-owner') throw new HttpError(400, 'La récupération doit être un remplacement de clé (swapOwner)');
+    const parsed = safeIface.parseTransaction({ data: safeTx.data })!;
     const [, oldOwner, newOwner] = parsed.args as unknown as [string, string, string];
     if (getAddress(oldOwner) !== getAddress(c.owners.device)) throw new HttpError(400, "Seule la clé de l'appareil peut être remplacée");
     if (getAddress(oldOwner) === getAddress(c.owners.cosigner) || getAddress(oldOwner) === getAddress(c.owners.recovery)) throw new HttpError(400, 'Cette clé ne peut pas être remplacée');
@@ -674,6 +756,8 @@ app.post('/clients/:id/receipts/track', route((req) => {
   return txWithDoc(trackIncoming(c.clientId, c.safeAddress, txHash, source, fromName, amount));
 }));
 
+registerFeatureRoutes(app, route, publicClient);
+
 // ───────────────────────────── Inbox & activity ─────────────────────────────
 app.get('/clients/:id/inbox', route((req) => db.data.inbox.filter((m) => m.clientId === req.params.id).slice(-100).reverse()));
 app.get('/clients/:id/activity', route((req) => db.data.activity.filter((e) => e.clientId === req.params.id).slice(-200).reverse()));
@@ -691,6 +775,9 @@ app.post(
       d.inbox = [];
       d.walletTxs = {};
       d.documents = {};
+      d.previews = {};
+      d.scheduled = {};
+      d.swapQuotes = {};
     });
     console.log('[cosigner] demo state reset');
     return { reset: true };
@@ -710,6 +797,7 @@ async function tick() {
         await execute(r).catch(() => undefined);
       }
     }
+    tickScheduled();
     for (const r of Object.values(db.data.recoveries)) {
       if (r.status === 'pending-delay' && new Date(r.executeAfter).getTime() <= now) await executeRecovery(r.id);
     }

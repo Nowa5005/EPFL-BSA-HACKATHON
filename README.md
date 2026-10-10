@@ -105,6 +105,11 @@ Each service is a **separate process with its own `data/` directory** (JSON file
 | "Simuler une réception" (250 USDC, no blockchain tx) | **MOCK**, flagged "simulée" everywhere |
 | Reconstructed Swissquote screens, market data, crypto news | **MOCK** (fictitious) |
 | Recovery code (paper share ①) as checksummed base32 text — no QR code | **REAL** encoding |
+| K2 / relayer keys encrypted at rest (keystore + `SERVICE_MASTER_KEY`) | **REAL** (HSM in production) |
+| Subscriptions & payment | **MOCK** payment (demo mode, nothing charged); prices, entitlements and commission maths are real server-side logic |
+| Token exchange (Swaplet → Échanger) | **MOCK** execution: real server-side quote, never executed |
+| Fee-change demo control (2 → 8 CHF) | **MOCK**, labelled in the UI |
+| Messages to contacts / referent `moncontact@swissquote.ch` | Local draft + `mailto:` only — no message is sent by the app; the referent address is a mock-up |
 | Device-key backup: ethers keystore v3 (scrypt + AES-128-CTR + MAC) | **REAL** library |
 
 Every mocked element carries a visible **MOCK** badge in the UI.
@@ -154,12 +159,27 @@ SMS/email are notifications or a secondary factor only — never enough alone.
 - **AML/sanctions**: risk-based policy engine (sanctions screening, thresholds, daily limits, dApp whitelist, simulation), shared audit log.
 
 ## Business model (summary — [docs/BUSINESS.md](docs/BUSINESS.md))
-Free tier + **Premium ~5 CHF/month** (higher limits, gas included, priority human recovery, inheritance), spread on account ↔ wallet transfers and swaps, curated dApp distribution fees. **Retention**: assets stay one click from the trading account. **Costs saved**: automated Travel Rule checks, fewer support tickets, no custody capital. Illustrative: ~3 M CHF/year (assumptions in the doc).
+Three tiers — **Free** (0.80 % service commission on eligible exchanges), **Plus** 7 €/month · 70 €/year · or 12 instalments (0.40 %), **Pro** 15 €/month · 150 €/year · or 12 × 12.50 € (0.20 %). No commission on transfers; plan discounts apply to our commission only. Server-side entitlements and integer arithmetic; demo payment mode (nothing charged). Benchmark, cost comparator and an illustrative contribution-margin estimate: **[docs/PRICING.md](docs/PRICING.md)**. **Retention**: assets stay one click from the trading account. **Costs saved**: automated Travel Rule checks, fewer support tickets, no custody capital.
 
 ## Bonus features implemented
 - **Gasless**: the Safe never holds ETH; Swissquote's relayer submits `execTransaction` and pays gas (also for Safe deployment). Anti-abuse: KYC-linked wallets only, 20 sponsored tx/day/client, gas cap per tx, sponsoring only if the policy engine approves. Production: ERC-4337 paymaster or EIP-7702.
 - **Compliant dApp interaction**: dApp whitelist (Uniswap, Aave on Sepolia), sanctions screening (refusal shown), plain-language simulation, **red alert on unlimited `approve`**, reinforced checks for every dApp interaction and above the threshold.
 - **Recovery that refuses a thief with phone + email**: `/attacker` page and `npm run e2e` step 3b.
+
+## Wallet-level security
+What this repository implements at the wallet level (the security of Swissquote's infrastructure — HSMs, network, key ceremonies, SOC — is Swissquote's responsibility and is **not** attested by this work):
+
+- **Keys encrypted at rest** — K2 (one per client) and the relayer key are stored as ethers keystore JSON (scrypt + AES-128-CTR + MAC) in `services/sq-cosigner/data/keys.json`, unlocked with `SERVICE_MASTER_KEY` from the environment. In local development a strong value is generated once into the git-ignored `.env` (mode 600); in production it must come from a durable secret store (the service refuses to start without it, and never generates a new master key when encrypted keys already exist). The master key is never written next to the keystores nor logged.
+- **Migration** — the former plaintext `keys.json` is migrated on start-up: encrypt → decrypt and compare every address **and** private key → atomic rename (tmp + fsync). It is idempotent (an encrypted file is left untouched) and no key is regenerated: the relayer and all K2 keep their exact addresses, so Safes already deployed on Sepolia keep working. Verified on this repo's real keys (5/5 identical).
+- **Independent validation by `sq-cosigner`** — before any co-signature it re-decodes the SafeTx itself (`validate.ts`): only ETH transfers, ERC-20 `transfer` / `approve` on supported tokens and `swapOwner` (recovery route only); calldata must be the exact canonical encoding (no trailing bytes); `operation` must be CALL; no gas-refund parameters; no ETH attached to token calls. Everything else is refused.
+- **Previews bound to the exact transaction** — every simulation shown to the client creates a single-use preview (60 s) stored server-side with the canonical SafeTx. Submission must reference it; a SafeTx that differs in any byte is refused, an expired or reused preview is refused, and a significant change of conditions (network fee ≥ 25 % **and** ≥ 0.50 CHF; swap quote ≥ 0.5 %) requires a new confirmation.
+- **Passkey bound to the SafeTx** — the WebAuthn challenge is `keccak256("MyWall/cosign/v1", chainId, Safe address, SafeTx hash (EIP-712 domain incl. chain + Safe), nonce, preview id)`, verified server-side (origin, RP ID, user verification, counter) and usable once.
+- **Freeze co-signing** — a switch in *Sécurité* (passkey-protected, challenge bound to the action and the wallet; the backup code cannot do it). While frozen, K2 is never released (`cosignerWallet` is the single choke point): no transaction, pending reinforced request, ownership proof or recovery gets a co-signature. The Safe's owners and threshold are unchanged, so the K1 + K3 exit remains possible.
+- **Backup code** (passkey alternative) — 12 characters from a CSPRNG, shown once, confirmed, revocable; stored only as a salted scrypt hash; 5 attempts then a 15-minute lock; each use bound to a single-use challenge or preview. It can unlock and confirm operations, never freeze/unfreeze, reveal amounts or reveal secrets.
+- Tests: `services/sq-cosigner/test/security.test.ts` (encrypted key keeps its exact address · modified calldata refused · frozen wallet gets no co-signature) and `npm run e2e` (a transaction modified after its preview is refused on the live co-signer).
+
+## New in this iteration
+Simulation before signing (debited / estimated received / network fee / service commission / balances before → after / approvals with cap), unlimited-approval warning with cap limiting, preview expiry and re-confirmation, recipient verification (full address, look-alike characters highlighted), authorised-apps centre with on-chain revocation, scheduled payments & reminders (never auto-signed), subscriptions & fees page, demo exchange quote, display personalisation (background, accent, highlight, hidden wallets), amount masking (reveal with passkey), message composer (local draft + your own email client; nothing is sent by the app), biometrics alternatives.
 
 ## My Wall UX highlights
 - **Entry from the Swissquote app**: pull-up "Mon wallet" tab (swipe or tap, keyboard accessible) on touch devices; "Mon wallet" button next to the account icon on desktop.

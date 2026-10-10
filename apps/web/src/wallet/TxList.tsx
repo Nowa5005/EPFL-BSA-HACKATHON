@@ -3,6 +3,7 @@ import { ArrowDownLeft, ArrowUpRight, ChevronRight, Download, Repeat } from 'luc
 import { buildReceipt, downloadReceiptPdf } from '../lib/receipt';
 import type { WalletTxView } from '../lib/hooks';
 import { cx, dateTime, fmt, Skeleton, StatusPill } from '../components/ui';
+import { useMasked } from '../lib/prefs';
 
 export const kindLabel = (k: WalletTxView['kind']) => (k === 'receive' ? 'Réception' : k === 'send' ? 'Envoi' : 'Échange');
 export const short = (a?: string) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '');
@@ -22,7 +23,14 @@ export function KindIcon({ kind }: { kind: WalletTxView['kind'] }) {
 }
 
 export function SignedAmount({ t, className }: { t: WalletTxView; className?: string }) {
+  const masked = useMasked();
   const sign = t.kind === 'receive' ? '+' : '−';
+  if (masked)
+    return (
+      <span className={cx('num whitespace-nowrap font-semibold text-sq-ink', className)} aria-label="Montant masqué">
+        •••••• <span className="text-[0.8em] font-normal">{t.asset}</span>
+      </span>
+    );
   return (
     <span className={cx('num whitespace-nowrap font-semibold', t.kind === 'receive' && t.status === 'confirmed' ? 'text-sq-up' : 'text-sq-ink', className)}>
       {t.amount === '?' ? '…' : `${sign}${fmt(Number(t.amount), t.asset === 'ETH' ? 5 : 2)}`} <span className="text-[0.8em] font-normal">{t.asset}</span>

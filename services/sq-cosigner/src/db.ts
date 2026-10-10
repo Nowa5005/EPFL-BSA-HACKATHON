@@ -1,6 +1,6 @@
 import { JsonStore, newId, nowIso } from '@sq/shared/server';
 import type { ActivityEvent, PolicyResult, SafeTx } from '@sq/shared';
-import { DATA_DIR } from './keys';
+import { DATA_DIR } from './paths';
 
 export interface Device {
   credentialId: string; // base64url
@@ -22,10 +22,67 @@ export interface Client {
   deployTxHash?: string;
   owners?: { device: string; cosigner: string; recovery: string };
   devices: Device[];
-  contacts: { name: string; address: string; addedAt: string; verifiedOwnership?: boolean }[];
+  contacts: { name: string; address: string; addedAt: string; verifiedOwnership?: boolean; email?: string }[];
   usage: { day: string; spentUsdc: number; sponsoredTx: number };
   privacy: 'full' | 'balance-only' | 'none';
   frozen?: boolean;
+  frozenBy?: 'client' | 'compliance';
+  preferences?: Preferences;
+  subscription?: Subscription;
+  /** Backup code (passkey alternative): only a scrypt hash is stored, never the code. */
+  backupCode?: { salt: string; hash: string; createdAt: string; failed: number; lockedUntil?: string };
+  /** Demo-only override of the network-fee estimate (CHF), to show a fee change during confirmation. */
+  demoFeeChf?: number;
+}
+
+export interface Preferences {
+  background: 'default' | 'white' | 'sand' | 'mist';
+  accent: 'orange' | 'blue' | 'green' | 'violet';
+  highlight: boolean;
+  hiddenWallets: string[];
+  hideAmounts: boolean;
+}
+export const DEFAULT_PREFERENCES: Preferences = { background: 'default', accent: 'orange', highlight: false, hiddenWallets: [], hideAmounts: false };
+
+export interface Subscription {
+  tier: 'free' | 'plus' | 'pro';
+  billing: 'monthly' | 'annual-upfront' | 'annual-installments';
+  status: 'active' | 'cancel-at-period-end' | 'ended';
+  startedAt: string;
+  currentPeriodEnd: string;
+  commitmentEnd?: string; // annual instalments: 12-month commitment
+  schedule: { dueAt: string; amountCents: number; status: 'paid-demo' | 'scheduled' }[];
+  payment: 'demo';
+}
+
+export interface Preview {
+  id: string;
+  clientId: string;
+  safeAddress: string;
+  safeTx: SafeTx;
+  safeTxHash: string;
+  intent: unknown;
+  challenge: string; // bytes32 hex used as WebAuthn challenge
+  fee: { available: boolean; chf: number; eth: string; gasUnits: string; demo: boolean };
+  createdAt: string;
+  expiresAt: string;
+  used: boolean;
+}
+
+export interface Scheduled {
+  id: string;
+  clientId: string;
+  kind: 'payment' | 'reminder';
+  recipient?: string;
+  recipientName?: string;
+  asset: 'USDC' | 'ETH';
+  amount: string;
+  dueAt: string; // ISO (UTC)
+  timeZone: 'Europe/Zurich';
+  note?: string;
+  status: 'scheduled' | 'due' | 'done' | 'cancelled';
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type TxStatus = 'awaiting-otp' | 'cooling-off' | 'awaiting-approval' | 'executing' | 'executed' | 'rejected' | 'failed' | 'cancelled';
@@ -91,6 +148,9 @@ export interface Db {
   activity: ActivityEvent[];
   inbox: InboxMessage[];
   walletTxs?: Record<string, import('./walletTx').WalletTx>;
+  previews?: Record<string, Preview>;
+  scheduled?: Record<string, Scheduled>;
+  swapQuotes?: Record<string, any>;
   documents?: Record<string, import('./walletTx').DocumentEntry>;
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { BiometricsOptions } from '../components/BiometricsOptions';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Fingerprint } from 'lucide-react';
 import { startAuthentication } from '@simplewebauthn/browser';
@@ -6,7 +7,7 @@ import { cosigner } from '../lib/api';
 import { setUnlocked, unlock, unlockState, UnlockError } from '../lib/device';
 import type { HDNodeWallet, Wallet } from 'ethers';
 import { useLocal } from '../lib/hooks';
-import { Button, DemoFooter, Field, Logo, SecretInput, Spinner, useCountdown } from '../components/ui';
+import { Button, cx, DemoFooter, Field, inputCls, Logo, SecretInput, Spinner, useCountdown } from '../components/ui';
 
 /** Password (decrypts the device key locally) then passkey (Touch ID). Never asks for a private key or recovery code. */
 export function UnlockForm({ onDone }: { onDone: () => void }) {
@@ -16,6 +17,12 @@ export function UnlockForm({ onDone }: { onDone: () => void }) {
   const [progress, setProgress] = useState(0);
   const [err, setErr] = useState('');
   const [lockedUntil, setLockedUntil] = useState(unlockState().lockedUntil);
+  const [mode, setMode] = useState<'passkey' | 'code'>('passkey');
+  const [code, setCode] = useState('');
+  const [hasCode, setHasCode] = useState(false);
+  useEffect(() => {
+    if (device?.clientId) cosigner.get(`/clients/${device.clientId}`).then((c) => setHasCode(!!c.backupCode?.configured)).catch(() => undefined);
+  }, [device?.clientId]);
   const left = useCountdown(lockedUntil > Date.now() ? lockedUntil : undefined);
   const locked = left > 0;
 
@@ -39,15 +46,21 @@ export function UnlockForm({ onDone }: { onDone: () => void }) {
     }
     try {
       setPhase('passkey');
-      const options = await cosigner.post('/webauthn/auth/options', { clientId: device!.clientId, purpose: 'unlock' });
-      const response = await startAuthentication({ optionsJSON: options });
-      await cosigner.post('/webauthn/auth/verify', { clientId: device!.clientId, purpose: 'unlock', response });
+      if (mode === 'code') {
+        // Backup code instead of the passkey: single-use server challenge + attempt limiting.
+        const { challengeId } = await cosigner.post(`/clients/${device!.clientId}/backup-code/challenge`);
+        await cosigner.post(`/clients/${device!.clientId}/backup-code/verify`, { challengeId, code });
+      } else {
+        const options = await cosigner.post('/webauthn/auth/options', { clientId: device!.clientId, purpose: 'unlock' });
+        const response = await startAuthentication({ optionsJSON: options });
+        await cosigner.post('/webauthn/auth/verify', { clientId: device!.clientId, purpose: 'unlock', response });
+      }
       setPhase('done');
       setUnlocked(key); // only now: password AND passkey verified
       onDone();
     } catch (e: any) {
       setPhase('idle');
-      setErr(e?.name === 'NotAllowedError' ? 'Touch ID annulé ou expiré. Réessayez.' : e.message);
+      setErr(e?.name === 'NotAllowedError' ? 'Vérification annulée ou expirée. Réessayez, ou découvrez les autres options ci-dessous.' : e.message);
     }
   };
 
@@ -72,13 +85,27 @@ export function UnlockForm({ onDone }: { onDone: () => void }) {
       )}
       {phase === 'passkey' && (
         <p className="flex items-center gap-2 text-[14px] text-sq-ink-2" aria-live="polite">
-          <Fingerprint size={20} strokeWidth={1.75} className="text-sq-orange" /> Nous vérifions que c'est bien vous : touchez le capteur.
+          <Fingerprint size={20} strokeWidth={1.75} className="text-sq-orange" /> {mode === 'code' ? 'Vérification du code de secours…' : 'Confirmez avec Touch ID, Face ID ou le code de votre appareil.'}
         </p>
       )}
+      {mode === 'code' && (
+        <Field label="Code de secours (12 caractères)">
+          <input className={cx(inputCls, 'font-mono uppercase tracking-widest')} value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 12))} autoComplete="off" spellCheck={false} />
+        </Field>
+      )}
       {locked && <p className="num text-[14px] text-sq-down">Nouvel essai possible dans {left} s.</p>}
-      <Button type="submit" disabled={!pw || locked || phase !== 'idle'}>
-        {phase === 'idle' ? 'Déverrouiller' : <Spinner />}
+      <Button type="submit" disabled={!pw || locked || phase !== 'idle' || (mode === 'code' && code.length !== 12)}>
+        {phase === 'idle' ? (mode === 'code' ? 'Déverrouiller avec le code de secours' : 'Déverrouiller') : <Spinner />}
       </Button>
+      <BiometricsOptions>
+        {hasCode ? (
+          <button type="button" className="min-h-10 font-medium underline underline-offset-4" onClick={() => setMode(mode === 'code' ? 'passkey' : 'code')}>
+            {mode === 'code' ? 'Revenir à la passkey' : 'Déverrouiller avec mon code de secours'}
+          </button>
+        ) : (
+          <p className="text-sq-muted">Aucun code de secours n’est configuré pour ce wallet.</p>
+        )}
+      </BiometricsOptions>
       <Link to="/recover" className="flex min-h-11 items-center justify-center text-[14px] font-medium text-sq-ink underline decoration-sq-line underline-offset-4">
         J'ai perdu mon appareil / Restaurer mon wallet
       </Link>

@@ -9,6 +9,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Wallet, formatEther, formatUnits, parseEther } from 'ethers';
 import { USDC_DECIMALS, explorerTx, makeProvider, usdcContract } from '@sq/shared';
+import { loadDotenv } from '@sq/shared/server';
+import { decryptKey, isEncrypted } from '../services/sq-cosigner/src/keyvault';
+
+loadDotenv();
 
 const root = path.resolve(import.meta.dirname, '..');
 const read = (f: string) => (fs.existsSync(path.join(root, f)) ? JSON.parse(fs.readFileSync(path.join(root, f), 'utf8')) : null);
@@ -21,7 +25,8 @@ if (!keys) {
   process.exit(0);
 }
 
-const relayer = new Wallet(keys.relayer.privateKey, provider);
+// keys.json is encrypted at rest (keystore + SERVICE_MASTER_KEY from .env); older plaintext files are still read.
+const relayer = (isEncrypted(keys) ? decryptKey(keys.relayer, process.env.SERVICE_MASTER_KEY ?? '') : new Wallet(keys.relayer.privateKey)).connect(provider);
 const usdc = usdcContract(provider);
 const show = async (label: string, addr: string) => {
   const [e, u] = await Promise.all([provider.getBalance(addr), usdc.balanceOf(addr) as Promise<bigint>]);

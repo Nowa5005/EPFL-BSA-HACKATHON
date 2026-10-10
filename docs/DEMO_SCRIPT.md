@@ -28,6 +28,22 @@
 | 15 | Recovery completes → old device revoked on-chain → send 1 USDC from the new device | |
 | 16 | Terminal: `npm run escape-hatch -- --device-key <backup.json> --paper "<code>" --cloud <cloud.json> --to 0x…` | "If Swissquote disappears, Alice's two keys still move her funds." |
 
+## New features (≈ 3 extra minutes, after step 10)
+| # | Show | Say |
+|---|---|---|
+| N1 | *Envoyer* → Compte Swissquote → 0.1 USDC → **Vérifier**: debited / received (estimate) / network fee (offered) / service commission 0 / **balances before → after** / "Aperçu valable encore 60 s" | "A simulation, shown as an estimate — never a guarantee." |
+| N2 | Open *Démonstration : variation des frais* (MOCK) → *Frais simulés : 2 CHF* → *Faire passer les frais à 8 CHF* → confirm → **"Les frais estimés sont passés de 2.00 à 8.00 CHF"** → new preview → *Revenir aux frais réels* | "The confirmation is tied to the exact transaction and its conditions." |
+| N3 | In *Envoyer*, paste Bob's address with one character changed in the middle → red **look-alike** warning with the differing character highlighted | "Address poisoning: a resemblance is never a match." |
+| N4 | *dApps* → Uniswap → *Autoriser sans limite* → red alert "Cette application demande une autorisation de dépense illimitée sur vos USDC" → **Limiter le plafond à 2** → preview recalculated → reinforced checks (code + admin) → confirmed | |
+| N5 | *Plus › Applications autorisées* → Uniswap · 2 USDC · date → **Retirer l'accès** → confirmed on-chain → list empty | "Revocation counts only once confirmed on Ethereum." |
+| N6 | *Envoyer* → *Planifier* (date + time, Europe/Zurich) → *Plus › Dépenses planifiées*: edit / delete; at the due time the item becomes **À confirmer** + notification — nothing was sent | |
+| N7 | Orange **Abonnements** link → 3 offers, 3 payment modes (Plus 11 × 5.83 € + 5.87 €), comparator (Plus from 1 750 €, Pro from 4 000 €), subscribe Plus in **demo payment mode** | "Our commission only, never on transfers, no hidden spread." |
+| N8 | *Swaplet › Échanger* (DEMO): 500 USDC → minimum received, slippage, commission 0.40 % (Plus), ETH balance for fees, quote expiry → confirm → "aucune transaction n'a été exécutée" | |
+| N9 | *Sécurité* → **Geler la co-signature** (passkey) → try a send → refused → unfreeze | "The client can lock Swissquote out; the K1 + K3 exit stays open." |
+| N10 | *Sécurité* → **Code de secours** (12 characters, shown once, retyped, activated with the passkey) → lock → unlock page → "La biométrie n'est pas disponible ?" → unlock with the code | "Not a recovery phrase; it can't freeze, reveal amounts or secrets." |
+| N11 | Eye icon next to the total → amounts masked everywhere → reveal requires the passkey · *Paramètres › Personnalisation*: accent, background, highlight, hidden wallets, reset | |
+| N12 | *Inbox* → *Nouveau message* → type a private key → blocked; write a normal message → draft saved → *Ouvrir dans ma messagerie* opens your own email client (nothing is sent by My Wall) | |
+
 ## Desktop (1440×900)
 Same story from the **"Mon wallet" button** next to the account icon: multi-zone grid (balances band with assets side by side, transactions table, account ↔ wallet panel, 3 information panels), Swaplet with the side preview.
 

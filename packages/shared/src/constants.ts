@@ -38,7 +38,16 @@ export const POLICY = {
   maxSponsoredGas: 600_000,
   maxDevicesPerClient: 2, // 1 mobile + 1 desktop
   otpTtlSec: 300,
+  // Confirmation previews (simulation shown before signing)
+  previewTtlSec: 60, // a preview and its passkey challenge are valid this long, single use
+  feeChange: { maxPct: 25, minAbs: 0.5 }, // re-confirm if network fee estimate moves ≥ 25 % AND ≥ 0.50 CHF
+  quoteChange: { maxPct: 0.5, minAbs: 0 }, // re-confirm if a swap quote moves ≥ 0.5 %
+  defaultSlippageBps: 50,
+  backupCodeMaxAttempts: 5,
+  backupCodeLockMinutes: 15,
 };
+/** Mock referent address for the messaging demo — not a validated Swissquote integration. */
+export const SWISSQUOTE_REFERENT_EMAIL = 'moncontact@swissquote.ch';
 
 export const MOCK_USDC_CHF = 0.88; // indicative mock rate
 export const MOCK_ETH_CHF = 2900; // indicative mock rate

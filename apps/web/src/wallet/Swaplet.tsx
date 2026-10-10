@@ -8,6 +8,7 @@ import { useLocal, usePoll, type WalletTxView } from '../lib/hooks';
 import { buildReceipt, downloadReceiptPdf, ReceiptView } from '../lib/receipt';
 import { Button, Card, cx, dateOnly, fmt, inputCls, Notice, Pill, Skeleton, Tabs, useMedia } from '../components/ui';
 import { kindLabel } from './TxList';
+import Swap from './Swap';
 
 interface Doc {
   docId: string;
@@ -38,16 +39,13 @@ export default function Swaplet() {
             id: 'swap',
             label: (
               <span className="inline-flex items-center gap-1.5">
-                Échanger <span className="rounded-[4px] bg-sq-chip px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-sq-muted">Prochaine version</span>
+                Échanger <span className="rounded-[4px] bg-sq-chip px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-sq-muted">Démo</span>
               </span>
             ),
-            disabled: true,
           },
         ]}
       />
-      <div className="mt-4">
-        <Documents />
-      </div>
+      <div className="mt-4">{tab === 'docs' ? <Documents /> : <Swap />}</div>
     </div>
   );
 }

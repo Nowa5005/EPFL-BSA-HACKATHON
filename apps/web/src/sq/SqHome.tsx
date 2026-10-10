@@ -4,6 +4,7 @@ import { MOCK_ETH_CHF, MOCK_USDC_CHF } from '@sq/shared';
 import { bank, cosigner } from '../lib/api';
 import { useLocal, usePoll } from '../lib/hooks';
 import { Amount, Card, cx, fmt, MockBadge, RoundAction, Tile } from '../components/ui';
+import { Money, setPrefs } from '../lib/prefs';
 import { SqMobileTop } from './SqShell';
 import { PORTFOLIO } from './mockMarkets';
 
@@ -38,6 +39,7 @@ export default function SqHome() {
     async () => {
       if (!clientId) return null;
       const c = await cosigner.get(`/clients/${clientId}`).catch(() => null);
+      if (c?.preferences) setPrefs(c.preferences); // respect "masquer les montants" here too
       if (!c?.safeAddress) return { privacy: c?.privacy, value: null };
       const on = await cosigner.get(`/clients/${clientId}/onchain`);
       return { privacy: c.privacy as string, value: Number(on.usdc) * MOCK_USDC_CHF + Number(on.eth) * MOCK_ETH_CHF + (on.simulatedUsdc ?? 0) * MOCK_USDC_CHF };
@@ -99,8 +101,12 @@ export default function SqHome() {
         </Tile>
         <Tile>
           <TileHead icon={<Bitcoin size={16} strokeWidth={1.75} />} label="Crypto" />
-          <div className="num mt-1 text-[16px] font-semibold">{fmt(PORTFOLIO.crypto + (showWall ? wall.data!.value! : 0))}</div>
-          {showWall && <div className="num mt-0.5 text-[12px] text-sq-muted">dont My Wall : {fmt(wall.data!.value!)} CHF</div>}
+          <div className="num mt-1 text-[16px] font-semibold">{showWall ? <Money value={PORTFOLIO.crypto + wall.data!.value!} /> : fmt(PORTFOLIO.crypto)}</div>
+          {showWall && (
+            <div className="num mt-0.5 text-[12px] text-sq-muted">
+              dont My Wall : <Money value={wall.data!.value!} unit="CHF" unitClassName="ml-1" />
+            </div>
+          )}
         </Tile>
         <Tile>
           <TileHead icon={<Banknote size={16} strokeWidth={1.75} />} label="Cash" />

@@ -127,6 +127,22 @@ export async function cosignAndExecute(
   });
 }
 
+/** Network-fee estimate for executing this SafeTx through the relayer (inner call + Safe overhead). */
+export async function estimateFees(safeAddress: string, tx: SafeTx) {
+  try {
+    const [inner, fee] = await Promise.all([
+      provider.estimateGas({ from: safeAddress, to: tx.to, data: tx.data, value: BigInt(tx.value) }),
+      provider.getFeeData(),
+    ]);
+    const gasUnits = inner + 75_000n; // execTransaction + 2 signature checks + events
+    const price = fee.maxFeePerGas ?? fee.gasPrice ?? 0n;
+    const wei = gasUnits * price;
+    return { available: true, gasUnits: gasUnits.toString(), wei };
+  } catch {
+    return { available: false, gasUnits: '0', wei: 0n };
+  }
+}
+
 export function shortErr(e: unknown): string {
   const any = e as { shortMessage?: string; reason?: string; message?: string; code?: string };
   const msg = any?.shortMessage ?? any?.reason ?? any?.message ?? String(e);
