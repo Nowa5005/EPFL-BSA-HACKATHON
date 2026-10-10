@@ -1,0 +1,43 @@
+{
+  "name": "sq-wallet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SQ Wallet — self-custody Safe 2-of-3 wallet prototype (Swissquote Wallet Challenge, EPFL hackathon)",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n cosigner,partner,bank,web -c blue,magenta,green,cyan \"npm:dev:cosigner\" \"npm:dev:partner\" \"npm:dev:bank\" \"npm:dev:web\"",
+    "dev:services": "concurrently -k -n cosigner,partner,bank -c blue,magenta,green \"npm:dev:cosigner\" \"npm:dev:partner\" \"npm:dev:bank\"",
+    "dev:cosigner": "npm run dev -w services/sq-cosigner",
+    "dev:partner": "npm run dev -w services/recovery-partner",
+    "dev:bank": "npm run dev -w services/sq-bank",
+    "dev:web": "npm run dev -w apps/web",
+    "e2e": "tsx scripts/e2e-demo.ts",
+    "escape-hatch": "tsx scripts/escape-hatch.ts",
+    "fund-check": "tsx scripts/fund-check.ts",
+    "reset-demo": "tsx scripts/reset-demo.ts",
+    "test": "npm test -w services/sq-cosigner",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nowa5005/EPFL-BSA-HACKATHON.git"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^9.2.0",
+    "tsx": "^4.20.0",
+    "typescript": "~5.9.0",
+    "@types/node": "^24.0.0"
+  },
+  "dependencies": {
+    "ethers": "^6.15.0",
+    "shamir-secret-sharing": "^0.0.4",
+    "@safe-global/safe-deployments": "^1.37.0",
+    "dotenv": "^17.0.0"
+  }
+}

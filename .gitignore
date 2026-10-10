@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.env.local
+**/data/
+!**/data/.gitkeep
+*.log
+.DS_Store
+scripts/.e2e-state.json
+recovery-kit-*.json
