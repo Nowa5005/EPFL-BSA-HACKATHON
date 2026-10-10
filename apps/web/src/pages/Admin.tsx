@@ -67,6 +67,7 @@ export default function Admin() {
           <section>
             <h2 className="mb-2 font-semibold">Recovery partner decisions <MockBadge label="Partner log" /></h2>
             <Card className="divide-y divide-navy-100 p-0">
+              {!(sessions.data ?? []).some((s: any) => s.decision) && <div className="p-4 text-sm text-navy-700/60">None.</div>}
               {(sessions.data ?? []).filter((s: any) => s.decision).slice(0, 8).map((s: any) => (
                 <div key={s.id} className="flex items-center gap-3 px-4 py-3 text-sm">
                   <span className={cx('rounded-full px-2 py-0.5 text-xs font-semibold', s.decision === 'released' ? 'bg-ok-50 text-ok-600' : 'bg-bad-50 text-bad-600')}>{s.decision}</span>
@@ -84,6 +85,7 @@ export default function Admin() {
           <section>
             <h2 className="mb-2 font-semibold">Recent transactions</h2>
             <Card className="divide-y divide-navy-100 p-0">
+              {!recent.length && <div className="p-4 text-sm text-navy-700/60">None.</div>}
               {recent.map((r: any) => (
                 <div key={r.id} className="flex items-center gap-3 px-4 py-3 text-sm">
                   <span className={cx('rounded-full px-2 py-0.5 text-xs font-semibold', r.status === 'executed' ? 'bg-ok-50 text-ok-600' : r.status === 'rejected' || r.status === 'failed' ? 'bg-bad-50 text-bad-600' : 'bg-navy-100 text-navy-800')}>{r.status}</span>

@@ -121,16 +121,14 @@ function BankTransfer({ clientId, safe, bankData, onDone }: { clientId: string; 
       <div className="flex items-center gap-1.5 text-xs text-ok-600">
         {verified ? '✓ This wallet is a verified wallet of yours (Travel Rule, EIP-1271 proof)' : <span className="text-warn-600">Wallet not yet verified</span>}
       </div>
-      <div className="flex items-end gap-2">
-        <div className="flex-1">
-          <Field label="Move USDC to my wallet">
-            <input className={inputCls} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
-          </Field>
+      <Field label="Move USDC from my account to my wallet">
+        <div className="flex gap-2">
+          <input className={inputCls + ' num min-w-0 flex-1'} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <Button className="w-32 shrink-0" onClick={go} disabled={busy || !verified || !(Number(amount) > 0)}>
+            {busy ? <Spinner /> : 'Transfer'}
+          </Button>
         </div>
-        <Button className="w-auto px-5" onClick={go} disabled={busy || !verified || !(Number(amount) > 0)}>
-          {busy ? <Spinner /> : 'Transfer'}
-        </Button>
-      </div>
+      </Field>
       {msg && (
         <Notice tone={msg.tone}>
           {msg.text} {msg.hash && <TxLink hash={msg.hash} />}

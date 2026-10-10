@@ -9,7 +9,7 @@ import { TxFlow } from '../components/TxFlow';
 const DAPPS = [
   { name: 'Uniswap', desc: 'Swap tokens (SwapRouter02, Sepolia)', address: '0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E', approved: true, icon: '🦄' },
   { name: 'Aave', desc: 'Lend & borrow (V3 Pool, Sepolia)', address: '0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951', approved: true, icon: '👻' },
-  { name: 'FreeMint Airdrop', desc: 'Unknown site that asks for an approval', address: '0x5eE5bf7ae06D1Be5997A1A72006FE6C607eC6DE8', approved: false, icon: '🎁' },
+  { name: 'FreeMint Airdrop', desc: 'Unknown site that asks for an approval', address: '0x5ee5bf7ae06d1be5997a1a72006fe6c607ec6de8', approved: false, icon: '🎁' },
 ];
 
 export default function Dapps() {

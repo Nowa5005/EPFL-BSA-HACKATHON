@@ -53,3 +53,23 @@ Si GitHub demande une connexion, je te mettrai les étapes ici.
 > Je fais un hackathon, mon agent Claude Code me demande d'envoyer de l'ETH de test (réseau Ethereum Sepolia) à l'adresse 0xba45B64A7c1954aC12D6ceF82672150145d976a6 en utilisant un « faucet » comme https://cloud.google.com/application/web3/faucet/ethereum/sepolia. Explique-moi pas à pas comme à une débutante sur Mac, et dis-moi quoi faire si le faucet refuse.
 
 ---
+
+## [BLOQUANT] Rappel : le relayer n'a toujours pas d'ETH — 15:20
+
+**Ce que j'ai besoin que tu fasses :** l'étape 1 du message ci-dessus (faucet ETH Sepolia vers `0xba45B64A7c1954aC12D6ceF82672150145d976a6`).
+Tout le reste est prêt et testé sur une copie locale de la blockchain. Dès que le relayer a de l'ETH, je lance la démo sur le vrai Sepolia.
+**Comment me répondre :** tape `relayer alimenté` dans le terminal Claude Code.
+
+---
+
+## [NON BLOQUANT] Comment lancer la démo — 15:20
+
+1. Ouvre l'app **Terminal** sur ton Mac, puis tape : `cd ~/EPFL-BSA-HACKATHON` et appuie sur Entrée.
+2. Tape : `npm run dev` et appuie sur Entrée. Attends que des lignes colorées s'affichent (≈ 10 secondes). **Laisse cette fenêtre ouverte.**
+3. Ouvre **Chrome** et va sur **http://localhost:5173** — clique sur « Sign in » (utilisateur : alice).
+4. Suis l'écran : « Create my wallet » → pose ton doigt sur **Touch ID** quand Chrome le demande → choisis un mot de passe → télécharge le kit et la sauvegarde.
+5. Pour le reste de la démo, suis `docs/DEMO_SCRIPT.md` (onglet Admin : http://localhost:5173/admin — onglet Attaquant : http://localhost:5173/attacker).
+   Pour repartir de zéro : ouvre un 2e Terminal, `cd ~/EPFL-BSA-HACKATHON` puis `npm run reset-demo`.
+
+**Si tu bloques, copie-colle ce prompt à Claude (dans le chat) :**
+> Je fais un hackathon. J'ai un projet Node.js dans le dossier ~/EPFL-BSA-HACKATHON sur mon Mac. On m'a dit de taper `npm run dev` dans le Terminal puis d'ouvrir http://localhost:5173 dans Chrome. <colle ici le message d'erreur exact>. Explique-moi pas à pas comme à une débutante sur Mac.

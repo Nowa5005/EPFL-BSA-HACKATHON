@@ -6,7 +6,7 @@
 // Usage:
 //   npm run escape-hatch -- --device-key <sq-wallet-device-key-*.json> --paper <sq-wallet-paper-kit-*.png|.txt>
 //                           --cloud <sq-wallet-cloud-backup-*.json> --to <destination address>
-//   Password: asked interactively (or ESCAPE_PASSWORD env var).
+//   Password: asked interactively (or ESCAPE_PASSWORD / ESCAPE_CLOUD_PASSWORD env vars).
 //   Gas: paid by the device key's own address (it needs ~0.001 Sepolia ETH, from any source), or by GAS_PAYER_KEY.
 
 import fs from 'node:fs';
@@ -48,12 +48,12 @@ function readPaper(file: string): string {
   return fs.readFileSync(file, 'utf8').trim();
 }
 
-async function askPassword(): Promise<string> {
-  if (process.env.ESCAPE_PASSWORD) return process.env.ESCAPE_PASSWORD;
+async function askPassword(question: string, envVar: string): Promise<string> {
+  if (process.env[envVar] !== undefined) return process.env[envVar]!;
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const anyRl = rl as any;
-  anyRl._writeToOutput = (s: string) => anyRl.output.write(s.includes('Wallet password') ? s : '*');
-  const pw = await new Promise<string>((r) => rl.question('Wallet password: ', r));
+  anyRl._writeToOutput = (s: string) => anyRl.output.write(s.includes(question) ? s : '*');
+  const pw = await new Promise<string>((r) => rl.question(question, r));
   rl.close();
   console.log();
   return pw;
@@ -77,9 +77,14 @@ async function main() {
   const safeAddress = getAddress(paper.safeAddress);
   if (getAddress(backup.safeAddress) !== safeAddress || getAddress(device.safeAddress) !== safeAddress) throw new Error('These files belong to different wallets');
 
-  const password = await askPassword();
-  const k1 = await Wallet.fromEncryptedJson(JSON.stringify(device.keystore), password);
-  const cloudShare = await decryptCloudShare(backup, password);
+  const password = await askPassword('Wallet password (device key): ', 'ESCAPE_PASSWORD');
+  const k1 = await Wallet.fromEncryptedJson(JSON.stringify(device.keystore), password).catch(() => {
+    throw new Error('Wrong wallet password for the device key');
+  });
+  // The cloud backup keeps the password chosen at wallet creation (it may differ after a device recovery).
+  const cloudShare = await decryptCloudShare(backup, password).catch(async () =>
+    decryptCloudShare(backup, await askPassword('Cloud backup password (the one chosen at wallet creation): ', 'ESCAPE_CLOUD_PASSWORD')),
+  );
   const k3 = new Wallet(await combineShares([paper.share, cloudShare]));
   console.log(`✔ device key   ${k1.address}`);
   console.log(`✔ recovery key ${k3.address} (rebuilt from paper kit ① + cloud backup ②)`);

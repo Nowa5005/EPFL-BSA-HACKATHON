@@ -33,7 +33,12 @@ export const erc20Iface = new Interface(ERC20_ABI);
 export const factoryIface = new Interface(SAFE_PROXY_FACTORY_ABI);
 
 /** Provider with a public-RPC fallback (no API key needed). */
-export function makeProvider(urls: string[] = RPC_URLS): AbstractProvider {
+const envRpcs = (): string[] | undefined => {
+  const v = typeof process !== 'undefined' ? process.env?.SEPOLIA_RPC_URLS : undefined;
+  return v ? v.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
+};
+
+export function makeProvider(urls: string[] = envRpcs() ?? RPC_URLS): AbstractProvider {
   const network = Network.from(CHAIN_ID);
   const providers = urls.map((u) => new JsonRpcProvider(u, network, { staticNetwork: network, batchMaxCount: 1 }));
   if (providers.length === 1) return providers[0];

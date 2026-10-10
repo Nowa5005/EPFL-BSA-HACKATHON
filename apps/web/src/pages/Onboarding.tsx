@@ -115,7 +115,7 @@ export default function Onboarding() {
       // Known beneficiaries imported from the Swissquote account (demo): own account + Bob.
       const bankInfo = await bank.get(`/clients/${clientId}`);
       await cosigner.post(`/clients/${clientId}/contacts`, { name: 'My Swissquote account', address: bankInfo.treasury, verifiedOwnership: true });
-      await cosigner.post(`/clients/${clientId}/contacts`, { name: 'Bob', address: '0xB0B0000000000000000000000000000000000B0B' });
+      await cosigner.post(`/clients/${clientId}/contacts`, { name: 'Bob', address: '0xb0b0000000000000000000000000000000000b0b' });
 
       saveDevice({ clientId, safeAddress: dep.safeAddress, deviceAddress: k1.address, keystore, credentialId, deviceType, createdAt: new Date().toISOString() });
       setUnlocked(k1);

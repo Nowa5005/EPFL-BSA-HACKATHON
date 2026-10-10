@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { explorerAddress } from '@sq/shared';
 import { cosigner } from '../lib/api';
-import { getDevice, guessDeviceType, lock, registerPasskey, saveDevice, saveSession } from '../lib/device';
+import { getDevice, guessDeviceType, lock, registerPasskey, saveSession } from '../lib/device';
 import { useLocal, useWalletData } from '../lib/hooks';
 import { Addr, Button, Card, cx, MockBadge, Notice, PageHeader, RealBadge, Why } from '../components/ui';
 
@@ -132,9 +132,8 @@ export default function Settings() {
           variant="danger"
           onClick={() => {
             if (!confirm('Simulate losing this device? The encrypted device key will be erased from this browser.')) return;
-            saveDevice(null);
-            lock();
-            nav('/recover');
+            // The recovery page wipes the local wallet on arrival (wiping here would trigger the route guard first).
+            nav('/recover', { state: { wipeDevice: true } });
           }}
         >
           Simulate: I lost this device

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Wallet, sha256 } from 'ethers';
 import jsQR from 'jsqr';
 import { buildSafeTx, combineShares, decodePaperShare, signSafeTx, swapOwnerData } from '@sq/shared';
 import { bank, cosigner, partner } from '../lib/api';
-import { encryptKey, guessDeviceType, registerPasskey, saveDevice, saveSession, setUnlocked } from '../lib/device';
+import { encryptKey, guessDeviceType, lock, registerPasskey, saveDevice, saveSession, setUnlocked } from '../lib/device';
 import { useLocal, usePoll } from '../lib/hooks';
 import { Addr, Button, Card, Field, inputCls, mmss, MockBadge, Notice, ProgressList, Shell, Spinner, Steps, TxLink, useCountdown, Why, cx } from '../components/ui';
 
@@ -38,6 +38,13 @@ const storePending = (p: Pending | null) => {
 
 export default function Recover() {
   const { session } = useLocal();
+  const location = useLocation();
+  useEffect(() => {
+    if ((location.state as any)?.wipeDevice) {
+      saveDevice(null); // "lost device" simulation: the encrypted device key is gone from this browser
+      lock();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [pending, setPending] = useState<Pending | null>(loadPending());
   const [step, setStep] = useState(session ? 1 : 0);
   const [err, setErr] = useState('');

@@ -7,7 +7,7 @@ import { useLocal, usePoll, useWalletData } from '../lib/hooks';
 import { Button, Card, cx, Field, fmt, inputCls, Notice, PageHeader, Why } from '../components/ui';
 import { TxFlow } from '../components/TxFlow';
 
-const DEMO_BOB = '0xB0B0000000000000000000000000000000000B0B';
+const DEMO_BOB = '0xb0b0000000000000000000000000000000000b0b';
 const DEMO_SANCTIONED = '0x098B716B8Aaf21512996dC57EB0615e2383E2f96';
 
 export default function Send() {
@@ -30,7 +30,7 @@ export default function Send() {
     () => [
       ...contacts.map((c) => ({ name: c.name, address: c.address, note: c.known ? 'contact' : 'new contact (cooling-off)' })),
       ...(contacts.some((c) => c.address.toLowerCase() === DEMO_BOB.toLowerCase()) ? [] : [{ name: 'Bob (demo)', address: DEMO_BOB, note: 'not yet a contact' }]),
-      ...(treasury ? [{ name: 'My Swissquote account', address: treasury, note: 'verified' }] : []),
+      ...(treasury && !contacts.some((c) => c.address.toLowerCase() === treasury.toLowerCase()) ? [{ name: 'My Swissquote account', address: treasury, note: 'verified' }] : []),
       { name: 'Sanctioned address (demo)', address: DEMO_SANCTIONED, note: 'on OFAC list' },
     ],
     [contacts, treasury],

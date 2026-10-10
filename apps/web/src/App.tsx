@@ -23,7 +23,8 @@ function WalletRoute({ children }: { children: ReactNode }) {
   if (!device?.safeAddress || device.clientId !== session.clientId) return <Navigate to="/onboarding" replace />;
   return (
     <Shell>
-      {children}
+      {/* key: re-clicking a tab (e.g. Send after a payment) starts a fresh screen */}
+      <div key={loc.key}>{children}</div>
       <TabBar />
     </Shell>
   );
