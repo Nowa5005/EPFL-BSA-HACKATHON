@@ -50,13 +50,13 @@ export function Personalization({ clientId }: { clientId: string }) {
           <span className="block text-[12px] text-sq-muted">{tr('Alerts, pending operations, required actions and unlimited approvals are outlined.', 'Alertes, opérations en attente, actions requises et autorisations illimitées sont encadrées.')}</span>
         </span>
       </label>
-      {/* Masking is no longer optional: amounts are hidden on every wallet entry (see lib/maskState.ts). */}
+      {/* N1: no manual masking; the privacy screen covers My Wall whenever you leave (lib/privacy.ts). */}
       <div className="rounded-[10px] bg-sq-bg px-3 py-2.5">
-        <span className="block text-[14px] font-medium">{tr('Amounts hidden by default', 'Montants masqués par défaut')}</span>
+        <span className="block text-[14px] font-medium">{tr('Privacy screen', 'Écran de confidentialité')}</span>
         <span className="block text-[12px] text-sq-muted">
           {tr(
-            'Balances, quantities, values and transaction amounts are hidden each time you enter My Wall. Show them with the eye button: verify with your passkey (Touch ID / Face ID / device PIN depending on your device). They are hidden again when you lock or leave the wallet.',
-            'Soldes, quantités, valeurs et montants des transactions sont masqués à chaque entrée dans My Wall. Affichez-les avec le bouton œil : vérification par votre passkey (Touch ID / Face ID / code de l’appareil selon votre appareil). Ils sont à nouveau masqués quand vous verrouillez ou quittez le wallet.',
+            'Once My Wall is unlocked, your amounts are shown. As soon as you leave (other tab or app, sleep, 60 s without activity in this demo), My Wall is covered by a lock screen with no figure; your passkey (or your wallet password) shows it again.',
+            'Une fois My Wall déverrouillé, vos montants sont affichés. Dès que vous le quittez (autre onglet ou app, mise en veille, 60 s sans activité dans cette démo), My Wall est recouvert d’un écran verrouillé sans aucun chiffre ; votre passkey (ou votre mot de passe du wallet) le réaffiche.',
           )}
         </span>
       </div>
