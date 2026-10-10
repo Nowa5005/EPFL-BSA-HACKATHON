@@ -23,7 +23,10 @@ export function DemoFooter({ className }: { className?: string }) {
       {tr(
         'Prototype — Swissquote Wallet Challenge (EPFL). Swissquote account data is fictitious; market data is real (Yahoo Finance, CoinGecko); the wallet runs on the Ethereum Sepolia testnet.',
         'Prototype — Swissquote Wallet Challenge (EPFL). Données du compte Swissquote fictives ; données de marché réelles (Yahoo Finance, CoinGecko) ; le wallet fonctionne sur le réseau de test Ethereum Sepolia.',
-      )}
+      )}{' '}
+      <Link to="/about" className="underline underline-offset-2" data-testid="about-link">
+        {tr('About this prototype', 'À propos de ce prototype')}
+      </Link>
     </p>
   );
 }

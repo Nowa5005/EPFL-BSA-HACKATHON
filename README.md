@@ -120,8 +120,13 @@ Each service is a **separate process with its own `data/` directory** (JSON file
 | Fee-change demo control (2 → 8 CHF) | **MOCK**, labelled in the UI |
 | Messages to contacts / referent `moncontact@swissquote.ch` | Local draft + `mailto:` only — no message is sent by the app; the referent address is a mock-up |
 | Device-key backup: ethers keystore v3 (scrypt + AES-128-CTR + MAC) | **REAL** library |
+| External receipts (any token, ETH via `SafeReceived`) indexed from the chain, history row + receipt | **REAL** (public RPCs; own nodes / indexing provider in production) |
+| Unrecognised tokens & look-alike addresses (address poisoning) detection, refusal by the policy engine | **REAL** logic |
+| Pre-send checks (token contract, contract recipient, other-chain address formats), EIP-681 receive QR | **REAL** logic |
+| Emergency mode (balances read from the chain without any Swissquote service) | **REAL** reads; guided exit arrives with the wallet security upgrade (Phase B) |
+| Co-signer response-time commitments, contest procedure | Documented ([docs/COSIGNER_COMMITMENTS.md](docs/COSIGNER_COMMITMENTS.md)); decision log **REAL** |
 
-Every mocked element carries a visible **MOCK** badge in the UI.
+Honesty about what is simulated lives here and on the discreet **About this prototype** page (`/about`, linked from the footer and Wallet → More); no extra badges are added to screens. Each simulated element, its planned production integration (FINMA-approved video identification, sanctions data provider, HSM, fiduciary partner, Travel Rule network…), risk and effort: **[docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md)**.
 
 ---
 

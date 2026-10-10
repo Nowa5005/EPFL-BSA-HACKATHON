@@ -166,6 +166,12 @@ export function MoreMenu() {
         <Link to="/attacker" className="underline underline-offset-4">
           {tr('Attacker demo', 'Démo attaquant')}
         </Link>
+        <Link to="/about" className="underline underline-offset-4">
+          {tr('About this prototype', 'À propos de ce prototype')}
+        </Link>
+        <Link to="/emergency" className="underline underline-offset-4">
+          {tr('Emergency mode', 'Mode urgence')}
+        </Link>
       </div>
     </div>
   );
