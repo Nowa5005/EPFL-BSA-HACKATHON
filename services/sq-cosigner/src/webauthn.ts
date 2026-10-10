@@ -46,6 +46,9 @@ export async function registrationOptions(client: Client, deviceType: 'mobile' |
         ),
       );
   }
+  // #11 — hardware binding of the device key: the device adds the WebAuthn PRF extension to these options itself
+  // (apps/web/src/lib/device.ts registerPasskey, `prf.eval.first` = per-wallet salt kept on the device). The PRF output
+  // is a secret that must never reach this server: the device strips the extension results before /register/verify.
   const options = await generateRegistrationOptions({
     rpName: RP_NAME,
     rpID: RP_ID,

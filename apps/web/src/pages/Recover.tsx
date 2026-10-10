@@ -7,7 +7,7 @@ import { openShareWithSecurityKey } from '../lib/securityKey';
 import { recoveryQueueSafeTx } from '@sq/shared/protection';
 import { getProtection } from '../lib/protection';
 import { bank, cosigner, partner } from '../lib/api';
-import { encryptKey, guessDeviceType, lock, registerPasskey, saveDevice, saveSession, setUnlocked } from '../lib/device';
+import { guessDeviceType, lock, registerPasskey, saveDevice, saveSession, sealDeviceKey, setUnlocked, type DeviceRecord } from '../lib/device';
 import { checkPassword } from '../lib/passwordPolicy';
 import { useLocal, usePoll } from '../lib/hooks';
 import { getLang, tr } from '../lib/i18n';
@@ -29,6 +29,9 @@ interface Pending {
   safeAddress: string;
   deviceAddress: string;
   keystore: string;
+  /** #11 — the new device key bound to the new passkey (same scheme as onboarding). */
+  hwKeystore?: DeviceRecord['hwKeystore'];
+  hwBindingUnavailable?: boolean;
   credentialId: string;
   recoveryId: string;
   deviceType: 'mobile' | 'desktop';
@@ -256,11 +259,11 @@ export default function Recover() {
     try {
       set(i, 'doing');
       const deviceType = guessDeviceType();
-      const reg = await registerPasskey(session!.clientId, deviceType, attestationId);
+      const reg = await registerPasskey(session!.clientId, deviceType, attestationId, { hardwareBinding: true });
       set(i, 'done', tr('Active as soon as recovery completes', 'Active dès la fin de la récupération'));
       set(++i, 'doing');
       const k1 = Wallet.createRandom();
-      const keystore = await encryptKey(k1, pw);
+      const sealed = await sealDeviceKey(k1, pw, reg.binding);
       const paperShareEnc = paperShare ? await sealWithPassword(safeAddress, paperShare, pw) : undefined;
       set(i, 'done', <Addr a={k1.address} />);
       set(++i, 'doing');
@@ -277,7 +280,7 @@ export default function Recover() {
       set(++i, 'doing');
       const r = await cosigner.post('/recovery/request', { clientId: session!.clientId, safeTx: tx, signatureK3, partnerAttestationId: attestationId, newCredentialId: reg.credentialId });
       set(i, 'done');
-      const pend: Pending = { clientId: session!.clientId, safeAddress, deviceAddress: k1.address, keystore, credentialId: reg.credentialId, recoveryId: r.id, deviceType, paperShareEnc };
+      const pend: Pending = { clientId: session!.clientId, safeAddress, deviceAddress: k1.address, ...sealed, credentialId: reg.credentialId, recoveryId: r.id, deviceType, paperShareEnc };
       storePending(pend);
       setUnlocked(k1);
       setPending(pend);
@@ -547,6 +550,8 @@ function Waiting({ pending, onReset }: { pending: Pending; onReset: () => void }
         safeAddress: pending.safeAddress,
         deviceAddress: pending.deviceAddress,
         keystore: pending.keystore,
+        hwKeystore: pending.hwKeystore,
+        hwBindingUnavailable: pending.hwBindingUnavailable,
         credentialId: pending.credentialId,
         deviceType: pending.deviceType,
         createdAt: new Date().toISOString(),

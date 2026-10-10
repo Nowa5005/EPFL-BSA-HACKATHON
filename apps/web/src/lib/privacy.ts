@@ -90,7 +90,13 @@ export async function resumeWithPasskey(clientId: string) {
   privacyLock.resume();
 }
 
-/** Fallback: the wallet password, verified locally by decrypting the keystore (same attempt limiting as Unlock). */
+/**
+ * Fallback: the wallet password, verified locally by decrypting the keystore (same attempt limiting as Unlock).
+ * #11 — on a hardware-bound device this does NOT need the passkey: the wallet is still unlocked (K1 in memory) and
+ * the passkey layer was already opened at unlock, so the password is checked against the in-memory keystore (it acts
+ * as the password verifier). Nothing new is decrypted from storage: a full unlock (after lock / reload) always needs
+ * the passkey again.
+ */
 export async function resumeWithPassword(password: string, onProgress?: (p: number) => void) {
   const key = await unlock(password, onProgress, { commit: false });
   if (key.address.toLowerCase() !== unlockedKey().address.toLowerCase()) throw new Error(tr('Incorrect password.', 'Mot de passe incorrect.'));

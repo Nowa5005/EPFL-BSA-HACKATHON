@@ -4,7 +4,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Fingerprint } from 'lucide-react';
 import { startAuthentication } from '../lib/passkeyGuard'; // guarded for the native app
 import { cosigner } from '../lib/api';
-import { setUnlocked, unlockState, unlockWithDuressCheck, UnlockError } from '../lib/device';
+import { HardwareBindingError, isHardwareBound, setUnlocked, unlockPasskeyWithBinding, unlockState, unlockWithDuressCheck, UnlockError } from '../lib/device';
 import { startDecoy } from '../lib/decoy';
 import type { HDNodeWallet, Wallet } from 'ethers';
 import { useLocal } from '../lib/hooks';
@@ -47,12 +47,30 @@ export function UnlockForm({ onDone }: { onDone: () => void }) {
     if (!locked && lockedUntil) setErr('');
   }, [locked, lockedUntil]);
 
+  // #11 — hardware-bound device: the passkey comes FIRST (one Touch ID proves presence to the co-signer AND opens the
+  // passkey layer of the device key), then the password decrypts the inner keystore. The backup code cannot replace
+  // the passkey here: it cannot open a key that is bound to this device's hardware.
+  const bound = isHardwareBound(device);
   const submit = async () => {
     setErr('');
-    setPhase('decrypt');
-    setProgress(0);
     let key: Wallet | HDNodeWallet;
     let decoy = false;
+    let passkeyDone = false;
+    if (bound) {
+      try {
+        setPhase('passkey');
+        const options = await cosigner.post('/webauthn/auth/options', { clientId: device!.clientId, purpose: 'unlock' });
+        const response = await unlockPasskeyWithBinding(options);
+        await cosigner.post('/webauthn/auth/verify', { clientId: device!.clientId, purpose: 'unlock', response });
+        passkeyDone = true;
+      } catch (e: any) {
+        setPhase('idle');
+        setErr(e?.name === 'NotAllowedError' ? tr('Verification cancelled or expired. Try again.', 'Vérification annulée ou expirée. Réessayez.') : e.message);
+        return;
+      }
+    }
+    setPhase('decrypt');
+    setProgress(0);
     try {
       // #16: the duress check runs on every unlock (same work and requests whichever code is typed).
       const r = await unlockWithDuressCheck(
@@ -67,12 +85,14 @@ export function UnlockForm({ onDone }: { onDone: () => void }) {
       setPhase('idle');
       setPw('');
       if (e instanceof UnlockError && e.lockedUntil) setLockedUntil(e.lockedUntil);
-      setErr(e.message);
+      setErr(e instanceof HardwareBindingError && e.cancelled ? tr('Verification cancelled or expired. Try again.', 'Vérification annulée ou expirée. Réessayez.') : e.message);
       return;
     }
     try {
       setPhase('passkey');
-      if (mode === 'code') {
+      if (passkeyDone) {
+        /* already verified above (hardware-bound device) */
+      } else if (mode === 'code') {
         // Backup code instead of the passkey: single-use server challenge + attempt limiting.
         const { challengeId } = await cosigner.post(`/clients/${device!.clientId}/backup-code/challenge`);
         await cosigner.post(`/clients/${device!.clientId}/backup-code/verify`, { challengeId, code });
@@ -125,7 +145,14 @@ export function UnlockForm({ onDone }: { onDone: () => void }) {
         {phase === 'idle' ? (mode === 'code' ? tr('Unlock with the backup code', 'Déverrouiller avec le code de secours') : tr('Unlock', 'Déverrouiller')) : <Spinner />}
       </Button>
       <BiometricsOptions>
-        {hasCode ? (
+        {bound ? (
+          <p className="text-sq-muted">
+            {tr(
+              'This device’s key is bound to its passkey (hardware binding): the backup code cannot open it. Without the passkey, use “I lost my device” below.',
+              'La clé de cet appareil est liée à sa passkey (liaison matérielle) : le code de secours ne peut pas l’ouvrir. Sans la passkey, utilisez « J’ai perdu mon appareil » ci-dessous.',
+            )}
+          </p>
+        ) : hasCode ? (
           <button type="button" className="min-h-10 font-medium underline underline-offset-4" onClick={() => setMode(mode === 'code' ? 'passkey' : 'code')}>
             {mode === 'code' ? tr('Back to the passkey', 'Revenir à la passkey') : tr('Unlock with my backup code', 'Déverrouiller avec mon code de secours')}
           </button>

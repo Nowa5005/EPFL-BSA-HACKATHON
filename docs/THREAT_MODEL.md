@@ -6,7 +6,7 @@ The wallet is a **Safe smart account (v1.4.1) on Ethereum, 2-of-3 owners**. The 
 
 | Key | Holder | Where it lives | Used for |
 |---|---|---|---|
-| **K1 — device key** | Client | Generated in the browser/app; encrypted at rest (ethers keystore, scrypt) with the wallet password; usable only after a **passkey** (Touch ID / Face ID) | Every-day signing |
+| **K1 — device key** | Client | Generated in the browser/app; encrypted at rest **twice**: ethers keystore (scrypt) with the wallet password, wrapped in AES-GCM under a key derived from the **device passkey's WebAuthn PRF** output (hardware binding, #11 — fallback: password only when the browser has no PRF); usable only after a **passkey** (Touch ID / Face ID) | Every-day signing |
 | **K2 — co-signer key** | Swissquote | Generated and used **server-side only** in `sq-cosigner` (HSM in production, JSON file in the prototype) | Co-signs **after** checks: passkey, compliance, limits, delays |
 | **K3 — recovery key** | Client | Generated client-side, immediately **split Shamir 2-of-3**: ① paper code (steel plate advised; home or bank safe-deposit box) · ② **physical security key** (FIDO2, WebAuthn PRF — Swissquote stores only the ciphertext; fallback: offline file + distinct backup password) · ③ independent recovery partner. **No cloud backup.** The full key is erased from memory | Recovery + escape hatch |
 
@@ -44,7 +44,7 @@ Swissquote can **block** (refuse to co-sign, e.g. sanctions) but can **never mov
 | T12 | **Device limit bypass** (attacker adds a 3rd device) | No | — | Server refuses more than 1 mobile + 1 computer; adding a device requires an existing device; a new device registered during recovery stays *pending* until the rotation completes. |
 
 ## 4. Local secrets on the device (My Wall UI)
-- **Unlock** requires the wallet password (scrypt keystore decrypted locally; 5 attempts then a 30 s wait in the demo) **and** a passkey assertion; the session is only marked unlocked after both.
+- **Unlock** requires the wallet password (scrypt keystore decrypted locally; 5 attempts then a 30 s wait in the demo) **and** a passkey assertion; the session is only marked unlocked after both. On a hardware-bound device (#11, §10) the passkey comes first and its PRF output is what opens the outer layer of K1, so the password cannot even be tried without the passkey.
 - **Recovery code kept on the device**: share ① is stored **encrypted with the wallet password** (AES-GCM, PBKDF2) so that it can be shown again after re-authentication. Trade-off: an attacker with the device **and** the password would hold part ① — still only 1 of 3: part ② needs the physical security key (or the offline file + its distinct backup password) and part ③ the partner's identity checks. Mitigations: re-authentication with passkey to reveal, 30 s display, the client can delete it from the device after printing; production would keep it only until the client confirms the paper kit.
 - **Secrets display**: never written to logs, history, notifications or storage in clear; re-masked on expiry, page exit and when the app goes to the background; clipboard cleared after 30 s (best effort).
 - **Security questions**: 3 distinct out of 15, answers normalised then scrypt-hashed with a per-answer salt at the partner; low weight in the risk score, never sufficient alone.
@@ -81,6 +81,7 @@ Implementation: `packages/shared/src/serverAuth.ts`, installed in front of every
 - Recovery when the device **and** Swissquote are lost is documented, not built (Zodiac Delay module).
 - EVM only (no Bitcoin) — MPC/TSS would be the path for BTC.
 - Passkeys registered on the same Mac during the recovery demo replace each other (same user handle); fine for the demo.
+- Hardware binding of K1 (#11) needs WebAuthn PRF; browsers / passkey providers without it fall back to the password-only keystore (shown in Security). See §10.
 
 ## 7. Recovery key part ② — physical security key, no cloud (N2)
 Why the cloud backup was removed: a cloud account (iCloud / Google Drive) is usually reachable from the unlocked phone itself, so a phone thief could collect part ② and, with the paper code photographed or found nearby, rebuild K3.
@@ -141,3 +142,63 @@ Full description: [ONCHAIN_PROTECTION.md](ONCHAIN_PROTECTION.md). `MyWallGuard` 
 Residual risks: guard not audited; an attacker with two keys can veto (block) the client's own queued exit but not steal;
 FIFO queue can be stalled by a failing item until vetoed/expired; after the D1 delay any two owners can change
 everything (by design, with notice); the off-chain inbox "cancel" is not binding on-chain — the veto (K1 + K2) is.
+
+## 10. Device key bound to the hardware — WebAuthn PRF (#11)
+
+**Before**: K1 was an ethers keystore (scrypt + password) in `localStorage`. The passkey was checked by the co-signer
+(unlock, every transaction) but the key file itself only needed the password: a copy of the browser storage (malware,
+backup, forensic image) + a guessed / phished password = K1.
+
+**Now** (`packages/shared/src/deviceBinding.ts`, `apps/web/src/lib/device.ts`):
+- At passkey creation (onboarding and `/recover`) the device asks for the **PRF extension** with a fresh per-wallet
+  salt (`prf.eval.first`, 32 random bytes, not secret). The authenticator (Secure Enclave, TPM, platform passkey
+  manager, or a FIDO2 key with hmac-secret) computes `PRF = HMAC(secret that never leaves it, salt)` only after user
+  verification.
+- K1 is encrypted **twice**: the existing password keystore (scrypt) is wrapped with AES-256-GCM under
+  `HKDF-SHA256(PRF output, random salt, info = wallet address)`; authenticated data binds the ciphertext to the K1
+  address and the credential id. **Only the outer ciphertext is stored** (`hwKeystore`; `keystore` is emptied).
+- **Unlock**: passkey assertion on the co-signer's `unlock` challenge **with PRF** (one Touch ID) → outer layer
+  removed in memory → password decrypts the keystore (attempt limiting and the #16 duress check unchanged). The PRF
+  output is stripped from every WebAuthn response sent to the co-signer (it never leaves the device).
+- **In-session**: the password-encrypted keystore stays in memory until `lock()` (never stored in clear), so
+  password re-checks during the session (privacy-lock fallback N1, re-authentication before showing a secret, duress
+  code setup, recovery-kit replacement) need no extra prompt. A wrong password before unlock drops it (the next try
+  needs the passkey again).
+- **Privacy lock (N1) decision**: the password fallback of the privacy screen still works on a bound device — the
+  wallet is still unlocked (K1 already in memory, the passkey already used at unlock), so the password is only
+  *verified* against the in-memory keystore, which acts as the password verifier; nothing new is decrypted from
+  storage. After a lock or a reload, a full unlock (passkey + password) is required.
+- **Backup code** (passkey alternative): it cannot open a hardware-bound key. On a bound device the Unlock screen says
+  so and points to "I lost my device" (recovery creates a new, bound device key).
+- **Recovery** (`/recover`): the new passkey is created with PRF and the new K1 sealed the same way. The recovery
+  kit's part ② security key is a **separate** credential (cross-platform, own salt and HKDF label) — never confused
+  with the device passkey.
+- **Existing devices**: keep working with the former scheme (no migration needed). Security → *Hardware binding*
+  shows "not set on this device" and offers a one-tap binding; it succeeds only if the existing passkey can return a
+  PRF output (many credentials created without the PRF extension cannot — then the binding is applied at the next
+  device setup).
+- **Browsers without PRF**: password-only keystore, Security says **"Hardware binding: not available on this
+  browser"** (vs **"Hardware binding: active"**). Signatures still need the passkey assertion and K2.
+
+| Threat | Before | Now (bound device) |
+|---|---|---|
+| Copy of the browser storage + password (malware, phishing, stolen backup) | K1 decrypted | ❌ needs the passkey on **this** hardware (PRF never leaves it) |
+| Stolen unlocked laptop/phone (session open) | K1 in memory | Unchanged: privacy lock + passkey per transaction + K2 policy (production: shorter session) |
+| Stolen device, locked, password known | Passkey needed to sign anyway, but K1 readable | K1 unreadable without user verification on the device (biometrics / device PIN) |
+| Passkey synced to another device of the same account (iCloud / Google) | — | That device can produce the same PRF output: the binding is to the passkey provider account + biometrics, not strictly one chip (production target below fixes this) |
+
+Tests: `packages/shared/test/deviceBinding.test.ts` (simulated PRF output: right passkey + password → K1; wrong PRF /
+wrong salt / password alone / tampered record → refused); Playwright with Chrome's virtual authenticator
+(`hasPrf: true, hasUserVerification: true`: create → unlock → lock → unlock, wrong password, storage copied to another
+browser stays locked, privacy-lock fallback) and without `hasPrf` (fallback path).
+
+**Production target**: a native app (iOS / Android) where K1 never exists in a web context —
+- iOS: K1 encrypted with a key held in the **Keychain** with `kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly` +
+  access control `.biometryCurrentSet` (or a Secure-Enclave P-256 key used to wrap K1): not synced, not in backups,
+  invalidated if biometrics change;
+- Android: **StrongBox** / TEE Keystore key with `setUserAuthenticationRequired(true)` and
+  `setIsStrongBoxBacked(true)` wrapping K1;
+- or remove K1 altogether: make the **passkey itself a Safe owner** through Safe's WebAuthn signer (`SafeWebAuthnSigner`
+  / shared signer, P-256 signature verified on-chain — cheap where the **RIP-7212** P-256 precompile exists, e.g. most
+  L2s; via a Solidity verifier on Ethereum L1). Then no device private key exists in software at all.
+

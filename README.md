@@ -83,7 +83,7 @@ Protected Safe: [0xc2C8C93884E7f36C9f0497fbd540995885274f05](https://sepolia.eth
 ```mermaid
 flowchart LR
   subgraph Device [Client device]
-    W["Web / mobile app<br/>K1 encrypted (scrypt) + passkey<br/>builds & signs SafeTx"]
+    W["Web / mobile app<br/>K1 encrypted (scrypt + passkey PRF) + passkey<br/>builds & signs SafeTx"]
   end
   subgraph SQ [Swissquote backend]
     C["sq-cosigner<br/>K2 (MOCK HSM) · policy engine<br/>WebAuthn verify · relayer (gas)"]
@@ -113,6 +113,7 @@ Each service is a **separate process with its own `data/` directory** (JSON file
 | USDC transfers (Circle Sepolia USDC `0x1c7D…7238`), gas sponsoring by the relayer | **REAL** |
 | EIP-1271 proof of ownership verified on-chain (`isValidSignature`) | **REAL** |
 | Passkeys / WebAuthn (Touch ID), challenge bound to the Safe tx hash | **REAL** (browser) |
+| Device key bound to the passkey (#11): password keystore wrapped in AES-GCM under an HKDF key from the device passkey's WebAuthn PRF output | **REAL** (WebCrypto + WebAuthn PRF; tested with Chrome's virtual authenticator `hasPrf`, Touch ID on a real Mac to confirm) |
 | Shamir split of K3 (`shamir-secret-sharing`), keystore (scrypt); part ② encrypted with AES-GCM under an HKDF key from the security key's WebAuthn PRF output, or (fallback) scrypt + AES-GCM offline file | **REAL** libraries (WebAuthn PRF tested with Chrome's virtual FIDO2 authenticator; the headless e2e client simulates the PRF output — test only) |
 | Policy engine, simulation (`eth_call`), thresholds, delays, four-eyes | **REAL** logic (demo values) |
 | Swissquote core banking, KYC, client account | **MOCK** |
@@ -155,7 +156,7 @@ Honesty about what is simulated lives here and on the discreet **About this prot
 
 | Key | Holder | Lives | Role |
 |---|---|---|---|
-| K1 device key | Client | Browser/app, encrypted by password, unlocked + used only after a passkey | Daily signing |
+| K1 device key | Client | Browser/app, encrypted by password **and** bound to the device passkey (WebAuthn PRF, #11; password-only fallback without PRF), unlocked + used only after a passkey | Daily signing |
 | K2 co-signer | Swissquote | `sq-cosigner` only (HSM in prod) | Co-signs after checks |
 | K3 recovery key | Client | Split 2-of-3: ① paper code (steel plate advised) · ② physical security key (FIDO2 PRF; Swissquote stores only the ciphertext) · ③ recovery partner | Recovery & escape hatch |
 
@@ -274,7 +275,8 @@ Simulation before signing (debited / estimated received / network fee / service 
 
 ## My Wall UX highlights
 - **Entry from the Swissquote app**: pull-up "Mon wallet" tab (swipe or tap, keyboard accessible) on touch devices; "Mon wallet" button next to the account icon on desktop.
-- **Unlock** = wallet password (decrypts the device key locally, 5 attempts then a 30 s wait) **then** passkey. A recovery code or private key is never asked to open the wallet.
+- **Unlock** = wallet password (decrypts the device key locally, 5 attempts then a 30 s wait) **and** passkey. A recovery code or private key is never asked to open the wallet.
+- **Hardware binding of the device key (#11)** — the passkey is created with the WebAuthn **PRF** extension (fixed per-wallet salt); K1's password keystore is wrapped in AES-256-GCM under an HKDF key derived from the PRF output, which only this device's passkey can compute after Touch ID / Face ID. Only that ciphertext is stored: a copy of the browser storage is useless without the device, even with the password. Unlock = passkey with PRF (one touch, also verified by the co-signer) → password. Security shows **"Hardware binding: active"** or **"not available on this browser"** (no PRF: former password-only keystore). Production target: native app with K1 under an iOS Keychain `ThisDeviceOnly` + biometry key / Android StrongBox, or the passkey itself as Safe owner (Safe WebAuthn signer, P-256 / RIP-7212) — see [THREAT_MODEL §10](docs/THREAT_MODEL.md).
 - **Activation in 7 steps**: welcome → ID document (simulated) → passkey → password (≥ 15 chars, ≥ 5 letters incl. upper + lower, ≥ 2 digits, ≥ 1 special, no name / birth date — live checklist) → 3 distinct questions out of 15 (answers normalised and scrypt-hashed by the partner, never stored in clear) → wallet creation → recovery kit **without QR code** (masked code, 30 s reveal, print sheet, copy, steel-plate advice) + **physical security key** for part ② (or offline file fallback).
 - **Transactions**: statuses détectée → en attente → confirmée / échouée (confirmed = 1 block on Sepolia, `CONFIRMATIONS` env); orange check animation **only** on confirmation; PDF receipt (reference `MW-YYYYMMDD-<hash8>`, fees, Europe/Zurich time, full addresses, names only when known, no secrets) available from the transaction and from **Swaplet → Documents** without duplicates.
 - **Keys & security**: public address / device private key / recovery code clearly separated; secrets revealed 30 s after password + passkey re-authentication, re-masked on expiry, page exit or background; encrypted device-key backup export + verification (wrong password, altered file, other wallet).

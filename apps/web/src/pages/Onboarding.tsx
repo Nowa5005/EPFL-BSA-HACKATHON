@@ -14,7 +14,7 @@ import {
 } from '@sq/shared';
 import { bank, cosigner, partner } from '../lib/api';
 import { activateProtection } from '../lib/protection';
-import { encryptKey, guessDeviceType, registerPasskey, saveDevice, setUnlocked } from '../lib/device';
+import { guessDeviceType, registerPasskey, saveDevice, sealDeviceKey, setUnlocked, type PasskeyBinding } from '../lib/device';
 import { checkPassword } from '../lib/passwordPolicy';
 import { useLocal } from '../lib/hooks';
 import { getLang, tr } from '../lib/i18n';
@@ -52,6 +52,8 @@ export default function Onboarding() {
   const [result, setResult] = useState<{ safeAddress: string; deployTx: string; code: string } | null>(null);
   // Part ② of the recovery key stays in memory only until the client protected it (security key or offline file).
   const share2Ref = useRef<string | null>(null);
+  // #11 — PRF output of the new passkey (memory only) used to bind the device key to this hardware.
+  const bindingRef = useRef<PasskeyBinding | null>(null);
 
   useEffect(() => {
     bank.get(`/clients/${clientId}`).then(setProfile).catch(() => undefined);
@@ -66,7 +68,8 @@ export default function Onboarding() {
     setBusy(true);
     setErr('');
     try {
-      const r = await registerPasskey(clientId, deviceType);
+      const r = await registerPasskey(clientId, deviceType, undefined, { hardwareBinding: true });
+      bindingRef.current = r.binding;
       setCredentialId(r.credentialId);
       setStep(3);
     } catch (e: any) {
@@ -103,8 +106,9 @@ export default function Onboarding() {
       set(i, 'done', tr('Generated on this device', 'Générée sur cet appareil'));
 
       set(++i, 'doing');
-      const keystore = await encryptKey(k1, pw, (x) => set(1, 'doing', `${Math.round(x * 100)} %`));
-      set(i, 'done', tr('It never leaves this device', 'Elle ne quitte jamais cet appareil'));
+      const sealed = await sealDeviceKey(k1, pw, bindingRef.current, (x) => set(1, 'doing', `${Math.round(x * 100)} %`));
+      bindingRef.current = null;
+      set(i, 'done', sealed.hwKeystore ? tr('Password + this device’s passkey (hardware binding) — it never leaves this device', 'Mot de passe + passkey de cet appareil (liaison matérielle) — elle ne quitte jamais cet appareil') : tr('It never leaves this device', 'Elle ne quitte jamais cet appareil'));
 
       set(++i, 'doing');
       const shares = await splitRecoveryKey(k3.privateKey);
@@ -150,7 +154,7 @@ export default function Onboarding() {
       await cosigner.post(`/clients/${clientId}/contacts`, { name: 'Bob', address: '0xb0b0000000000000000000000000000000000b0b' });
       set(i, 'done', tr('EIP-1271 proof verified on the blockchain (Travel Rule)', 'Preuve EIP-1271 vérifiée sur la blockchain (Travel Rule)'));
 
-      saveDevice({ clientId, safeAddress: dep.safeAddress, deviceAddress: k1.address, keystore, credentialId, deviceType, createdAt: new Date().toISOString(), paperShareEnc: paperEnc });
+      saveDevice({ clientId, safeAddress: dep.safeAddress, deviceAddress: k1.address, ...sealed, credentialId, deviceType, createdAt: new Date().toISOString(), paperShareEnc: paperEnc });
       setUnlocked(k1);
       share2Ref.current = shares.key; // protected at the next step (security key, or offline file)
       setResult({ safeAddress: dep.safeAddress, deployTx: dep.txHash, code: encodeRecoveryCode(shares.paper) });

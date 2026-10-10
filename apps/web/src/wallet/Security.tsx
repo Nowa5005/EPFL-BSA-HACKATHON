@@ -18,6 +18,8 @@ import { DailyLimitCard, DuressCodeCard } from './ProtectiveSettings';
 import { CosignerDecisions, YourGuarantees } from '../components/Refusal';
 import { tr } from '../lib/i18n';
 import { RecoveryKitCard } from './RecoveryKitCard';
+import { HardwareBindingCard } from './HardwareBindingCard';
+import { ProtectionCard } from '../components/ProtectionCard';
 
 const REVEAL_SEC = 30;
 type Secret = { kind: 'k1' | 'code'; value: string; until: number };
@@ -60,6 +62,8 @@ export default function Security() {
       <YourGuarantees />
 
       <FreezeCard clientId={session!.clientId} />
+
+      {device?.safeAddress && <ProtectionCard clientId={session!.clientId} safeAddress={device.safeAddress} />}
 
       <Card className="space-y-2">
         <SectionHead icon={<WalletIcon size={20} strokeWidth={1.75} />} title={tr('Public wallet address', 'Adresse publique du wallet')} tag={tr('Public', 'Publique')} />
@@ -105,6 +109,8 @@ export default function Security() {
           ) : null
         }
       />
+
+      <HardwareBindingCard />
 
       {asking && <Reauth clientId={session!.clientId} onCancel={() => setAsking(null)} onDone={onAuthed} />}
 
