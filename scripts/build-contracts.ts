@@ -19,7 +19,7 @@ export const SOLC_SETTINGS = {
   evmVersion: 'cancun',
   viaIR: true,
   metadata: { bytecodeHash: 'ipfs' },
-  outputSelection: { '*': { '*': ['abi', 'evm.bytecode.object', 'evm.deployedBytecode.object', 'metadata'] } },
+  outputSelection: { '*': { '*': ['abi', 'evm.bytecode.object', 'evm.deployedBytecode.object', 'evm.deployedBytecode.immutableReferences', 'metadata'] } },
 } as const;
 
 export function compileGuard() {
@@ -45,6 +45,8 @@ export function compileGuard() {
     abi: c.abi,
     bytecode: '0x' + c.evm.bytecode.object,
     deployedBytecode: '0x' + c.evm.deployedBytecode.object,
+    /** byte ranges of immutables (multiSendCallOnly) in the runtime code, filled at deployment */
+    immutableReferences: c.evm.deployedBytecode.immutableReferences as Record<string, { start: number; length: number }[]>,
     metadata: c.metadata as string,
   };
 }
