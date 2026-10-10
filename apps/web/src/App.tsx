@@ -34,6 +34,7 @@ import PreviewApp from './pages/PreviewApp';
 import PreviewSwitch from './components/PreviewSwitch';
 import AppModeEffects from './components/AppModeEffects';
 import { tr } from './lib/i18n';
+import { TermsGate } from './components/Terms';
 
 /** My Wall pages: Swissquote session + a wallet on this device + unlocked (password + passkey). */
 function WalletRoute({ children }: { children: ReactNode }) {
@@ -42,7 +43,11 @@ function WalletRoute({ children }: { children: ReactNode }) {
   if (!session) return <Navigate to="/login" replace />;
   if (!device?.safeAddress || device.clientId !== session.clientId) return <Navigate to="/onboarding" replace />;
   if (!unlocked) return <Navigate to="/wallet/unlock" state={{ from: loc.pathname + loc.search }} replace />;
-  return <WalletShell>{children}</WalletShell>;
+  return (
+    <TermsGate>
+      <WalletShell>{children}</WalletShell>
+    </TermsGate>
+  );
 }
 
 function SqRoute({ children }: { children: ReactNode }) {

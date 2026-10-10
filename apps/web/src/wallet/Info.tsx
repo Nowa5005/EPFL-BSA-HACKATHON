@@ -9,6 +9,7 @@ import { useLocal, usePoll, useReadState, useWalletTxs } from '../lib/hooks';
 import { Card, cx, dateTime, MockBadge, Pill, Tabs, useMedia } from '../components/ui';
 import { MARKET_NEWS, RELEASES } from './mockNews';
 import { getLang, tr } from '../lib/i18n';
+import { useTermsUpdateItems } from '../components/Terms';
 
 type Cat = 'tx' | 'market' | 'updates';
 const CATS: { id: Cat; label: string; short: string }[] = [
@@ -36,6 +37,7 @@ function useItems(): Record<Cat, Item[]> {
   const { device } = useLocal();
   const { data: events } = usePoll<ActivityEvent[]>(() => cosigner.get(`/clients/${device!.clientId}/activity`), 8000, [device?.clientId]);
   const { data: txs } = useWalletTxs(8000);
+  const termsItems = useTermsUpdateItems(); // Terms of Use versions published after the first (N4)
   const linkFor = (e: ActivityEvent) => {
     const id = (e.data as any)?.walletTxId ?? txs?.find((t) => e.txHash && t.txHash?.toLowerCase() === e.txHash.toLowerCase())?.id;
     return id ? `/wallet/tx/${id}` : '/wallet/transactions';
@@ -51,7 +53,7 @@ function useItems(): Record<Cat, Item[]> {
         group: /receiv|receipt|incoming|Réception/i.test(e.message) ? 'in' : /failed|rejected|refused/.test(e.type) ? 'alert' : 'out',
       })),
     market: MARKET_NEWS.map((n) => ({ id: `b:${n.id}`, title: n.title, summary: n.summary, body: n.body, date: n.publishedAt, badges: n.assets, source: n.source })),
-    updates: RELEASES.map((r) => ({ id: `c:${r.id}`, title: r.title, summary: r.body, body: r.body, date: r.date, action: r.action, group: r.action ? 'action' : 'news' })),
+    updates: [...termsItems, ...RELEASES.map((r) => ({ id: `c:${r.id}`, title: r.title, summary: r.body, body: r.body, date: r.date, action: r.action, group: r.action ? 'action' : 'news' }))],
   };
 }
 
@@ -174,7 +176,7 @@ export function InfoBoard({ limit }: { limit?: number }) {
             </>
           )}
         </p>
-        {detail.body && <p className="mt-3 text-[15px] leading-relaxed text-sq-ink-2">{detail.body}</p>}
+        {detail.body && <p className="mt-3 whitespace-pre-line text-[15px] leading-relaxed text-sq-ink-2">{detail.body}</p>}
         <div className="mt-4 flex flex-wrap gap-3">
           {detail.to && (
             <Link to={detail.to} className="inline-flex min-h-11 items-center rounded-[10px] border border-sq-line px-4 text-[14px] font-semibold">

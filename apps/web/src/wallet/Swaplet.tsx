@@ -12,6 +12,7 @@ import { MaskBar, useReveal } from './Reveal';
 import { locale, tr } from '../lib/i18n';
 import Swap from './Swap';
 import { AnnualDocuments } from '../components/AnnualDocuments';
+import { LegalDocuments } from '../components/Terms';
 
 interface Doc {
   docId: string;
@@ -51,6 +52,7 @@ export default function Swaplet() {
       <div className="mt-4">{tab === 'docs' ? (
         <>
           <AnnualDocuments />
+          <LegalDocuments />
           <Documents />
         </>
       ) : (

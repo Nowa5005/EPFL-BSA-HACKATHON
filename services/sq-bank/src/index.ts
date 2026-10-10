@@ -10,6 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerUserData } from './userdata';
 import { registerSiweRoutes } from './siwe';
+import { createTermsService } from './terms';
 import { Contract, Wallet, formatEther, formatUnits, getAddress, hashMessage, parseUnits } from 'ethers';
 import {
   EIP1271_ABI,
@@ -300,6 +301,7 @@ app.post('/admin/clients/:id/reset', route((req) => {
   const seed = seedClients()[id];
   if (!seed) throw new HttpError(404, tl('Unknown client', 'Client inconnu'));
   store.update((d) => (d.clients[id] = seed));
+  terms.resetClient(id);
   return { reset: true };
 }));
 
@@ -308,11 +310,14 @@ app.post('/admin/reset', route(() => {
     d.clients = seedClients();
     d.sessions = {};
   });
+  terms.reset();
   return { reset: true };
 }));
 
 registerSiweRoutes(app, route, { store, client, provider, treasury: treasury.address, HttpError }); // external wallets (SIWE, compliance package)
 registerUserData(app, (id) => !!store.data.clients[id]); // watchlist + alerts (content package)
+const terms = createTermsService({ dataDir: DATA_DIR, httpError: HttpError }); // Terms of Use versions + acceptances (N4)
+terms.register(app, route);
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });

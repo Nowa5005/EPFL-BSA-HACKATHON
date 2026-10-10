@@ -7,6 +7,7 @@ import { locale, tr } from '../lib/i18n';
 import { Addr, Button, Card, Checks, cx, Field, inputCls, MockBadge, mmss, SecretInput, Spinner, TxLink, useCountdown } from '../components/ui';
 import { ActivityList } from '../components/ActivityList';
 import { InternalShell } from '../components/InternalShell';
+import { TermsAdminSection } from '../components/Terms';
 
 const TX_STATUS: Record<string, string> = {
   'awaiting-otp': tr('Awaiting client code', 'Code client attendu'),
@@ -197,6 +198,8 @@ function Console() {
           </section>
 
           <TravelRuleSection />
+
+          <TermsAdminSection />
         </div>
 
         <div className="min-w-0 space-y-5">

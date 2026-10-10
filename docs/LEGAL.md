@@ -54,3 +54,12 @@ Blockchains are public. The client's **privacy setting** ("full consolidated vie
 5. Can EIP-1271 on-chain proof of ownership be accepted as the self-hosted wallet verification method by FINMA?
 6. Sponsoring gas fees: any consumer-credit or inducement implications? (We believe not — it is a service cost.)
 7. Cross-border clients (EU MiCA for non-custodial wallet providers, which are in principle out of MiCA scope).
+
+## 6. Terms of Use (prototype)
+
+> Prototype — not legal advice, to be reviewed by Swissquote Legal.
+
+- Text: [`docs/legal/TERMS_v1.0.md`](legal/TERMS_v1.0.md) (English, binding version in the app) with a French translation in annex ([`TERMS_v1.0.fr.md`](legal/TERMS_v1.0.fr.md)). They describe the real service: non-custodial 2-of-3 Safe with guard and on-chain delays (D1 48 h, D2 30 days, D3 6 months for heirs), veto, protected exit, "Take full control", client responsibilities (password, paper code, physical security key — no cloud backup), co-signer rules / reasoned refusals / response times, fees and plans (`docs/PRICING.md`), sponsored network fees and the daily quota, sanctions screening, Travel Rule (IVMS101), wallet verification (SIWE / EIP-1271), succession, privacy (nFADP), crypto risks and the test network.
+- **Versioning.** Each version has a number, a date, a 5-point summary (EN + FR), a plain-language change summary and a *substantive* flag. A substantive version must be accepted again at the next opening of My Wall; a non-substantive one is announced for information only. Demo: [`TERMS_v1.1.md`](legal/TERMS_v1.1.md) (sponsored-fee quota on the Free plan 20 → 10 per day from 10.11.2026, veto wording clarified) stays unpublished until a compliance officer publishes it from the console (`/admin` → "Publish Terms v1.1 (demo)").
+- **Proof of consent.** `sq-bank` stores, per client, every acceptance: version, timestamp, device label and a truncated SHA-256 of the user agent (never the raw user agent) and the display language (`services/sq-bank/src/terms.ts`, routes `/clients/:id/terms…`, `/admin/terms…`). The client can see the accepted version and date in Settings and download it as a PDF from Swaplet → Documents → Legal.
+- **Open questions for a lawyer.** Validity of click-wrap acceptance for a bank client already bound by general terms (Art. 1 ff. CO, unusual-clause rule); whether a quota change is a "substantive" change requiring consent or only notice; liability limitation wording (Art. 100 CO); interplay of the heir designation with Swiss inheritance law; jurisdiction clause for consumers.
