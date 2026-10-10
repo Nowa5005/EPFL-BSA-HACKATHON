@@ -139,7 +139,7 @@ function CryptoCards({ rows, rates, ratesLoading, onCustomize }: { rows: Holding
               <Link
                 to={`/asset/${h.asset}`}
                 className="mw-asset-card flex min-h-[76px] items-center gap-3 rounded-[18px] border border-sq-line px-3.5 py-3"
-                style={{ background: c ? `color-mix(in srgb, ${c.bg} 55%, var(--color-sq-surface))` : undefined, borderLeft: c ? `3px solid ${c.fg}` : undefined }}
+                style={{ background: c ? `color-mix(in srgb, ${c.bg} 60%, var(--color-sq-surface))` : undefined }}
               >
                 <AssetAvatar symbol={h.asset} size={44} />
                 <span className="min-w-0 flex-1">

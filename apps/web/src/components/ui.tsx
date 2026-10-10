@@ -89,7 +89,7 @@ export function Card({ children, className, id, as: As = 'div' }: { children: Re
 }
 
 export function Tile({ children, className, to, onClick }: { children: ReactNode; className?: string; to?: string; onClick?: () => void }) {
-  const cls = cx('block rounded-[10px] border border-sq-line bg-sq-surface px-3.5 py-3 text-left transition-colors hover:border-sq-muted/50', className);
+  const cls = cx('mw-tile block rounded-[10px] border border-sq-line bg-sq-surface px-3.5 py-3 text-left transition-colors hover:border-sq-muted/50', className);
   if (to)
     return (
       <Link to={to} className={cls}>
@@ -137,8 +137,9 @@ export function Button({
       disabled={disabled}
       aria-label={ariaLabel}
       className={cx(
-        'inline-flex min-h-12 items-center justify-center gap-2 rounded-[10px] px-4 py-3 text-[15px] font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40',
+        'mw-btn inline-flex min-h-12 items-center justify-center gap-2 rounded-[10px] px-4 py-3 text-[15px] font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40',
         /(^|\s)w-/.test(className ?? '') ? '' : 'w-full',
+        `mw-btn-${variant}`,
         styles,
         className,
       )}
@@ -190,7 +191,7 @@ export function Field({ label, hint, children, error }: { label: string; hint?: 
 }
 
 export const inputCls =
-  'w-full min-h-12 rounded-[10px] border border-sq-line bg-sq-surface px-3.5 py-3 text-[15px] text-sq-ink outline-none transition placeholder:text-sq-muted/70 focus:border-sq-ink/40 focus-visible:outline-2 focus-visible:outline-sq-orange';
+  'mw-input w-full min-h-12 rounded-[10px] border border-sq-line bg-sq-surface px-3.5 py-3 text-[15px] text-sq-ink outline-none transition placeholder:text-sq-muted/70 focus:border-sq-ink/40 focus-visible:outline-2 focus-visible:outline-sq-orange';
 
 export function SecretInput({ value, onChange, autoComplete = 'new-password', placeholder, id, autoFocus }: { value: string; onChange: (v: string) => void; autoComplete?: string; placeholder?: string; id?: string; autoFocus?: boolean }) {
   const [show, setShow] = useState(false);
@@ -223,7 +224,7 @@ export function SecretInput({ value, onChange, autoComplete = 'new-password', pl
 // ── Tabs & pills ──
 export function Tabs<T extends string>({ tabs, value, onChange, className }: { tabs: { id: T; label: ReactNode; disabled?: boolean }[]; value: T; onChange: (v: T) => void; className?: string }) {
   return (
-    <div role="tablist" className={cx('flex gap-5 overflow-x-auto', className)}>
+    <div role="tablist" className={cx('mw-tabs flex gap-5 overflow-x-auto', className)}>
       {tabs.map((t) => (
         <button
           key={t.id}
@@ -270,7 +271,7 @@ export function Notice({ tone = 'info', title, children, className }: { tone?: '
     bad: { cls: 'bg-sq-bad-50 border-sq-down/20', icon: <CircleAlert size={18} strokeWidth={1.75} className="text-sq-down" /> },
   }[tone];
   return (
-    <div role={tone === 'bad' ? 'alert' : undefined} className={cx('flex gap-3 rounded-[10px] border p-3.5 text-[14px]', t.cls, (tone === 'warn' || tone === 'bad') && 'mw-important', className)}>
+    <div role={tone === 'bad' ? 'alert' : undefined} className={cx('mw-notice flex gap-3 rounded-[10px] border p-3.5 text-[14px]', t.cls, (tone === 'warn' || tone === 'bad') && 'mw-important', className)}>
       <span className="mt-0.5 shrink-0">{t.icon}</span>
       <div className="min-w-0">
         {title && <div className="font-semibold text-sq-ink">{title}</div>}
@@ -283,7 +284,7 @@ export function Notice({ tone = 'info', title, children, className }: { tone?: '
 /** "Why we ask this" explanation. */
 export function Why({ children }: { children: ReactNode }) {
   return (
-    <p className="flex gap-2.5 rounded-[10px] bg-sq-surface p-3.5 text-[13px] leading-relaxed text-sq-ink-2">
+    <p className="mw-why flex gap-2.5 rounded-[10px] bg-sq-surface p-3.5 text-[13px] leading-relaxed text-sq-ink-2">
       <ShieldCheck size={18} strokeWidth={1.75} className="mt-px shrink-0 text-sq-muted" />
       <span>{children}</span>
     </p>
@@ -421,10 +422,10 @@ export function CopyButton({ value, label = tr('Copy', 'Copier'), sensitive }: {
 
 export function PageHeader({ title, back, right, subtitle }: { title: ReactNode; back?: string; right?: ReactNode; subtitle?: ReactNode }) {
   return (
-    <div className="mb-5">
+    <div className="mw-pagehead mb-5">
       <div className="flex items-center gap-2">
         {back && (
-          <Link to={back} className="-ml-2 flex size-11 items-center justify-center rounded-full text-sq-ink hover:bg-sq-chip/60" aria-label={tr('Back', 'Retour')}>
+          <Link to={back} className="mw-back -ml-2 flex size-11 items-center justify-center rounded-full text-sq-ink hover:bg-sq-chip/60" aria-label={tr('Back', 'Retour')}>
             <ChevronLeft {...ICON} />
           </Link>
         )}

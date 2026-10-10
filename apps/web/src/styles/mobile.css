@@ -1,0 +1,83 @@
+/* ── N7 — mobile visual style (70 % My Wall identity / 30 % reference ergonomics) ───────────────────────────────
+   Applies ONLY under html.mw-mobile (native app / app preview, or a real touch phone: pointer coarse + < 768 px —
+   lib/mobileStyle.ts). Desktop and narrowed desktop windows never get these rules (every selector below is scoped,
+   checked by apps/web/test/mobileStyle.test.ts). Only spacing, shapes, typography, hierarchy and touch comfort:
+   same components, same data, same routes. Colours come from the N5 tokens (light + dark), orange stays the accent.
+   No gradients, no transparency effects, no heavy shadows, no decorative animation. */
+
+/* Soft, rounded surfaces */
+html.mw-mobile .mw-card { border-radius: 20px; box-shadow: none; }
+html.mw-mobile .mw-tile,
+html.mw-mobile .mw-why,
+html.mw-mobile .mw-fees { border-radius: 16px; }
+html.mw-mobile .mw-fees { border-color: transparent; padding: 16px 20px; }
+html.mw-mobile .mw-notice { border-radius: 16px; }
+html.mw-mobile .mw-group { border-radius: 20px; }
+
+/* Comfortable touch targets: pill buttons ≥ 48 px, rounded fields ≥ 48 px (16 px text: no iOS zoom on focus) */
+html.mw-mobile .mw-btn { border-radius: 9999px; min-height: 50px; }
+html.mw-mobile .mw-input { border-radius: 14px; min-height: 50px; font-size: 16px; }
+html.mw-mobile input, html.mw-mobile textarea, html.mw-mobile select {
+  scroll-margin-bottom: calc(120px + env(safe-area-inset-bottom));
+  scroll-margin-top: 80px;
+}
+
+/* Tabs → segmented control (same buttons, same roles, same keyboard behaviour) */
+html.mw-mobile .mw-tabs {
+  gap: 4px;
+  padding: 4px;
+  border-radius: 9999px;
+  background: var(--color-sq-chip);
+  scrollbar-width: none;
+}
+html.mw-mobile .mw-tabs::-webkit-scrollbar { display: none; }
+html.mw-mobile .mw-tabs > [role="tab"] {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 9999px;
+  font-size: 14px;
+  color: var(--color-sq-ink-2);
+}
+html.mw-mobile .mw-tabs > [role="tab"][aria-selected="true"] { background: var(--color-sq-surface); color: var(--color-sq-ink); }
+html.mw-mobile .mw-tabs > [role="tab"] > span:last-child { display: none; } /* underline indicator */
+
+/* Page headers: round back button on a soft surface, compact title */
+html.mw-mobile .mw-pagehead { margin-bottom: 16px; }
+html.mw-mobile .mw-pagehead h1 { font-size: 20px; }
+html.mw-mobile .mw-back { margin-left: 0; background: var(--color-sq-surface); }
+
+/* Page rhythm: room for the bottom bar + home indicator so the last cards are never hidden */
+html.mw-mobile main.mw-m-main { padding-bottom: calc(108px + env(safe-area-inset-bottom)); }
+html.mw-mobile main.mw-sq-main { padding-bottom: calc(160px + env(safe-area-inset-bottom)); } /* + "My wallet" tab */
+
+/* Bottom navigation: icons + short labels, active tab in the accent with a soft pill behind the icon */
+html.mw-mobile .mw-bottomnav {
+  border-radius: 0;
+  box-shadow: none;
+  border-top: 1px solid var(--color-sq-line);
+}
+html.mw-mobile .mw-bottomnav a { color: var(--color-sq-ink-2); font-weight: 500; font-size: 12px; gap: 2px; }
+html.mw-mobile .mw-bottomnav a svg { box-sizing: content-box; padding: 4px 16px; border-radius: 9999px; }
+html.mw-mobile .mw-bottomnav a[aria-current="page"],
+html.mw-mobile .mw-bottomnav a[data-active="true"] { color: var(--color-sq-orange-600); font-weight: 600; }
+html.mw-mobile .mw-bottomnav a[aria-current="page"] svg,
+html.mw-mobile .mw-bottomnav a[data-active="true"] svg { background: var(--color-sq-orange-50); }
+html.mw-mobile.mw-kb-open .mw-bottomnav,
+html.mw-mobile.mw-kb-open .mw-wallet-tab { display: none; }
+
+/* Home (N6 widgets in the mobile layout) */
+html.mw-mobile .mw-m-home .mw-card { border: 0; }
+html.mw-mobile .mw-asset-card { transition: border-color 150ms; }
+html.mw-mobile .mw-asset-card:active { border-color: var(--color-sq-muted); }
+
+/* More menu: tidy wrapping of the secondary links */
+html.mw-mobile .mw-more-links { flex-wrap: wrap; row-gap: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  html.mw-mobile .mw-asset-card { transition: none; }
+}
+
+/* Customize mode (N6) on the phone: tighter rows so names stay on one line at 360 px */
+html.mw-mobile .mw-customize { padding: 16px 12px; }
+html.mw-mobile .mw-widget-row { gap: 2px; padding-right: 2px; }
+html.mw-mobile .mw-widget-row [data-move] { width: 42px; }

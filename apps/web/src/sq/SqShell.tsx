@@ -106,13 +106,13 @@ export function SqShell({ children }: { children: ReactNode }) {
         </header>
       )}
 
-      <main key={loc.pathname} className={cx('mw-page mx-auto px-4', isDesktop ? 'max-w-[1200px] px-6 pb-10 pt-8' : 'max-w-[720px] pb-44 pt-3')}>
+      <main key={loc.pathname} className={cx('mw-page mw-sq-main mx-auto px-4', isDesktop ? 'max-w-[1200px] px-6 pb-10 pt-8' : 'max-w-[720px] pb-44 pt-3')}>
         {children}
         <DemoFooter />
       </main>
 
       {!isDesktop && (
-        <nav className="fixed inset-x-0 bottom-0 z-30 rounded-t-[16px] bg-sq-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_0_rgba(0,0,0,0.04)]" aria-label={tr('Swissquote navigation', 'Navigation Swissquote')}>
+        <nav className="mw-bottomnav fixed inset-x-0 bottom-0 z-30 rounded-t-[16px] bg-sq-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_0_rgba(0,0,0,0.04)]" aria-label={tr('Swissquote navigation', 'Navigation Swissquote')}>
           <div className="mx-auto grid max-w-[720px] grid-cols-4">
             {NAV.map((n) => (
               <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => cx('flex min-h-[60px] flex-col items-center justify-center gap-1 text-[12px]', isActive ? 'font-medium text-sq-orange' : 'text-sq-ink-2')}>
@@ -177,7 +177,7 @@ function WalletTab({ aboveNav }: { aboveNav: boolean }) {
         onPointerMove={onPointerMove}
         onPointerUp={() => (start.current = null)}
         style={{ touchAction: 'none', bottom: aboveNav ? 'calc(60px + env(safe-area-inset-bottom))' : 'env(safe-area-inset-bottom)' }}
-        className="fixed left-1/2 z-30 flex w-[200px] -translate-x-1/2 flex-col items-center gap-1.5 rounded-t-[12px] bg-sq-surface px-4 pb-2.5 pt-2 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]"
+        className="mw-wallet-tab fixed left-1/2 z-30 flex w-[200px] -translate-x-1/2 flex-col items-center gap-1.5 rounded-t-[12px] bg-sq-surface px-4 pb-2.5 pt-2 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]"
       >
         <span className="h-1 w-9 rounded-full bg-sq-line" aria-hidden />
         <span className="flex items-center gap-2 text-[14px] font-semibold text-sq-ink">

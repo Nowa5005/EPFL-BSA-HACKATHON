@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { ArrowLeftRight, CalendarClock, ChevronLeft, Ellipsis, FileText, House, Info, KeySquare, Mail, Palette, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowLeftRight, CalendarClock, ChevronLeft, Ellipsis, FileText, House, Info, KeySquare, Mail, Menu, Palette, ShieldCheck, Sparkles } from 'lucide-react';
 import { cosigner } from '../lib/api';
 import { useLocal } from '../lib/hooks';
 import { setPrefs, themeStyle, usePrefs } from '../lib/prefs';
@@ -10,6 +10,7 @@ import { AccountButton } from '../sq/SqShell';
 import { useIsDesktopLayout } from '../lib/platform';
 import { tr } from '../lib/i18n';
 import { useTheme } from '../lib/theme';
+import { useMobileStyle } from '../lib/mobileStyle';
 
 const CompactCtx = createContext<(v: string | null) => void>(() => {});
 /** Home publishes "My Wall · 1'234.56 CHF" here once the content sheet covers the balances. */
@@ -33,6 +34,7 @@ const MOBILE_TABS = [
 
 export function WalletShell({ children, wide }: { children: ReactNode; wide?: boolean }) {
   const isDesktop = useIsDesktopLayout(); // always false in app mode (native app / app preview)
+  const mobile = useMobileStyle(); // N7 mobile style: native app / touch phone only
   const loc = useLocation();
   const [compact, setCompact] = useState<string | null>(null);
   const { device } = useLocal();
@@ -79,6 +81,33 @@ export function WalletShell({ children, wide }: { children: ReactNode; wide?: bo
               <AccountButton />
             </div>
           </header>
+        ) : mobile ? (
+          /* N7: minimal header — back to Swissquote on the left, small centred logo, inbox + menu on the right. */
+          <header className="mw-m-header sticky top-0 z-30 bg-sq-bg pt-[env(safe-area-inset-top)]">
+            <div className="mx-auto grid h-14 max-w-[720px] grid-cols-[1fr_auto_1fr] items-center gap-1 px-2">
+              <Link to="/sq" className="inline-flex min-h-11 items-center gap-0.5 justify-self-start rounded-full pl-1 pr-2 text-[14px] font-medium text-sq-ink-2" aria-label={tr('Back to Swissquote', 'Retour à Swissquote')}>
+                <ChevronLeft size={20} strokeWidth={1.75} /> <span className={cx(compact && 'max-[399px]:sr-only')}>Swissquote</span>
+              </Link>
+              <Link to="/wallet" className="flex min-h-11 items-center justify-center gap-1.5" aria-label={tr('My Wall home', 'Accueil My Wall')}>
+                {compact ? (
+                  <span className="num mw-toast whitespace-nowrap text-[14px] font-semibold">{compact}</span>
+                ) : (
+                  <>
+                    <Logo size={22} />
+                    <span className="whitespace-nowrap text-[15px] font-semibold">My Wall</span>
+                  </>
+                )}
+              </Link>
+              <div className="flex items-center justify-self-end">
+                <Link to="/inbox" aria-label={tr('Inbox (simulated)', 'Boîte de réception (simulée)')} className="flex size-11 items-center justify-center rounded-full">
+                  <Mail size={21} strokeWidth={1.75} />
+                </Link>
+                <Link to="/wallet/more" aria-label={tr('Menu: plans, security, settings and more', 'Menu : abonnements, sécurité, paramètres et plus')} className="flex size-11 items-center justify-center rounded-full">
+                  <Menu size={22} strokeWidth={1.75} />
+                </Link>
+              </div>
+            </div>
+          </header>
         ) : (
           <header className="sticky top-0 z-30 bg-sq-bg/95 pt-[env(safe-area-inset-top)] backdrop-blur">
             <div className="mx-auto flex h-14 max-w-[720px] items-center gap-2 px-3">
@@ -105,18 +134,18 @@ export function WalletShell({ children, wide }: { children: ReactNode; wide?: bo
           </header>
         )}
 
-        <main key={['/send', '/dapps'].includes(loc.pathname) ? loc.key : loc.pathname} className={cx('mw-page mx-auto px-4', isDesktop ? (wide ? 'max-w-[1200px] px-6 pt-6' : 'max-w-[1200px] px-6 pt-6') : 'max-w-[720px] pb-28 pt-2')}>
+        <main key={['/send', '/dapps'].includes(loc.pathname) ? loc.key : loc.pathname} className={cx('mw-page mx-auto px-4', isDesktop ? (wide ? 'max-w-[1200px] px-6 pt-6' : 'max-w-[1200px] px-6 pt-6') : 'max-w-[720px] pb-28 pt-2', mobile && 'mw-m-main')}>
           {children}
           <DemoFooter />
         </main>
 
         {!isDesktop && (
-          <nav className="fixed inset-x-0 bottom-0 z-30 rounded-t-[16px] bg-sq-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_0_rgba(0,0,0,0.04)]" aria-label={tr('My Wall navigation', 'Navigation My Wall')}>
+          <nav className="mw-bottomnav fixed inset-x-0 bottom-0 z-30 rounded-t-[16px] bg-sq-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_0_rgba(0,0,0,0.04)]" aria-label={tr('My Wall navigation', 'Navigation My Wall')}>
             <div className="mx-auto grid max-w-[720px] grid-cols-4">
               {MOBILE_TABS.map((t) => {
                 const extra = 'also' in t && t.also?.some((p) => loc.pathname.startsWith(p));
                 return (
-                  <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => cx('flex min-h-[60px] flex-col items-center justify-center gap-1 text-[12px]', isActive || extra ? 'font-medium text-sq-orange' : 'text-sq-ink-2')}>
+                  <NavLink key={t.to} to={t.to} end={t.end} data-active={extra ? 'true' : undefined} className={({ isActive }) => cx('flex min-h-[60px] flex-col items-center justify-center gap-1 text-[12px]', isActive || extra ? 'font-medium text-sq-orange' : 'text-sq-ink-2')}>
                     <t.icon size={24} strokeWidth={1.75} />
                     {t.label}
                   </NavLink>
@@ -145,7 +174,7 @@ export function MoreMenu() {
   return (
     <div>
       <h1 className="mb-4 text-[22px] font-semibold tracking-tight">{tr('More', 'Plus')}</h1>
-      <ul className="overflow-hidden rounded-[12px] bg-sq-surface">
+      <ul className="mw-group overflow-hidden rounded-[12px] bg-sq-surface">
         {items.map((it) => (
           <li key={it.to} className="border-b border-sq-line last:border-0">
             <Link to={it.to} className="flex min-h-[64px] items-center gap-3 px-4 py-3 hover:bg-sq-bg/60">
@@ -159,7 +188,7 @@ export function MoreMenu() {
           </li>
         ))}
       </ul>
-      <div className="mt-4 flex gap-4 text-[13px] text-sq-muted">
+      <div className="mw-more-links mt-4 flex gap-4 text-[13px] text-sq-muted">
         <Link to="/admin" className="underline underline-offset-4">
           {tr('Swissquote console (simulated)', 'Console Swissquote (simulée)')}
         </Link>

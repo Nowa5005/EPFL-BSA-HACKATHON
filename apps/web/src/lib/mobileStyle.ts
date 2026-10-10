@@ -24,9 +24,19 @@ function apply() {
   if (typeof document !== 'undefined') document.documentElement.classList.toggle(MOBILE_STYLE_CLASS, current());
 }
 
+// Soft keyboard open (mobile style only): the bottom navigation steps aside so it never covers the focused field.
+function keyboard() {
+  const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+  if (!vv) return;
+  const field = document.activeElement?.matches?.('input:not([type=checkbox]):not([type=radio]), textarea, select, [contenteditable="true"]') ?? false;
+  document.documentElement.classList.toggle('mw-kb-open', current() && field && window.innerHeight - vv.height > 150);
+}
+
 if (typeof window !== 'undefined') {
   apply();
   mq()?.addEventListener?.('change', apply);
+  window.visualViewport?.addEventListener('resize', keyboard);
+  window.addEventListener('focusout', () => setTimeout(keyboard, 50));
 }
 
 export function useMobileStyle() {

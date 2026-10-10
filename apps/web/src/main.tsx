@@ -4,6 +4,8 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './index.css';
 import './lib/theme'; // applies System / Light / Dark (N5)
+import './lib/mobileStyle'; // html.mw-mobile in the native app / on a touch phone only (N7)
+import './styles/mobile.css';
 import { getDevice, getSession, saveDevice, saveSession } from './lib/device';
 import { cosigner, ApiError } from './lib/api';
 
