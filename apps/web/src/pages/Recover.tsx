@@ -4,6 +4,8 @@ import { ArrowLeft, Check, CircleCheck, CircleX, FileKey2, Fingerprint, HardDriv
 import { Wallet, sha256 } from 'ethers';
 import { buildSafeTx, decodeRecoveryCode, decryptShareOffline, parseShare2Record, questionLabel, reconstructK3FromShares, sealWithPassword, signSafeTx, swapOwnerData, type PasswordSealed, type Share2Record } from '@sq/shared';
 import { openShareWithSecurityKey } from '../lib/securityKey';
+import { recoveryQueueSafeTx } from '@sq/shared/protection';
+import { getProtection } from '../lib/protection';
 import { bank, cosigner, partner } from '../lib/api';
 import { encryptKey, guessDeviceType, lock, registerPasskey, saveDevice, saveSession, setUnlocked } from '../lib/device';
 import { checkPassword } from '../lib/passwordPolicy';
@@ -264,7 +266,11 @@ export default function Recover() {
       set(++i, 'doing');
       const on = await cosigner.get(`/clients/${session!.clientId}/onchain`);
       const client = await cosigner.get(`/clients/${session!.clientId}`);
-      const tx = buildSafeTx({ to: safeAddress, data: swapOwnerData(on.owners, client.owners.device, k1.address), nonce: on.nonce });
+      // Protected wallet: K3 + K2 can no longer swap directly — the swap is queued in the delay module D1 (on-chain countdown).
+      const prot = await getProtection(session!.clientId).catch(() => null);
+      const tx = prot?.protected && prot.config
+        ? recoveryQueueSafeTx(safeAddress, prot.config.d1, on.owners, client.owners.device, k1.address, on.nonce).safeTx
+        : buildSafeTx({ to: safeAddress, data: swapOwnerData(on.owners, client.owners.device, k1.address), nonce: on.nonce });
       const signatureK3 = await signSafeTx(k3!, safeAddress, tx);
       setK3(null); // the recovery key leaves memory
       set(i, 'done', tr('Old key → new key', 'Ancienne clé → nouvelle clé'));
@@ -561,6 +567,12 @@ function Waiting({ pending, onReset }: { pending: Pending; onReset: () => void }
             <div className="num text-[48px] font-semibold">{mmss(left)}</div>
             <div className="text-[14px] text-sq-muted">{r.status === 'executing' ? tr('Replacing the keys on Ethereum…', 'Remplacement des clés sur Ethereum…') : tr('before your new device is activated', 'avant l’activation de votre nouvel appareil')}</div>
             <div className="text-[12px] text-sq-muted">{tr('2 minutes in this demo · 48 hours in production', '2 minutes dans cette démo · 48 heures en production')}</div>
+            {r.onchain && (
+              <div className="text-[12px] text-sq-muted">
+                {tr('Countdown enforced by the blockchain (delay module D1) — ', 'Compte à rebours imposé par la blockchain (module de délai D1) — ')}
+                <TxLink hash={r.onchain.queueTx}>{tr('queued on-chain', 'mis en file on-chain')}</TxLink>
+              </div>
+            )}
           </Card>
           <Why>
             {tr(

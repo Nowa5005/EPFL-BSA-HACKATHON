@@ -4,6 +4,7 @@
 
 import { ZeroAddress, getAddress, isAddress } from 'ethers';
 import { TOKEN_SELECTORS, USDC_ADDRESS, erc20Iface, safeIface, type SafeTx } from '@sq/shared';
+import { SAFE_MULTISEND_CALL_ONLY, delayIface } from '@sq/shared/protection';
 import { t } from '@sq/shared/server';
 import { HttpError } from './db';
 
@@ -98,4 +99,46 @@ export function validateSafeTx(raw: SafeTx, safeAddress: string, opts: { allowOw
       `jeton non reconnu (${tx.to.slice(0, 6)}…${tx.to.slice(-4)}) : Swissquote ne co-signe jamais de transfert, d’autorisation ni d’appel sur un jeton hors de sa liste. Les jetons inconnus sont souvent des arnaques — n’y touchez pas.`,
     );
   throw bad('unrecognised operation (unsupported contract or function)', 'opération non reconnue (contrat ou fonction non pris en charge)');
+}
+
+// ───────────────────────────── On-chain protection (MyWallGuard + Zodiac Delay) ─────────────────────────────
+// Each route below accepts exactly ONE canonical shape and nothing broader; the general route (validateSafeTx)
+// still refuses every call to the Safe itself, to a Delay module or to the guard.
+
+const noRefund = (tx: SafeTx) =>
+  tx.safeTxGas === '0' && tx.baseGas === '0' && tx.gasPrice === '0' && tx.gasToken === ZeroAddress && tx.refundReceiver === ZeroAddress;
+
+/** K1 + K2 setup / admin batch: byte-for-byte the batch the co-signer built itself (DELEGATECALL to MultiSendCallOnly). */
+export function validateProtectionBatch(raw: SafeTx, expectedData: string) {
+  const tx = canonicalSafeTx(raw);
+  if (tx.operation !== 1 || getAddress(tx.to) !== getAddress(SAFE_MULTISEND_CALL_ONLY)) throw bad('a protection batch must be a DELEGATECALL to MultiSendCallOnly', 'un lot de protection doit être un DELEGATECALL vers MultiSendCallOnly');
+  if (tx.value !== '0' || !noRefund(tx)) throw bad('no ETH and no gas refund in a protection batch', 'ni ETH ni remboursement de gas dans un lot de protection');
+  if (tx.data !== expectedData.toLowerCase()) throw bad('the protection batch differs from the canonical one', 'le lot de protection diffère du lot canonique');
+}
+
+/** Veto: Delay.setTxNonce(n) on one of this wallet's own Delay modules, plain CALL. */
+export function validateVeto(raw: SafeTx, delays: string[]): { delay: string; newTxNonce: bigint } {
+  const tx = canonicalSafeTx(raw);
+  if (tx.operation !== 0 || tx.value !== '0' || !noRefund(tx)) throw bad('a veto is a plain call without ETH', 'un veto est un simple appel sans ETH');
+  if (!delays.some((d) => getAddress(d) === getAddress(tx.to))) throw bad('not one of this wallet’s delay modules', 'pas un module de délai de ce wallet');
+  const fn = delayIface.getFunction('setTxNonce')!;
+  if (tx.data.slice(0, 10) !== fn.selector) throw bad('a veto must call setTxNonce', 'un veto doit appeler setTxNonce');
+  const [n] = delayIface.decodeFunctionData(fn, tx.data);
+  if (delayIface.encodeFunctionData(fn, [n]).toLowerCase() !== tx.data) throw bad('non-canonical calldata', 'calldata non canonique');
+  return { delay: getAddress(tx.to), newTxNonce: n as bigint };
+}
+
+/** Device recovery on a protected wallet: D1.execTransactionFromModule(Safe, 0, swapOwner(...), CALL). */
+export function validateRecoveryQueue(raw: SafeTx, safeAddress: string, d1: string): Extract<Intent, { kind: 'swap-owner' }> {
+  const tx = canonicalSafeTx(raw);
+  if (getAddress(tx.to) !== getAddress(d1)) throw bad('the recovery must be queued in the wallet’s delay module D1', 'la récupération doit être mise en file dans le module de délai D1 du wallet');
+  if (tx.operation !== 0 || tx.value !== '0' || !noRefund(tx)) throw bad('a queued recovery is a plain call without ETH', 'une récupération en file est un simple appel sans ETH');
+  const fn = delayIface.getFunction('execTransactionFromModule')!;
+  if (tx.data.slice(0, 10) !== fn.selector) throw bad('the recovery must queue a transaction', 'la récupération doit mettre une transaction en file');
+  const [to, value, data, operation] = delayIface.decodeFunctionData(fn, tx.data);
+  if (delayIface.encodeFunctionData(fn, [to, value, data, operation]).toLowerCase() !== tx.data) throw bad('non-canonical calldata', 'calldata non canonique');
+  if (getAddress(to) !== getAddress(safeAddress) || value !== 0n || Number(operation) !== 0) throw bad('the queued recovery must be a key replacement on the wallet itself', 'la récupération en file doit être un remplacement de clé sur le wallet lui-même');
+  const inner = validateSafeTx({ ...tx, to: getAddress(safeAddress), data: String(data).toLowerCase() }, safeAddress, { allowOwnerChange: true });
+  if (inner.kind !== 'swap-owner') throw bad('only a key replacement (swapOwner) is accepted', 'seul le remplacement de clé (swapOwner) est accepté');
+  return inner;
 }

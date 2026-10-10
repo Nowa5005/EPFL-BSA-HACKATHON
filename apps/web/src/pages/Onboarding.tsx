@@ -13,6 +13,7 @@ import {
   splitRecoveryKey,
 } from '@sq/shared';
 import { bank, cosigner, partner } from '../lib/api';
+import { activateProtection } from '../lib/protection';
 import { encryptKey, guessDeviceType, registerPasskey, saveDevice, setUnlocked } from '../lib/device';
 import { checkPassword } from '../lib/passwordPolicy';
 import { useLocal } from '../lib/hooks';
@@ -83,6 +84,7 @@ export default function Onboarding() {
       tr('Encrypting with your password', 'Chiffrement avec votre mot de passe'),
       tr('Preparing your backup key (3 parts)', 'Préparation de votre clé de secours (3 parties)'),
       tr('Opening your wallet on Ethereum (fees covered)', 'Ouverture de votre wallet sur Ethereum (frais offerts)'),
+      tr('Activating on-chain protection (security delays)', 'Activation de la protection on-chain (délais de sécurité)'),
       tr('Sending part ③ to the recovery partner', 'Envoi de la partie ③ au partenaire de récupération'),
       tr('Keeping a sealed copy of part ① on this device', 'Copie scellée de la partie ① sur cet appareil'),
       tr('Registering the wallet in your name', 'Enregistrement du wallet à votre nom'),
@@ -111,6 +113,16 @@ export default function Onboarding() {
       set(++i, 'doing', tr('Usually 10 to 20 seconds…', 'En général 10 à 20 secondes…'));
       const dep = await cosigner.post('/wallets/deploy', { clientId, deviceAddress: k1.address, recoveryAddress: k3.address });
       set(i, 'done', <TxLink hash={dep.txHash}>{tr('2-of-3 wallet opened', 'Wallet 2 sur 3 ouvert')}</TxLink>);
+
+      // Guard + delay modules (K1 + K2 batch, signed here with the brand-new device key). Not blocking: if it fails,
+      // the wallet works as before and "Upgrade wallet security" in Security activates it later.
+      set(++i, 'doing');
+      try {
+        const prot = await activateProtection(clientId, dep.safeAddress, k1);
+        set(i, 'done', <TxLink hash={prot.txHash}>{tr('Only your device + Swissquote act immediately', 'Seuls votre appareil + Swissquote agissent immédiatement')}</TxLink>);
+      } catch (e: any) {
+        set(i, 'error', tr(`Not activated (${e.message}) — you can enable it later in Security`, `Non activée (${e.message}) — vous pourrez l’activer plus tard dans Sécurité`));
+      }
 
       set(++i, 'doing');
       await partner.post('/shares', {

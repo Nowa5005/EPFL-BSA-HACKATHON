@@ -102,6 +102,8 @@ export async function cosignAndExecute(
   tx: SafeTx,
   otherSig: { signer: string; signature: string },
   onSent?: (hash: string) => void,
+  /** protection setup batches deploy 2 module proxies: they get their own (higher) sponsoring cap */
+  opts: { maxGas?: bigint } = {},
 ) {
   const k2 = cosignerWallet(clientId);
   const sigK2 = await signSafeTx(k2, safeAddress, tx);
@@ -110,7 +112,7 @@ export async function cosignAndExecute(
   return relayerTask(async () => {
     const est: bigint = await safe.execTransaction.estimateGas(...execArgs(tx, signatures));
     const gasLimit = (est * 13n) / 10n;
-    if (gasLimit > BigInt(POLICY.maxSponsoredGas)) throw new Error(`Gas ${gasLimit} above sponsoring cap`);
+    if (gasLimit > (opts.maxGas ?? BigInt(POLICY.maxSponsoredGas))) throw new Error(`Gas ${gasLimit} above sponsoring cap`);
     const sent = await safe.execTransaction(...execArgs(tx, signatures), { gasLimit });
     onSent?.(sent.hash);
     const receipt: TransactionReceipt | null = await sent.wait(CONFIRMATIONS);
@@ -123,7 +125,7 @@ export async function cosignAndExecute(
       }
     });
     if (failure) throw new Error('Safe reported ExecutionFailure');
-    return { txHash: sent.hash as string, gasUsed: receipt.gasUsed.toString() };
+    return { txHash: sent.hash as string, gasUsed: receipt.gasUsed.toString(), receipt };
   });
 }
 
