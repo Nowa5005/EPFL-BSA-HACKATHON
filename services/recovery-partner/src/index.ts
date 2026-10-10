@@ -56,7 +56,17 @@ interface Attestation {
   expiresAt: string;
 }
 
-const store = new JsonStore<{ shares: Record<string, ShareRecord>; sessions: Record<string, Session>; attestations: Record<string, Attestation> }>(
+/** New share ③ prepared during a recovery-kit replacement; activated only once the co-signer confirms the on-chain swap. */
+interface StagedShare {
+  clientId: string;
+  share: string;
+  paperCommitment: string;
+  share2Commitment: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+const store = new JsonStore<{ shares: Record<string, ShareRecord>; sessions: Record<string, Session>; attestations: Record<string, Attestation>; staged?: Record<string, StagedShare> }>(
   DATA_DIR,
   'partner',
   () => ({ shares: {}, sessions: {}, attestations: {} }),
@@ -86,7 +96,11 @@ const app = express();
 const security = createSecurity({
   service: 'recovery-partner',
   publicRoutes: [['GET', '/health']],
-  internalRoutes: [['GET', '/attestations/:id']], // read by the co-signer only
+  internalRoutes: [
+    ['GET', '/attestations/:id'], // read by the co-signer only
+    ['GET', '/shares/:clientId/staged/:stageId'], // recovery-kit replacement: co-signer checks, then activates
+    ['POST', '/shares/:clientId/commit'],
+  ],
   owner: (req) => {
     const seg = segmentsOf(req.path);
     if (seg[0]?.toLowerCase() === 'shares' && seg.length === 3) return seg[1];
@@ -143,6 +157,57 @@ app.get(
     const r = store.data.shares[String(req.params.clientId)];
     if (!r) throw new HttpError(404, t('No recovery enrolment for this client', 'Aucune inscription de récupération pour ce client'));
     return { clientId: r.clientId, safeAddress: r.safeAddress, questions: r.questions.map((q) => q.question), enrolledAt: r.createdAt };
+  }),
+);
+
+/**
+ * Recovery-kit replacement (new recovery key K3′): the client stages the new share ③. It is NOT active until the
+ * co-signer has executed swapOwner(K3 → K3′) on-chain (internal commit below) — a stolen session cannot overwrite the
+ * live share. Identity data and hashed questions of the enrolment are kept.
+ */
+app.post(
+  '/shares/:clientId/stage',
+  route((req) => {
+    const clientId = String(req.params.clientId);
+    if (!store.data.shares[clientId]) throw new HttpError(404, t('No recovery enrolment for this client', 'Aucune inscription de récupération pour ce client'));
+    const { share, paperCommitment, share2Commitment } = req.body as { share: string; paperCommitment: string; share2Commitment: string };
+    const hex = (v: unknown, n: number) => typeof v === 'string' && new RegExp(`^0x[0-9a-fA-F]{${n}}$`).test(v);
+    if (!hex(share, 66) || !hex(paperCommitment, 64) || !hex(share2Commitment, 64)) throw new HttpError(400, t('Invalid share data', 'Données de part invalides'));
+    const id = newId();
+    const now = Date.now();
+    store.update((d) => {
+      d.staged ??= {};
+      for (const [k, v] of Object.entries(d.staged)) if (v.clientId === clientId || new Date(v.expiresAt).getTime() < now) delete d.staged[k];
+      d.staged[id] = { clientId, share, paperCommitment, share2Commitment, createdAt: nowIso(), expiresAt: new Date(now + 60 * 60_000).toISOString() };
+    });
+    return { stageId: id };
+  }),
+);
+
+app.get(
+  '/shares/:clientId/staged/:stageId',
+  route((req) => {
+    const s = store.data.staged?.[String(req.params.stageId)];
+    if (!s || s.clientId !== String(req.params.clientId) || new Date(s.expiresAt) < new Date()) throw new HttpError(404, t('Unknown staged share', 'Part préparée inconnue'));
+    return { staged: true, createdAt: s.createdAt };
+  }),
+);
+
+app.post(
+  '/shares/:clientId/commit',
+  route((req) => {
+    const clientId = String(req.params.clientId);
+    const stageId = String(req.body?.stageId ?? '');
+    const s = store.data.staged?.[stageId];
+    if (!s || s.clientId !== clientId) throw new HttpError(404, t('Unknown staged share', 'Part préparée inconnue'));
+    store.update((d) => {
+      const rec = d.shares[clientId];
+      Object.assign(rec, { share: s.share, paperCommitment: s.paperCommitment, share2Commitment: s.share2Commitment, createdAt: nowIso() });
+      if (req.body?.safeAddress) rec.safeAddress = String(req.body.safeAddress);
+      delete d.staged![stageId];
+    });
+    console.log(`[partner] share ③ replaced for ${clientId} (new recovery key — the old share is deleted)`);
+    return { committed: true };
   }),
 );
 

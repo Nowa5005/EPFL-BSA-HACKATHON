@@ -30,6 +30,7 @@ import {
   type SecurityKeyShare,
 } from '@sq/shared';
 import { internalHeaders, loadDotenv } from '@sq/shared/server';
+import { DELAY_ABI, readProtection } from '@sq/shared/protection';
 
 loadDotenv(); // INTERNAL_API_TOKEN (dev only) to obtain a session token for the headless client
 const provider = makeProvider();
@@ -265,7 +266,41 @@ async function main() {
   step('5b', 'EXTERNAL RECEIPT — a third party pays the Safe directly; the on-chain indexer records row + receipt (#3)');
   await externalReceiptStep({ provider, clientId, safe, call, ok, info });
 
-  const state = { clientId, safe, deployTx: dep.txHash, tx1: tx1.txHash, recoveryTx: r.txHash, tx2: tx2.txHash, at: new Date().toISOString() };
+  step(6, 'REPLACE THE RECOVERY KIT — new K3′ split again, K3 → K3′ swapped on-chain by K1′ + K2 (old parts retired; guard + D2 updated in the same batch if protected)');
+  const k3next = Wallet.createRandom();
+  const sharesNext = await splitRecoveryKey(k3next.privateKey);
+  const prfSaltNext = newPrfSalt();
+  const share2Next = await encryptShareWithPrf({ safeAddress: safe, share: sharesNext.key, prfOutput: TEST_ONLY_simulatePrf(testKeySecret, prfSaltNext), credentialId: 'ZTJlLXRlc3Qtc2VjdXJpdHkta2V5', rpId: 'localhost', prfSalt: prfSaltNext });
+  const stage = await call('POST', `${P}/shares/${clientId}/stage`, { share: sharesNext.partner, paperCommitment: sha256(sharesNext.paper), share2Commitment: sha256(sharesNext.key) });
+  let rotated: any;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const prepRot = await call('POST', `${C}/clients/${clientId}/recovery-kit/rotation/prepare`, { newRecoveryAddress: k3next.address }, true);
+    if (prepRot._status >= 400) throw new Error(`rotation prepare failed: ${JSON.stringify(prepRot)}`);
+    const sigRot = await signSafeTx(k1new, safe, prepRot.safeTx);
+    rotated = await call('POST', `${C}/clients/${clientId}/recovery-kit/rotation/submit`, { signatureK1: sigRot, share2: { method: 'security-key', record: share2Next }, partnerStageId: stage.stageId }, true);
+    if (rotated._status !== 409 && rotated._status !== 502) break;
+    await sleep(4000); // lagging RPC node: stale nonce
+  }
+  {
+    if (rotated._status >= 400) throw new Error(`recovery-key rotation failed: ${JSON.stringify(rotated)}`);
+    ok(`Recovery key replaced ON-CHAIN (K1′ + K2, immediate): ${explorerTx(rotated.txHash)}`);
+    const owners4: string[] = (await s.getOwners()).map((o: string) => o.toLowerCase());
+    if (!owners4.includes(k3next.address.toLowerCase()) || owners4.includes(k3.address.toLowerCase())) throw new Error('K3 rotation not reflected on-chain');
+    if (!rotated.partnerCommitted) throw new Error('Partner did not activate the new share ③');
+    const prot = await readProtection(provider, safe);
+    if (prot.config) {
+      const d2 = new Contract(prot.config.d2, DELAY_ABI, provider);
+      if (prot.config.k3 !== k3next.address || !(await d2.isModuleEnabled(k3next.address)) || (await d2.isModuleEnabled(k3.address))) throw new Error('Guard / D2 still point to the old K3');
+      ok('Protected wallet: guard configuration and D2 now point to K3′ (same batch)');
+    }
+    // Old paper code + old part ② still rebuild the OLD key — which no longer owns anything.
+    const oldK3 = await reconstructK3FromShares([typed.share, fromKey]);
+    if (owners4.includes(oldK3.address.toLowerCase())) throw new Error('Old recovery key still an owner');
+    ok('Old paper code + old part ② now rebuild a key that owns nothing; new paper + new security key rebuild K3′');
+    await reconstructK3FromShares([sharesNext.paper, await decryptShareWithPrf(share2Next, TEST_ONLY_simulatePrf(testKeySecret, prfSaltNext))], { expectedAddress: k3next.address });
+  }
+
+  const state = { clientId, safe, deployTx: dep.txHash, tx1: tx1.txHash, recoveryTx: r.txHash, tx2: tx2.txHash, recoveryKeyRotationTx: rotated.txHash, at: new Date().toISOString() };
   fs.writeFileSync(new URL('./.e2e-state.json', import.meta.url), JSON.stringify(state, null, 2));
   console.log(`\n\x1b[1m\x1b[32m✅ E2E PASSED in ${Math.round((Date.now() - t0) / 1000)}s\x1b[0m — Safe ${explorerAddress(safe)}`);
 }

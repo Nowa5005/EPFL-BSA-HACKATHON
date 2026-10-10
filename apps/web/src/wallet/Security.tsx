@@ -16,6 +16,7 @@ import { PasswordChecklist } from '../components/PasswordChecklist';
 import { BackupCodeCard, FreezeCard } from './SecurityExtras';
 import { CosignerDecisions, YourGuarantees } from '../components/Refusal';
 import { tr } from '../lib/i18n';
+import { RecoveryKitCard } from './RecoveryKitCard';
 
 const REVEAL_SEC = 30;
 type Secret = { kind: 'k1' | 'code'; value: string; until: number };
@@ -105,6 +106,8 @@ export default function Security() {
       />
 
       {asking && <Reauth clientId={session!.clientId} onCancel={() => setAsking(null)} onDone={onAuthed} />}
+
+      <RecoveryKitCard />
 
       <BackupCodeCard clientId={session!.clientId} />
 
