@@ -24,7 +24,7 @@ const fmtT = (t: number, spanMs: number) =>
   new Date(t).toLocaleString(locale(), { timeZone: 'Europe/Zurich', ...(spanMs <= 2 * 864e5 ? { hour: '2-digit', minute: '2-digit' } : { day: '2-digit', month: 'short' }) });
 const fmtFull = (t: number) => new Date(t).toLocaleString(locale(), { timeZone: 'Europe/Zurich', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-export function LineChart({ points, unit = 'CHF', markers = [], label, from, to }: { points: ChartPoint[]; unit?: string; markers?: ChartMarker[]; label: string; from?: number; to?: number }) {
+export function LineChart({ points, unit = 'CHF', markers = [], label, from, to, color = 'var(--color-sq-chart)' }: { points: ChartPoint[]; unit?: string; markers?: ChartMarker[]; label: string; from?: number; to?: number; color?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(320);
   const [hover, setHover] = useState<number | null>(null);
@@ -104,9 +104,9 @@ export function LineChart({ points, unit = 'CHF', markers = [], label, from, to 
           {fmtT(t1, t1 - t0)}
         </text>
         {segs.map((d, i) => (
-          <path key={i} d={d} fill="none" stroke="var(--color-sq-chart)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+          <path key={i} d={d} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
         ))}
-        {valued.length === 1 && <circle cx={x(valued[0].t)} cy={y(valued[0].v)} r={4} fill="var(--color-sq-chart)" />}
+        {valued.length === 1 && <circle cx={x(valued[0].t)} cy={y(valued[0].v)} r={4} fill={color} />}
         {markers
           .filter((m) => m.t >= t0 && m.t <= t1)
           .map((m, i) => {
@@ -122,7 +122,7 @@ export function LineChart({ points, unit = 'CHF', markers = [], label, from, to 
         {h && (
           <g pointerEvents="none">
             <line x1={x(h.t)} x2={x(h.t)} y1={PAD.t} y2={H - PAD.b} stroke="var(--color-sq-muted)" strokeWidth={1} strokeDasharray="3 3" />
-            <circle cx={x(h.t)} cy={y(h.v)} r={4} fill="var(--color-sq-chart)" stroke="var(--color-sq-surface)" strokeWidth={2} />
+            <circle cx={x(h.t)} cy={y(h.v)} r={4} fill={color} stroke="var(--color-sq-surface)" strokeWidth={2} />
           </g>
         )}
       </svg>

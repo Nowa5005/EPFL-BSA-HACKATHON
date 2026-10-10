@@ -7,6 +7,7 @@ import { explorerAddress } from '@sq/shared';
 import { tr } from '../lib/i18n';
 import { fmtChf, RateNote, sumValues, useRates, valueOf } from '../lib/valuation';
 import { CryptoList } from './CryptoList';
+import { AssetDot } from '../lib/assetColors';
 import { PortfolioChart } from './PortfolioChart';
 import { bank, cosigner } from '../lib/api';
 import { useLocal, usePoll, useWalletData, useWalletTxs } from '../lib/hooks';
@@ -265,7 +266,8 @@ function SheetHandle() {
 function AssetTile({ sym, name, amount, chfv, decimals = 2 }: { sym: string; name: string; amount: number; chfv: number | null; decimals?: number }) {
   return (
     <Link to={`/asset/${sym}`} className="block rounded-[10px] border border-sq-line bg-sq-surface px-3.5 py-3 transition-colors hover:border-sq-muted/50">
-      <div className="flex items-center gap-1 text-[13px] text-sq-ink-2">
+      <div className="flex items-center gap-1.5 text-[13px] text-sq-ink-2">
+        <AssetDot symbol={sym} />
         <span className="flex-1">{name}</span>
         <ChevronRight size={16} strokeWidth={1.75} className="text-sq-muted" />
       </div>

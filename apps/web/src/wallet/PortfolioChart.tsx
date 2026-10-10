@@ -11,6 +11,7 @@ import { useHistory, type Range } from '../lib/market';
 import { tr } from '../lib/i18n';
 import { Card, cx, dateTime, Pill, Skeleton } from '../components/ui';
 import { LineChart, type ChartMarker } from './LineChart';
+import { assetColor } from '../lib/assetColors';
 
 type SnapRange = '24h' | '7d' | '1M' | '1Y';
 type View = 'total' | 'ETH' | 'USDC';
@@ -102,7 +103,7 @@ export function PortfolioChart({ clientId, initialView = 'total', lockView }: { 
         </div>
       ) : (
         <div data-testid="chart-personal">
-          <LineChart points={points} markers={markers} unit="CHF" label={`${title}, ${r.label()}`} from={new Date(s.from).getTime()} to={new Date(s.to).getTime()} />
+          <LineChart points={points} markers={markers} unit="CHF" color={view === 'total' ? undefined : assetColor(view)?.fg} label={`${title}, ${r.label()}`} from={new Date(s.from).getTime()} to={new Date(s.to).getTime()} />
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-sq-muted">
             <span className="inline-flex items-center gap-1">
               <svg width="10" height="10" aria-hidden><path d="M5,0 L10,9 L0,9 Z" fill="var(--color-sq-up)" /></svg> {tr('Deposit', 'Dépôt')}
@@ -127,7 +128,7 @@ export function PortfolioChart({ clientId, initialView = 'total', lockView }: { 
           <h3 className="text-[14px] font-semibold">{tr(`${marketAsset} market price (not your portfolio)`, `Cours de marché ${marketAsset} (pas votre portefeuille)`)}</h3>
           {market.data && market.data.points.length ? (
             <>
-              <LineChart points={market.data.points} unit={market.data.currency} label={tr(`${marketAsset} market price, ${r.label()}`, `Cours ${marketAsset}, ${r.label()}`)} />
+              <LineChart points={market.data.points} unit={market.data.currency} color={assetColor(marketAsset)?.fg} label={tr(`${marketAsset} market price, ${r.label()}`, `Cours ${marketAsset}, ${r.label()}`)} />
               <p className={cx('text-[12px]', market.data.stale ? 'text-sq-warn' : 'text-sq-muted')}>
                 {market.data.provider} · {tr('updated', 'mis à jour')} {dateTime(market.data.fetchedAt)}
                 {market.data.stale && ` · ${tr('last known data', 'dernières données connues')}`}

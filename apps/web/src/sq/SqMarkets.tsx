@@ -11,6 +11,7 @@ import WatchlistTab from './content/WatchlistTab';
 import InspirationTab from './content/InspirationTab';
 import NewsTab from './content/NewsTab';
 import AlertsTab from './content/AlertsTab';
+import { AssetAvatar, assetColor } from '../lib/assetColors';
 
 type Tab = 'watchlists' | 'inspiration' | 'markets' | 'news' | 'alerts';
 const TABS: Tab[] = ['watchlists', 'inspiration', 'markets', 'news', 'alerts'];
@@ -199,9 +200,13 @@ function MarketsList({ filter, setFilter }: { filter: ListId; setFilter: (f: Lis
                   {r.m.kind === 'index' ? (
                     <span className="w-8 shrink-0" />
                   ) : (
-                    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sq-orange text-[13px] font-semibold text-white" aria-hidden>
-                      {r.m.symbol[0]}
-                    </span>
+                    assetColor(r.m.id) ? (
+                      <AssetAvatar symbol={r.m.symbol} id={r.m.id} size={32} />
+                    ) : (
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sq-orange text-[13px] font-semibold text-white" aria-hidden>
+                        {r.m.symbol[0]}
+                      </span>
+                    )
                   )}
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[16px] text-sq-ink">{r.m.symbol}</span>

@@ -12,6 +12,7 @@ import { Button, Card, cx, fmt, Notice, Skeleton, Spinner } from '../components/
 import { SqMobileTop } from './SqShell';
 import { ChangeTag, delayLabel, exchangeTime, fmtPrice, kindLabel, marketStateLabel, PriceChart } from './marketUi';
 import { OrderTicket } from './OrderTicket';
+import { AssetAvatar, assetColor } from '../lib/assetColors';
 
 /** Accepts the likely shapes of GET /clients/:id/watchlist (content package) and returns the instrument ids. */
 function watchIds(r: any): string[] {
@@ -75,7 +76,10 @@ export default function InstrumentPage() {
       ) : (
         <>
           <header className="mt-1">
-            <h1 className="text-[22px] font-semibold tracking-tight lg:text-[26px]">{q?.name ?? <Skeleton className="h-7 w-48" />}</h1>
+            <h1 className="flex items-center gap-2.5 text-[22px] font-semibold tracking-tight lg:text-[26px]">
+              {assetColor(id) && <AssetAvatar symbol={symbol} id={id} size={32} />}
+              {q?.name ?? <Skeleton className="h-7 w-48" />}
+            </h1>
             <p className="num text-[13px] text-sq-muted">
               {symbol}
               {q && ` · ${kindLabel(q.kind)} · ${q.exchange || '—'} · ${q.currency}`}

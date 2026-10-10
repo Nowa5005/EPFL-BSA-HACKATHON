@@ -9,6 +9,7 @@ import { Card, cx, fmt, MockBadge, Skeleton, Tile } from '../components/ui';
 import { Money, setPrefs } from '../lib/prefs';
 import { SqMobileTop } from './SqShell';
 import { PORTFOLIO } from './mockMarkets';
+import { AssetDot } from '../lib/assetColors';
 import { ChangeTag, fmtPrice, rowTime } from './marketUi';
 
 /** Thin blue line chart with a very light gradient (hand-made SVG, no chart library). */
@@ -217,7 +218,10 @@ function HomeMarkets() {
                   {q ? (
                     <>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[15px] text-sq-ink">{q.symbol}</span>
+                        <span className="flex items-center gap-1.5 truncate text-[15px] text-sq-ink">
+                          <AssetDot symbol={id} />
+                          {q.symbol}
+                        </span>
                         <span className="num block truncate text-[11px] text-sq-muted">
                           {q.stale ? `${tr('stale', 'périmé')} · ` : ''}
                           {rowTime(q)} · {q.provider}

@@ -15,7 +15,7 @@
      sq-up / sq-down        price up/down TEXT on surfaces; sq-up-solid / sq-down-solid / sq-warn-solid FILLED badges (white text)
      sq-dark / sq-on-dark   strong neutral fill (round actions) and its foreground (inverts in dark mode)
      sq-warn (+ -50), sq-ok-50, sq-bad-50   notice text / tinted backgrounds
-     sq-chart     neutral chart line         --asset-*    per-asset colours (lib/assetColors.ts)
+     sq-chart     neutral chart line         --asset-*    per-asset colours (lib/assetColors.tsx)
    Contrast (WCAG AA ≥ 4.5 for text) is checked for both palettes in apps/web/test/theme.test.ts.
    PDFs / printed documents always use the light palette (jsPDF draws its own colours; print CSS forces white). */
 @theme {
@@ -49,7 +49,7 @@
   --radius-badge: 4px;
 }
 
-/* Per-asset colours (N8) — consumed through lib/assetColors.ts. Light / dark nuances. */
+/* Per-asset colours (N8) — consumed through lib/assetColors.tsx. Light / dark nuances. */
 :root {
   color-scheme: light;
   --asset-eth: #4c62c9;

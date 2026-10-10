@@ -1,10 +1,10 @@
 // "My crypto" widget: every asset actually held (on-chain ETH and USDC on Sepolia, plus the demo-only simulated
-// USDC, labelled as such), with quantity and position value (masked by default), unit market price and its 24 h
+// USDC, labelled as such), with quantity and position value, unit market price and its 24 h
 // change (public data, always visible). Prices: shared market-data layer (CoinGecko CHF, indicative).
 
 import { Link } from 'react-router-dom';
 import { ArrowDownRight, ArrowUpRight, ChevronRight, Minus } from 'lucide-react';
-import { useMasked } from '../lib/prefs';
+import { AssetAvatar } from '../lib/assetColors';
 import { tr } from '../lib/i18n';
 import { fmtChf, RateNote, valueOf, type Rates, type WalletAsset } from '../lib/valuation';
 import { Card, cx, fmt, MockBadge } from '../components/ui';
@@ -46,7 +46,6 @@ export function Change({ pct }: { pct: number | null | undefined }) {
 }
 
 export function CryptoList({ onchain, rates, ratesLoading }: { onchain: any; rates: Rates; ratesLoading?: boolean }) {
-  const masked = useMasked();
   const rows = holdingsOf(onchain);
   return (
     <Card className="min-w-0" as="section">
@@ -61,7 +60,7 @@ export function CryptoList({ onchain, rates, ratesLoading }: { onchain: any; rat
           return (
             <li key={h.key}>
               <Link to={`/asset/${h.asset}`} className="flex min-h-[64px] items-center gap-3 py-2.5 hover:bg-sq-bg/50">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-sq-bg text-[12px] font-semibold">{h.asset}</span>
+                <AssetAvatar symbol={h.asset} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[15px] font-medium">
                     {h.name} {h.simulated && <MockBadge label={tr('Demo', 'Démo')} />}
@@ -76,13 +75,13 @@ export function CryptoList({ onchain, rates, ratesLoading }: { onchain: any; rat
                   </span>
                 </span>
                 <span className="flex shrink-0 flex-col items-end text-right">
-                  <span className="num text-[15px] font-semibold" aria-label={masked ? tr('Amount hidden', 'Montant masqué') : undefined}>
-                    {masked ? '••••••' : value === null ? '—' : `${fmtChf(value)} CHF`}
+                  <span className="num text-[15px] font-semibold">
+                    {value === null ? '—' : `${fmtChf(value)} CHF`}
                   </span>
-                  <span className="num text-[12px] text-sq-muted" aria-label={masked ? tr('Quantity hidden', 'Quantité masquée') : undefined}>
-                    {masked ? `•••• ${h.asset}` : `${h.qty > 0 && h.qty < 10 ** -h.decimals ? `< ${fmt(10 ** -h.decimals, h.decimals)}` : fmt(h.qty, h.decimals)} ${h.asset}`}
+                  <span className="num text-[12px] text-sq-muted">
+                    {`${h.qty > 0 && h.qty < 10 ** -h.decimals ? `< ${fmt(10 ** -h.decimals, h.decimals)}` : fmt(h.qty, h.decimals)} ${h.asset}`}
                   </span>
-                  {!masked && value === null && <span className="text-[11px] text-sq-warn">{tr('CHF value unavailable', 'Contre-valeur indisponible')}</span>}
+                  {value === null && <span className="text-[11px] text-sq-warn">{tr('CHF value unavailable', 'Contre-valeur indisponible')}</span>}
                 </span>
                 <ChevronRight size={18} strokeWidth={1.75} className="shrink-0 text-sq-muted" />
               </Link>
