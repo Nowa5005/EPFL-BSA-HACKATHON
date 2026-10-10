@@ -2,7 +2,6 @@ import { useSearchParams } from 'react-router-dom';
 import { useLocal, useWalletTxs } from '../lib/hooks';
 import { Card, Pill, useMedia } from '../components/ui';
 import { TxListCompact, TxTable } from './TxList';
-import { MaskBar } from './Reveal';
 import { tr } from '../lib/i18n';
 
 const STATUS = [
@@ -35,7 +34,6 @@ export default function Transactions() {
     <div>
       <h1 className="mb-1 text-[22px] font-semibold tracking-tight">Transactions</h1>
       <p className="mb-4 text-[14px] text-sq-muted">{tr('Status: detected → pending → confirmed (or failed). Confirmed = included in an Ethereum block.', 'Statuts : détectée → en attente → confirmée (ou échouée). Confirmée = incluse dans un bloc Ethereum.')}</p>
-      <MaskBar />
       <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
         {STATUS.map((s) => (
           <Pill key={s.id} active={status === s.id} onClick={() => set('status', s.id)}>

@@ -8,7 +8,6 @@ import { useLocal, usePoll, type WalletTxView } from '../lib/hooks';
 import { buildReceipt, downloadReceiptPdf, ReceiptView } from '../lib/receipt';
 import { Button, Card, cx, dateOnly, fmt, inputCls, Notice, Pill, Skeleton, Tabs, useMedia } from '../components/ui';
 import { kindLabel } from './TxList';
-import { MaskBar, useReveal } from './Reveal';
 import { locale, tr } from '../lib/i18n';
 import Swap from './Swap';
 import { AnnualDocuments } from '../components/AnnualDocuments';
@@ -104,11 +103,8 @@ function Documents() {
   }, [filtered]);
 
   const current = filtered.find((d) => d.docId === selected) ?? null;
-  const reveal = useReveal();
   const download = async (d: Doc) => {
     setDlError(null);
-    // the PDF shows the amounts: they must be revealed (passkey) first
-    if (!(await reveal.ensureRevealed())) return;
     try {
       await downloadReceiptPdf(buildReceipt(d.tx, name));
     } catch (e: any) {
@@ -187,7 +183,7 @@ function Documents() {
                 <FileText size={20} strokeWidth={1.75} className="shrink-0 text-sq-ink-2" />
                 <button type="button" onClick={() => setSelected(d.docId)} className="min-w-0 flex-1 text-left">
                   <span className="block text-[14px] font-medium">
-                    {kindLabel(d.tx.kind)} · {reveal.masked ? <span aria-label={tr('Amount hidden', 'Montant masqué')}>••••••</span> : fmt(Number(d.tx.amount), d.tx.asset === 'ETH' ? 5 : 2)} {d.tx.asset}
+                    {kindLabel(d.tx.kind)} · {fmt(Number(d.tx.amount), d.tx.asset === 'ETH' ? 5 : 2)} {d.tx.asset}
                     {d.tx.simulated && <span className="ml-1 text-[12px] font-normal text-sq-muted">{tr('(simulated)', '(simulée)')}</span>}
                   </span>
                   <span className="block text-[12px] text-sq-muted">
@@ -213,8 +209,6 @@ function Documents() {
     return (
       <div className="grid grid-cols-12 gap-5">
         <Card className="col-span-7 space-y-4">
-          <MaskBar />
-          {reveal.error && <p className="text-[12px] text-sq-down" role="alert">{reveal.error}</p>}
           {filters}
           {list}
         </Card>
@@ -239,8 +233,6 @@ function Documents() {
         <button type="button" onClick={() => setSelected(null)} className="-ml-2 inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-[14px] font-medium text-sq-ink-2">
           <ChevronLeft size={18} strokeWidth={1.75} /> Documents
         </button>
-        <MaskBar />
-          {reveal.error && <p className="text-[12px] text-sq-down" role="alert">{reveal.error}</p>}
         <ReceiptView r={buildReceipt(current.tx, name)} />
         <Button onClick={() => download(current)}>
           <Download size={18} strokeWidth={1.75} /> {tr('Download', 'Télécharger')}
@@ -250,8 +242,6 @@ function Documents() {
 
   return (
     <Card className="space-y-4">
-      <MaskBar />
-          {reveal.error && <p className="text-[12px] text-sq-down" role="alert">{reveal.error}</p>}
       {filters}
       {list}
     </Card>

@@ -3,7 +3,6 @@ import { ArrowDownLeft, ArrowUpRight, ChevronRight, Download, Repeat } from 'luc
 import { buildReceipt, downloadReceiptPdf } from '../lib/receipt';
 import type { WalletTxView } from '../lib/hooks';
 import { cx, dateTime, fmt, Skeleton, StatusPill } from '../components/ui';
-import { useMasked } from '../lib/prefs';
 import { tr } from '../lib/i18n';
 import { isSuspicious, ScamFlag } from './scam';
 
@@ -25,14 +24,7 @@ export function KindIcon({ kind }: { kind: WalletTxView['kind'] }) {
 }
 
 export function SignedAmount({ t, className }: { t: WalletTxView; className?: string }) {
-  const masked = useMasked();
   const sign = t.kind === 'receive' ? '+' : '−';
-  if (masked)
-    return (
-      <span className={cx('num whitespace-nowrap font-semibold text-sq-ink', className)} aria-label={tr('Amount hidden', 'Montant masqué')}>
-        •••••• <span className="text-[0.8em] font-normal">{t.asset}</span>
-      </span>
-    );
   return (
     <span className={cx('num whitespace-nowrap font-semibold', t.kind === 'receive' && t.status === 'confirmed' ? 'text-sq-up' : 'text-sq-ink', className)}>
       {t.amount === '?' ? '…' : `${sign}${fmt(Number(t.amount), t.asset === 'ETH' ? 5 : 2)}`} <span className="text-[0.8em] font-normal">{t.asset}</span>
@@ -52,7 +44,6 @@ export function TxListCompact({ items, loading }: { items: WalletTxView[]; loadi
   if (!items.length) return <p className="py-6 text-center text-[14px] text-sq-muted">{tr('No transactions yet.', "Aucune transaction pour l'instant.")}</p>;
   return (
     <ul className="divide-y divide-sq-line">
-                <ScamFlag t={t} />
       {items.map((t) => (
         <li key={t.id}>
           <Link to={`/wallet/tx/${t.id}`} className="flex min-h-[64px] items-center gap-3 py-2.5 hover:bg-sq-bg/50">
@@ -61,6 +52,7 @@ export function TxListCompact({ items, loading }: { items: WalletTxView[]; loadi
               <span className="block text-[15px] font-medium">{kindLabel(t.kind)}</span>
               <span className="mt-0.5 block truncate text-[12px] text-sq-muted">
                 {counterparty(t)} · {dateTime(t.createdAt)}
+                <ScamFlag t={t} />
               </span>
             </span>
             <span className="flex shrink-0 flex-col items-end gap-1">
@@ -76,16 +68,13 @@ export function TxListCompact({ items, loading }: { items: WalletTxView[]; loadi
 }
 
 export function TxTable({ items, clientName, loading }: { items: WalletTxView[]; clientName: string; loading?: boolean }) {
-  const reveal = useReveal();
-  // The PDF contains the amounts: downloading it while they are hidden requires revealing them first.
   const download = async (t: WalletTxView) => {
-    if (await reveal.ensureRevealed()) await downloadReceiptPdf(buildReceipt(t, clientName));
+    await downloadReceiptPdf(buildReceipt(t, clientName));
   };
   if (loading) return <Skeleton className="h-40" />;
   if (!items.length) return <p className="py-8 text-center text-[14px] text-sq-muted">{tr('No transactions yet.', "Aucune transaction pour l'instant.")}</p>;
   return (
     <>
-    {reveal.error && <p className="mb-2 text-[12px] text-sq-down" role="alert">{reveal.error}</p>}
     <table className="w-full text-left text-[14px]">
       <thead>
         <tr className="border-b border-sq-line text-[12px] uppercase tracking-wide text-sq-muted">

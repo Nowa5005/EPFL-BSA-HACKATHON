@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 import { ArrowLeftRight, CalendarClock, ChevronLeft, Ellipsis, FileText, House, Info, KeySquare, Mail, Palette, ShieldCheck, Sparkles } from 'lucide-react';
 import { cosigner } from '../lib/api';
 import { useLocal } from '../lib/hooks';
-import { mask, setPrefs, themeStyle, usePrefs } from '../lib/prefs';
+import { setPrefs, themeStyle, usePrefs } from '../lib/prefs';
 import { ConfirmationLayer } from '../components/Confirm';
 import { cx, DemoFooter, Logo } from '../components/ui';
 import { AccountButton } from '../sq/SqShell';
@@ -39,8 +39,6 @@ export function WalletShell({ children, wide }: { children: ReactNode; wide?: bo
   useEffect(() => {
     if (device?.clientId) cosigner.get(`/clients/${device.clientId}`).then((c) => setPrefs(c.preferences)).catch(() => undefined);
   }, [device?.clientId]);
-  // Leaving the wallet area ends this "entry": amounts are masked again (checked once the next route is in place).
-  useEffect(() => () => void setTimeout(() => mask.onNavigate(window.location.pathname), 0), []);
 
   return (
     <CompactCtx.Provider value={setCompact}>

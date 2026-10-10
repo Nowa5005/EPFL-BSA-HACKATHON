@@ -5,15 +5,12 @@
 // Values include deposits and withdrawals: this is a valuation, never presented as a performance/return.
 
 import { useState } from 'react';
-import { Lock } from 'lucide-react';
 import { cosigner } from '../lib/api';
 import { usePoll, useWalletTxs, type WalletTxView } from '../lib/hooks';
 import { useHistory, type Range } from '../lib/market';
-import { useMasked } from '../lib/prefs';
 import { tr } from '../lib/i18n';
 import { Card, cx, dateTime, Pill, Skeleton } from '../components/ui';
 import { LineChart, type ChartMarker } from './LineChart';
-import { useReveal } from './Reveal';
 
 type SnapRange = '24h' | '7d' | '1M' | '1Y';
 type View = 'total' | 'ETH' | 'USDC';
@@ -56,8 +53,6 @@ export function transferMarkers(txs: WalletTxView[], view: View): ChartMarker[] 
 export function PortfolioChart({ clientId, initialView = 'total', lockView }: { clientId: string; initialView?: View; lockView?: boolean }) {
   const [range, setRange] = useState<SnapRange>('7d');
   const [view, setView] = useState<View>(initialView);
-  const masked = useMasked();
-  const reveal = useReveal();
   const snaps = usePoll<SnapSeries>(() => cosigner.get(`/clients/${clientId}/snapshots?range=${range}`), 60_000, [clientId, range]);
   const txs = useWalletTxs(15_000);
   const marketAsset: 'ETH' | 'USDC' = view === 'USDC' ? 'USDC' : 'ETH';
@@ -104,15 +99,6 @@ export function PortfolioChart({ clientId, initialView = 'total', lockView }: { 
                 `L’historique est enregistré depuis le ${dateTime(s.recordingSince)} — pas encore assez de données pour cette période.`,
               )
             : tr('History recording starts now (a snapshot every ~15 min) — no data for this period yet.', 'L’enregistrement de l’historique commence maintenant (un instantané toutes les ~15 min) — pas encore de données pour cette période.')}
-        </div>
-      ) : masked ? (
-        <div className="flex h-[200px] flex-col items-center justify-center gap-2 rounded-[10px] bg-sq-bg text-center text-[13px] text-sq-muted" data-testid="chart-masked" aria-label={tr('Chart hidden', 'Graphique masqué')}>
-          <Lock size={20} strokeWidth={1.75} />
-          <span>{tr('Chart hidden while amounts are hidden.', 'Graphique masqué tant que les montants le sont.')}</span>
-          <button type="button" className="min-h-10 font-semibold text-sq-ink underline underline-offset-2" onClick={() => void reveal.ensureRevealed()} disabled={reveal.busy}>
-            {tr('Show amounts', 'Afficher les montants')}
-          </button>
-          {reveal.error && <span className="px-3 text-[12px] text-sq-down">{reveal.error}</span>}
         </div>
       ) : (
         <div data-testid="chart-personal">

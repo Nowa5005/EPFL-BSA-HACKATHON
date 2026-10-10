@@ -1,13 +1,12 @@
 // Documents → annual statement (help for the Swiss tax return, NOT an official tax certificate) and CSV export of
-// the year's transactions. Both are computed by the co-signer (authenticated). Amounts are masked by default: the
-// client must reveal them (passkey) before viewing or downloading.
+// the year's transactions. Both are computed by the co-signer (authenticated). Amounts are shown in clear once the wallet
+// is unlocked (the privacy screen covers the wallet when the user leaves — lib/privacy.ts).
 
 import { useEffect, useState } from 'react';
 import { Download, FileSpreadsheet, Printer } from 'lucide-react';
 import { cosigner } from '../lib/api';
 import { tr, locale } from '../lib/i18n';
 import { useLocal, usePoll } from '../lib/hooks';
-import { revealAmounts, revealErrorMessage, useMasked } from '../lib/prefs';
 import { Button, Card, cx, fmt, MockBadge, Notice, Pill, Spinner } from './ui';
 
 interface YearInfo {
@@ -19,7 +18,6 @@ interface YearInfo {
 export function AnnualDocuments() {
   const { device, session } = useLocal();
   const clientId = device!.clientId;
-  const masked = useMasked();
   const years = usePoll<{ walletCreatedAt: string | null; years: YearInfo[] }>(() => cosigner.get(`/clients/${clientId}/statements/years`), 600000, [clientId]);
   const [year, setYear] = useState<number | null>(null);
   const [st, setSt] = useState<any | null>(null);
@@ -33,20 +31,8 @@ export function AnnualDocuments() {
 
   const sel = years.data?.years.find((y) => y.year === year);
 
-  const ensureRevealed = async () => {
-    if (!masked) return true;
-    try {
-      await revealAmounts(clientId);
-      return true;
-    } catch (e) {
-      setErr(revealErrorMessage(e));
-      return false;
-    }
-  };
-
   const loadStatement = async () => {
     setErr(null);
-    if (!(await ensureRevealed())) return null;
     setBusy('view');
     try {
       const s = await cosigner.get(`/clients/${clientId}/statements/${year}`);
@@ -75,7 +61,6 @@ export function AnnualDocuments() {
 
   const csv = async () => {
     setErr(null);
-    if (!(await ensureRevealed())) return;
     setBusy('csv');
     try {
       const r = await cosigner.get(`/clients/${clientId}/exports/transactions/${year}`);
@@ -146,11 +131,10 @@ export function AnnualDocuments() {
               <FileSpreadsheet size={18} strokeWidth={1.75} /> {tr('Transactions (CSV)', 'Transactions (CSV)')}
             </Button>
           </div>
-          {masked && <p className="text-[12px] text-sq-muted">{tr('Amounts are hidden: you will be asked to confirm with your passkey before viewing or downloading.', 'Les montants sont masqués : une confirmation par passkey vous sera demandée avant l’affichage ou le téléchargement.')}</p>}
         </>
       )}
       {err && <Notice tone="bad">{err}</Notice>}
-      {st && !masked && <StatementView s={st} />}
+      {st && <StatementView s={st} />}
     </Card>
   );
 }

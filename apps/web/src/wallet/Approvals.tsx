@@ -9,13 +9,10 @@ import { cosigner } from '../lib/api';
 import { useLocal, usePoll } from '../lib/hooks';
 import { Addr, Button, Card, cx, dateTime, Notice, PageHeader, Skeleton, Why } from '../components/ui';
 import { TxFlow } from '../components/TxFlow';
-import { useMasked } from '../lib/prefs';
 import { tr } from '../lib/i18n';
-import { MaskBar } from './Reveal';
 
 export default function Approvals() {
   const { device } = useLocal();
-  const masked = useMasked();
   const { data, loading, error, reload } = usePoll<any[]>(() => cosigner.get(`/clients/${device!.clientId}/allowances`), 15000, [device?.clientId]);
   const [tx, setTx] = useState<SafeTx | null>(null);
   const [target, setTarget] = useState<any>(null);
@@ -49,7 +46,6 @@ export default function Approvals() {
   return (
     <div className="mx-auto max-w-[760px] space-y-4">
       <PageHeader title={tr('Authorised apps', 'Applications autorisées')} back="/wallet/more" subtitle={tr('Apps and contracts that can spend your tokens, read directly from the blockchain.', 'Applications et contrats qui peuvent dépenser vos jetons, lus directement sur la blockchain.')} />
-      <MaskBar />
       <Why>{tr('An authorisation (“approve”) lets a contract take your tokens up to the stated limit, without any new signature from you. Revoke the ones you no longer need. Revoking is a transaction: it only takes effect once confirmed on Ethereum.', 'Une autorisation (« approve ») permet à un contrat de prélever vos jetons jusqu’au plafond indiqué, sans nouvelle signature de votre part. Retirez celles dont vous n’avez plus besoin. La révocation est une transaction : elle n’est effective qu’une fois confirmée sur Ethereum.')}</Why>
       {error && <Notice tone="warn" title={tr('Could not read', 'Lecture impossible')}>{error}</Notice>}
       <Card className="p-0">
@@ -87,7 +83,7 @@ export default function Approvals() {
                     <dt className="text-sq-muted">{tr('Asset', 'Actif')}</dt>
                     <dd>{r.token}</dd>
                     <dt className="text-sq-muted">{tr('Limit', 'Plafond')}</dt>
-                    <dd className={cx('font-semibold', r.unlimited && 'text-sq-down')}>{r.unlimited ? tr('Unlimited', 'Illimité') : masked ? `•••••• ${r.token}` : `${r.allowance} ${r.token}`}</dd>
+                    <dd className={cx('font-semibold', r.unlimited && 'text-sq-down')}>{r.unlimited ? tr('Unlimited', 'Illimité') : `${r.allowance} ${r.token}`}</dd>
                     <dt className="text-sq-muted">{tr('Authorised on', 'Autorisé le')}</dt>
                     <dd>{r.authorizedAt ? dateTime(r.authorizedAt) : tr('Unknown', 'Inconnu')}</dd>
                   </dl>

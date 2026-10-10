@@ -4,12 +4,11 @@ import { ArrowUpRight } from 'lucide-react';
 import { USDC_ADDRESS } from '@sq/shared';
 import { useLocal, useWalletData, useWalletTxs } from '../lib/hooks';
 import { Addr, Card, fmt, MockBadge, NetBadge, Notice, PageHeader } from '../components/ui';
-import { Money, useMasked } from '../lib/prefs';
+import { Money } from '../lib/prefs';
 import { tr } from '../lib/i18n';
 import { fmtChf, RateNote, useRates, valueOf } from '../lib/valuation';
 import { TxListCompact } from '../wallet/TxList';
 import { Change } from '../wallet/CryptoList';
-import { MaskBar } from '../wallet/Reveal';
 import { PortfolioChart } from '../wallet/PortfolioChart';
 import { ReceiveQr } from '../wallet/ReceiveQr';
 
@@ -20,7 +19,6 @@ export default function Asset() {
   const { data } = useWalletData();
   const txs = useWalletTxs();
   const { rates, loading: ratesLoading } = useRates();
-  const masked = useMasked();
   const loc = useLocation();
   const sim = sym === 'USDC' ? Number(data?.onchain?.simulatedUsdc ?? 0) : 0;
   const amount = Number(sym === 'ETH' ? data?.onchain?.eth ?? 0 : data?.onchain?.usdc ?? 0) + sim;
@@ -35,13 +33,12 @@ export default function Asset() {
   return (
     <div className="mx-auto max-w-[640px] space-y-4">
       <PageHeader title={sym === 'ETH' ? 'Ether' : 'USD Coin'} back="/wallet" />
-      <MaskBar />
       <Card className="text-center">
-        <span className="num block text-[32px] font-semibold tracking-tight" aria-label={masked ? tr('Amount hidden', 'Montant masqué') : undefined}>
-          {masked ? '••••••' : value === null ? '—' : fmtChf(value)}
+        <span className="num block text-[32px] font-semibold tracking-tight">
+          {value === null ? '—' : fmtChf(value)}
           <span className="ml-1 text-[0.6em] font-normal">CHF</span>
         </span>
-        {!masked && value === null && <div className="text-[12px] text-sq-warn">{tr('CHF value unavailable', 'Contre-valeur CHF indisponible')}</div>}
+        {value === null && <div className="text-[12px] text-sq-warn">{tr('CHF value unavailable', 'Contre-valeur CHF indisponible')}</div>}
         <div className="num mt-1 text-[14px] text-sq-muted">
           <Money value={amount} decimals={sym === 'ETH' ? 5 : 2} unit={sym} unitClassName="ml-1" />
           {sim > 0 && (

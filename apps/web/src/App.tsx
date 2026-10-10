@@ -1,6 +1,8 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useLocal, UnlockProvider } from './lib/hooks';
+import { usePrivacyLocked } from './lib/privacy';
+import { PrivacyScreen } from './wallet/PrivacyScreen';
 import { Card, DemoFooter, Spinner } from './components/ui';
 import { cosigner } from './lib/api';
 import ExistingWallet from './wallet/ExistingWallet';
@@ -39,10 +41,13 @@ import { TermsGate } from './components/Terms';
 /** My Wall pages: Swissquote session + a wallet on this device + unlocked (password + passkey). */
 function WalletRoute({ children }: { children: ReactNode }) {
   const { device, session, unlocked } = useLocal();
+  const privacyLocked = usePrivacyLocked();
   const loc = useLocation();
   if (!session) return <Navigate to="/login" replace />;
   if (!device?.safeAddress || device.clientId !== session.clientId) return <Navigate to="/onboarding" replace />;
   if (!unlocked) return <Navigate to="/wallet/unlock" state={{ from: loc.pathname + loc.search }} replace />;
+  // The user left the app: the wallet is UNMOUNTED (no amount in the DOM) until passkey / password (lib/privacy.ts).
+  if (privacyLocked) return <PrivacyScreen />;
   return (
     <TermsGate>
       <WalletShell>{children}</WalletShell>
@@ -85,6 +90,8 @@ function OnboardingRoute() {
 
 function InboxRoute() {
   const { device, unlocked } = useLocal();
+  const privacyLocked = usePrivacyLocked();
+  if (device?.safeAddress && unlocked && privacyLocked) return <PrivacyScreen />;
   if (device?.safeAddress && unlocked)
     return (
       <WalletShell>

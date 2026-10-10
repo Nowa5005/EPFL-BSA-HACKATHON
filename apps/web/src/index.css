@@ -80,3 +80,7 @@ html.mw-app {
   -webkit-text-size-adjust: 100%;
   overscroll-behavior-y: none;
 }
+
+/* Privacy lock (lib/privacy.ts): hidden synchronously when the page/app is hidden, so the tab switcher /
+   recent-apps snapshot never shows balances; React then replaces the wallet by the privacy screen. */
+html.mw-privacy-cover #root { visibility: hidden; }

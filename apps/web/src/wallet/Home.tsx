@@ -2,13 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowDownLeft, ArrowUpRight, ChevronRight, ExternalLink, Landmark, ShieldCheck, Sparkles } from 'lucide-react';
 import { PLANS } from '@sq/shared';
-import { Money, useMasked, usePrefs } from '../lib/prefs';
+import { Money, usePrefs } from '../lib/prefs';
 import { explorerAddress } from '@sq/shared';
 import { tr } from '../lib/i18n';
 import { fmtChf, RateNote, sumValues, useRates, valueOf } from '../lib/valuation';
 import { CryptoList } from './CryptoList';
 import { PortfolioChart } from './PortfolioChart';
-import { RevealButton, useReveal, VERIFY_HINT } from './Reveal';
 import { bank, cosigner } from '../lib/api';
 import { useLocal, usePoll, useWalletData, useWalletTxs } from '../lib/hooks';
 import { Amount, Button, Card, cx, Field, fmt, inputCls, MockBadge, NetBadge, Notice, RoundAction, Spinner, useMedia } from '../components/ui';
@@ -31,8 +30,6 @@ export default function Home() {
   const nav = useNavigate();
 
   const { prefs } = usePrefs();
-  const masked = useMasked();
-  const reveal = useReveal();
   const { rates, loading: ratesLoading } = useRates();
   const usdc = Number(data?.onchain?.usdc ?? 0);
   const eth = Number(data?.onchain?.eth ?? 0);
@@ -52,13 +49,13 @@ export default function Home() {
   useEffect(() => {
     const el = sentinel.current;
     if (!el) return;
-    const io = new IntersectionObserver(([e]) => setCompact(!e.isIntersecting && e.boundingClientRect.top < 100 ? `My Wall · ${masked ? '••••••' : totalOrNull === null ? '—' : fmt(total)} CHF` : null), { rootMargin: '-72px 0px 0px 0px' });
+    const io = new IntersectionObserver(([e]) => setCompact(!e.isIntersecting && e.boundingClientRect.top < 100 ? `My Wall · ${totalOrNull === null ? '—' : fmt(total)} CHF` : null), { rootMargin: '-72px 0px 0px 0px' });
     io.observe(el);
     return () => {
       io.disconnect();
       setCompact(null);
     };
-  }, [total, totalOrNull, setCompact, masked]);
+  }, [total, totalOrNull, setCompact]);
 
   const hidden = (id: string) => prefs.hiddenWallets.includes(id);
 
@@ -74,11 +71,8 @@ export default function Home() {
       <div className={cx(isDesktop && 'col-span-5')}>
         <div className={cx('flex items-center gap-1 text-[15px] text-sq-ink-2', !isDesktop && 'justify-center')}>
           {tr('Total value', 'Valeur totale')} · {session?.profile?.name?.split(' ')[0]}
-          <RevealButton r={reveal} />
         </div>
-        {masked && !reveal.error && <p className="text-[12px] text-sq-muted">{tr('Amounts hidden.', 'Montants masqués.')} {VERIFY_HINT()}</p>}
-        {reveal.error && <p className="text-[12px] text-sq-down" role="alert">{reveal.error}</p>}
-        {totalOrNull === null && !masked ? (
+        {totalOrNull === null ? (
           <span className={cx('num mt-1 block font-semibold tracking-tight', isDesktop ? 'text-[48px]' : 'text-[40px]')}>
             —<span className="ml-1 text-[0.6em] font-normal">CHF</span>
           </span>
@@ -269,7 +263,6 @@ function SheetHandle() {
 }
 
 function AssetTile({ sym, name, amount, chfv, decimals = 2 }: { sym: string; name: string; amount: number; chfv: number | null; decimals?: number }) {
-  const masked = useMasked();
   return (
     <Link to={`/asset/${sym}`} className="block rounded-[10px] border border-sq-line bg-white px-3.5 py-3 transition-colors hover:border-sq-muted/50">
       <div className="flex items-center gap-1 text-[13px] text-sq-ink-2">
@@ -280,7 +273,7 @@ function AssetTile({ sym, name, amount, chfv, decimals = 2 }: { sym: string; nam
         <Money value={amount} decimals={decimals} unit={sym} unitClassName="ml-1 text-[12px] font-normal" />
       </div>
       <div className="num text-[12px] text-sq-muted">
-        {chfv === null && !masked ? tr('CHF value unavailable', 'Contre-valeur indisponible') : chfv !== null && chfv > 0 && chfv < 0.01 && !masked ? `${fmtChf(chfv)} CHF` : <Money value={chfv ?? 0} unit="CHF" unitClassName="ml-1" />}
+        {chfv === null ? tr('CHF value unavailable', 'Contre-valeur indisponible') : chfv > 0 && chfv < 0.01 ? `${fmtChf(chfv)} CHF` : <Money value={chfv ?? 0} unit="CHF" unitClassName="ml-1" />}
       </div>
     </Link>
   );

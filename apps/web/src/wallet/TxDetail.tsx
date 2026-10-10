@@ -6,16 +6,14 @@ import { buildReceipt, downloadReceiptPdf, ReceiptView } from '../lib/receipt';
 import { Button, Card, dateTime, Notice, PageHeader, Skeleton, StatusPill, TxLink } from '../components/ui';
 import { ConfirmedCard, PendingIndicator } from '../components/Confirm';
 import { counterparty, kindLabel, SignedAmount } from './TxList';
-import { MaskBar, useReveal } from './Reveal';
-import { isSuspicious, ScamExplanation } from './scam';
 import { tr } from '../lib/i18n';
+import { isSuspicious, ScamExplanation } from './scam';
 
 export default function TxDetail() {
   const { id } = useParams();
   const { session } = useLocal();
   const { data: t, error } = usePoll<WalletTxView>(() => cosigner.get(`/wallet-txs/${id}`), 3000, [id]);
   const name = session?.profile?.name ?? '';
-  const reveal = useReveal();
 
   if (error) return <Notice tone="bad" title={tr('Transaction not found', 'Transaction introuvable')}>{error}</Notice>;
   if (!t) return <Skeleton className="h-64" />;
@@ -25,7 +23,6 @@ export default function TxDetail() {
     <div className="lg:grid lg:grid-cols-12 lg:gap-6">
       <div className="lg:col-span-5">
         <PageHeader title={kindLabel(t.kind)} back="/wallet/transactions" />
-        <MaskBar />
         <Card className="space-y-4">
           <div className="flex items-center justify-between gap-3">
             <SignedAmount t={t} className="text-[26px]" />
@@ -60,15 +57,10 @@ export default function TxDetail() {
             <ReceiptView r={receipt} />
             <Button
               className="mt-3"
-              disabled={reveal.busy}
-              onClick={async () => {
-                // the PDF shows the amounts: reveal (passkey) first
-                if (await reveal.ensureRevealed()) await downloadReceiptPdf(receipt);
-              }}
+              onClick={() => void downloadReceiptPdf(receipt)}
             >
-              <Download size={18} strokeWidth={1.75} /> {reveal.masked ? tr('Show amounts and download the PDF', 'Afficher les montants et télécharger le PDF') : tr('Download the PDF', 'Télécharger le PDF')}
+              <Download size={18} strokeWidth={1.75} /> {tr('Download the PDF', 'Télécharger le PDF')}
             </Button>
-            {reveal.error && <p className="mt-2 text-[12px] text-sq-down" role="alert">{reveal.error}</p>}
             <p className="mt-2 text-[12px] text-sq-muted">{tr('The same document is in Swaplet → Documents.', 'Le même document figure dans Swaplet → Documents.')}</p>
           </>
         ) : (

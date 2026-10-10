@@ -8,9 +8,7 @@ import { cosigner } from '../lib/api';
 import { useLocal, usePoll } from '../lib/hooks';
 import { Button, Card, cx, Field, inputCls, Notice, PageHeader, Skeleton, Why } from '../components/ui';
 import { zurichLocalToIso } from '../pages/Send';
-import { useMasked } from '../lib/prefs';
 import { locale, tr } from '../lib/i18n';
-import { MaskBar } from './Reveal';
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   scheduled: { label: tr('Scheduled', 'Planifiée'), cls: 'bg-sq-chip text-sq-ink-2' },
@@ -27,7 +25,6 @@ const toZurichInput = (iso: string) => {
 export default function Scheduled() {
   const { device } = useLocal();
   const clientId = device!.clientId;
-  const masked = useMasked();
   const { data, loading, reload } = usePoll<any[]>(() => cosigner.get(`/clients/${clientId}/scheduled`), 5000, [clientId]);
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState<{ amount: string; due: string; note: string }>({ amount: '', due: '', note: '' });
@@ -47,7 +44,6 @@ export default function Scheduled() {
   return (
     <div className="mx-auto max-w-[760px] space-y-4">
       <PageHeader title={tr('Scheduled payments & reminders', 'Dépenses planifiées et rappels')} back="/wallet/more" />
-      <MaskBar />
       <Why>{tr('A scheduled payment never goes out on its own: at the due date it becomes “to confirm”, fees and simulation are recalculated, and you approve it yourself. A reminder only notifies you.', 'Une dépense planifiée ne part jamais toute seule : à l’échéance, elle devient « à confirmer », les frais et la simulation sont recalculés, et vous la validez vous-même. Un rappel ne fait que vous prévenir.')}</Why>
       <Link to="/send" className="inline-flex min-h-11 items-center gap-2 rounded-[10px] border border-sq-line bg-white px-4 text-[14px] font-semibold">
         <CalendarClock size={18} strokeWidth={1.75} /> {tr('Schedule from Send', 'Planifier depuis Envoyer')}
@@ -66,7 +62,7 @@ export default function Scheduled() {
                   {s.kind === 'payment' ? <CalendarClock size={22} strokeWidth={1.75} className="mt-0.5 text-sq-ink-2" /> : <BellRing size={22} strokeWidth={1.75} className="mt-0.5 text-sq-ink-2" />}
                   <div className="min-w-0 flex-1 text-[14px]">
                     <div className="font-semibold">
-                      {s.kind === 'payment' ? tr('Scheduled payment', 'Dépense planifiée') : tr('Reminder', 'Rappel')} · {masked ? <span aria-label={tr('Amount hidden', 'Montant masqué')}>••••••</span> : s.amount} {s.asset}
+                      {s.kind === 'payment' ? tr('Scheduled payment', 'Dépense planifiée') : tr('Reminder', 'Rappel')} · {s.amount} {s.asset}
                     </div>
                     <div className="text-sq-ink-2">{tr('To:', 'À :')} {s.recipientName ? `${s.recipientName} — ` : ''}<span className="break-all font-mono text-[12px]">{s.recipient}</span></div>
                     <div className="text-sq-ink-2">
