@@ -155,10 +155,9 @@ export default function App() {
         <Route path="/emergency" element={<Emergency />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-        <Route path="/about" element={<About />} />
       {/* Owner preview tool (dev or ?preview=1 only) and app-mode behaviour (native shell / preview frame). */}
-      <ServiceHealthBanner />
       <PreviewSwitch />
+      <ServiceHealthBanner />
       <AppModeEffects />
     </UnlockProvider>
   );
