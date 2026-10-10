@@ -96,3 +96,30 @@ Why the cloud backup was removed: a cloud account (iCloud / Google Drive) is usu
 | T21 Old parts after "Replace cloud backup" | ✅ retired | The replacement **rotates K3 → K3′ on-chain** (K1 + K2). Re-splitting the same K3 would not retire anything (old paper + old cloud file would still rebuild it). On a protected wallet the guard config and D2 move to K3′ in the **same batch** — otherwise K3′ would count as a device key for the guard (proved by the counter-example test). Residual: the emergency gas reserve on the old K3 address. |
 
 Limits: the PRF credential is bound to the web domain (RP ID: `localhost` in the demo — production: the Swissquote domain, or a native app with associated domains). Chrome evaluates hmac-secret on an assertion only with authenticators that support it (FIDO2 keys with clientPIN/UV support, platform passkeys with PRF, iOS 18+ / Android); the onboarding detects PRF support (`getClientCapabilities`) and otherwise offers the offline file. The headless e2e client has no authenticator: its PRF output is **simulated** (HMAC of a test secret, test only); the real ceremony is tested in Chrome with a virtual FIDO2 authenticator (`hasPrf: true`).
+
+## 8. Client under threat — duress code and delayed limits (#16)
+
+- **Threat**: someone forces the client (physically, or by threats) to open My Wall and send funds.
+- **Duress code** (optional, Security → "Duress code"; passkey to set or remove). Typed **instead of the wallet
+  password**, the unlock looks exactly like a normal one (same progress bar, same passkey step) and opens a **decoy**
+  wallet: same screens, a small plausible fictitious balance and history, a fictitious address — served from memory
+  (`apps/web/src/lib/decoy.ts`); nothing in the DOM, `localStorage` or the client's activity feed mentions it. The decoy
+  session has **no real key** (a throwaway key that owns nothing), never sends a transaction to the co-signer, and the
+  co-signer was **frozen** at the same moment: even another device cannot get a co-signature (423). The freeze is
+  recorded as a compliance freeze, so the client cannot be forced to lift it; a **duress alert** appears in the
+  console (`GET /admin/duress`), with the procedure (contact via a verified channel, security / police, lift only once
+  the client is safe).
+- **Storage & check**: the device derives `proof = scrypt(code, "mywall-duress-v1:<clientId>")` (ethers); the server
+  stores only `scrypt(proof, random salt)` (node:crypto), like the backup code. **Every** unlock calls
+  `POST /clients/:id/unlock/check` — with a random value when the password was right — and the server always runs the
+  same scrypt (a dummy record when no code is set) and a constant-time compare: same work, same requests, same latency
+  (measured ≈ 60 ms in every case) whichever code was typed.
+- **Delayed limits**: the daily limit is chosen by the client; lowering is immediate; raising waits 24 h (demo 60 s)
+  with e-mail + app notifications and can be cancelled; first payments ≥ the step-up threshold to a new recipient are
+  always delayed (confirmation code, cooling-off, four-eyes). Pending approved operations are not executed while frozen.
+- **Residual limits**: an attacker who knows the real wallet address (e.g. from earlier transfers) and checks it on a
+  block explorer can tell the decoy balance is not real; the decoy cannot move money (sends fail with a generic
+  "service unavailable" error), which a persistent attacker may find suspicious; the K1 + K3 exit (recovery kit) is not
+  blocked by the freeze — the attacker would also need the paper code and the security key. Reloading the page ends
+  the decoy (back to the unlock screen).
+

@@ -6,6 +6,7 @@ import { openWithPassword, type PasswordSealed } from '@sq/shared';
 import { startAuthentication, startRegistration } from './passkeyGuard'; // guarded for the native app
 import { cosigner } from './api';
 import { tr } from './i18n';
+import { decoyActive, decoyDevice, decoyKey, decoySession, duressProof, endDecoy, isDecoyCode } from './decoy';
 
 export interface DeviceRecord {
   clientId: string;
@@ -48,14 +49,21 @@ const safeSet = (k: string, v: string | null, s: Storage = localStorage) => {
   }
 };
 
-export const getDevice = (): DeviceRecord | null => JSON.parse(safeGet(DEVICE_KEY) ?? 'null');
+// #16 — while a duress-code session is open (lib/decoy.ts) the app sees a fictitious device and profile, and nothing
+// it does can change the real records stored on this device.
+export const getDevice = (): DeviceRecord | null => (decoyActive() ? decoyDevice() : JSON.parse(safeGet(DEVICE_KEY) ?? 'null'));
 export const saveDevice = (d: DeviceRecord | null) => {
+  if (decoyActive()) return emit();
   safeSet(DEVICE_KEY, d ? JSON.stringify(d) : null);
   emit();
 };
 
-export const getSession = (): BankSession | null => JSON.parse(safeGet(SESSION_KEY) ?? 'null');
+export const getSession = (): BankSession | null => (decoyActive() ? decoySession() : JSON.parse(safeGet(SESSION_KEY) ?? 'null'));
 export const saveSession = (s: BankSession | null) => {
+  if (decoyActive()) {
+    if (s !== null) return emit();
+    endDecoy(); // signing out ends the session for real
+  }
   safeSet(SESSION_KEY, s ? JSON.stringify(s) : null);
   emit();
 };
@@ -77,6 +85,7 @@ let unlocked: Wallet | HDNodeWallet | null = null;
 export const isUnlocked = () => !!unlocked;
 export const lock = () => {
   unlocked = null;
+  endDecoy();
   emit();
 };
 export function unlockedKey() {
@@ -117,6 +126,13 @@ export class UnlockError extends Error {
 
 /** Decrypts the device key with the password (never sent anywhere). */
 export async function decryptDeviceKey(password: string, onProgress?: (p: number) => void) {
+  if (decoyActive()) {
+    // Same code again → same (fictitious) session; anything else is refused after comparable work.
+    await duressProof(decoyDevice()!.clientId, password);
+    onProgress?.(1);
+    if (isDecoyCode(password)) return decoyKey()!;
+    throw new Error('invalid password');
+  }
   const d = getDevice();
   if (!d) throw new NoWalletError();
   return Wallet.fromEncryptedJson(d.keystore, password, onProgress);
@@ -158,6 +174,43 @@ export async function unlock(password: string, onProgress?: (p: number) => void,
     emit();
   }
   return key;
+}
+
+/**
+ * #16 — Unlock with the duress check. The device key is decrypted with what was typed; in EVERY case the device
+ * derives the duress proof of the typed text and asks the server (`check`) — with a random value when the password
+ * was right — so the work, the requests and the latency are the same whichever code was typed. A wrong password
+ * that is the duress code returns { decoy: true } (no real key: a throwaway one) and counts as a success.
+ */
+export async function unlockWithDuressCheck(password: string, clientId: string, check: (proof: string) => Promise<boolean>, onProgress?: (p: number) => void): Promise<{ key: Wallet | HDNodeWallet; decoy: boolean }> {
+  const st = unlockState();
+  if (st.lockedUntil > Date.now()) throw new UnlockError(tr('Too many attempts. Please wait before trying again.', 'Trop de tentatives. Patientez avant de réessayer.'), 0, st.lockedUntil);
+  let key: Wallet | HDNodeWallet | null = null;
+  try {
+    key = await decryptDeviceKey(password, onProgress);
+  } catch (e) {
+    if (e instanceof NoWalletError) throw e;
+  }
+  const proof = await duressProof(clientId, password);
+  const random = '0x' + Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, '0')).join('');
+  const isDuress = await check(key ? random : proof).catch(() => false);
+  if (key) {
+    setUnlockState({ fails: 0, lockedUntil: 0 });
+    return { key, decoy: false };
+  }
+  if (isDuress) {
+    setUnlockState({ fails: 0, lockedUntil: 0 });
+    return { key: Wallet.createRandom(), decoy: true };
+  }
+  const fails = st.fails + 1;
+  if (fails >= MAX_UNLOCK_ATTEMPTS) {
+    const lockedUntil = Date.now() + UNLOCK_LOCKOUT_SEC * 1000;
+    setUnlockState({ fails: 0, lockedUntil });
+    throw new UnlockError(tr(`Incorrect password. Too many attempts: please wait ${UNLOCK_LOCKOUT_SEC} seconds.`, `Mot de passe incorrect. Trop de tentatives : patientez ${UNLOCK_LOCKOUT_SEC} secondes.`), 0, lockedUntil);
+  }
+  setUnlockState({ fails, lockedUntil: 0 });
+  const remaining = MAX_UNLOCK_ATTEMPTS - fails;
+  throw new UnlockError(tr(`Incorrect password. ${remaining} attempt${remaining > 1 ? 's' : ''} left.`, `Mot de passe incorrect. Il vous reste ${remaining} essai${remaining > 1 ? 's' : ''}.`), remaining);
 }
 
 /** Re-authentication before showing a secret: wallet password + passkey. Returns the decrypted key. */

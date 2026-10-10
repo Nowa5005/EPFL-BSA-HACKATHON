@@ -2,6 +2,7 @@ import { LANG_HEADER } from '@sq/shared';
 import { WEB_SERVICE_URLS as SERVICE_URLS } from './services';
 import { getLang } from './i18n';
 import { getComplianceSession, getSession, saveComplianceSession, saveSession } from './device';
+import { decoyActive, decoyPassThrough, decoyRequest, DecoyServiceError } from './decoy';
 
 export class ApiError extends Error {
   constructor(
@@ -22,7 +23,16 @@ interface ReqOptions {
 
 const PAGES_WITHOUT_CLIENT_SESSION = ['/login', '/recover', '/admin', '/attacker'];
 
-async function req<T>(base: string, method: string, path: string, body?: unknown, opts: ReqOptions = {}): Promise<T> {
+async function req<T>(base: string, method: string, path: string, body?: unknown, opts: ReqOptions = {}, service: 'cosigner' | 'partner' | 'bank' = 'cosigner'): Promise<T> {
+  // #16 — session opened with the duress code: answered locally with a fictitious wallet (lib/decoy.ts).
+  if (decoyActive() && !path.startsWith('/admin/') && !decoyPassThrough(method, path)) {
+    try {
+      return (await decoyRequest(service, method, path, body)) as T;
+    } catch (e) {
+      if (e instanceof DecoyServiceError) throw new ApiError(e.status, e.message, { error: e.message });
+      throw e;
+    }
+  }
   const compliance = path.startsWith('/admin/') ? getComplianceSession()?.token : undefined;
   const token = opts.token ?? compliance ?? getSession()?.token;
   const headers: Record<string, string> = { 'content-type': 'application/json', [LANG_HEADER]: getLang() };
@@ -50,11 +60,11 @@ async function req<T>(base: string, method: string, path: string, body?: unknown
   return json as T;
 }
 
-const make = (base: string) => ({
-  get: <T = any>(p: string, opts?: ReqOptions) => req<T>(base, 'GET', p, undefined, opts),
-  post: <T = any>(p: string, b?: unknown, opts?: ReqOptions) => req<T>(base, 'POST', p, b ?? {}, opts),
+const make = (base: string, service: 'cosigner' | 'partner' | 'bank') => ({
+  get: <T = any>(p: string, opts?: ReqOptions) => req<T>(base, 'GET', p, undefined, opts, service),
+  post: <T = any>(p: string, b?: unknown, opts?: ReqOptions) => req<T>(base, 'POST', p, b ?? {}, opts, service),
 });
 
-export const cosigner = make(SERVICE_URLS.cosigner);
-export const partner = make(SERVICE_URLS.partner);
-export const bank = make(SERVICE_URLS.bank);
+export const cosigner = make(SERVICE_URLS.cosigner, 'cosigner');
+export const partner = make(SERVICE_URLS.partner, 'partner');
+export const bank = make(SERVICE_URLS.bank, 'bank');

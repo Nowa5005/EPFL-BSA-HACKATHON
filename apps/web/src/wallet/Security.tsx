@@ -14,6 +14,7 @@ import { useLocal } from '../lib/hooks';
 import { Button, Card, CopyButton, cx, Field, MockBadge, Notice, SecretInput, Spinner, Why } from '../components/ui';
 import { PasswordChecklist } from '../components/PasswordChecklist';
 import { BackupCodeCard, FreezeCard } from './SecurityExtras';
+import { DailyLimitCard, DuressCodeCard } from './ProtectiveSettings';
 import { CosignerDecisions, YourGuarantees } from '../components/Refusal';
 import { tr } from '../lib/i18n';
 import { RecoveryKitCard } from './RecoveryKitCard';
@@ -110,6 +111,10 @@ export default function Security() {
       <RecoveryKitCard />
 
       <BackupCodeCard clientId={session!.clientId} />
+
+      <DailyLimitCard clientId={session!.clientId} />
+
+      <DuressCodeCard clientId={session!.clientId} />
 
       <CosignerDecisions clientId={session!.clientId} />
 

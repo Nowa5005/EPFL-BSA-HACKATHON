@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BiometricsOptions } from '../components/BiometricsOptions';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Fingerprint } from 'lucide-react';
 import { startAuthentication } from '../lib/passkeyGuard'; // guarded for the native app
 import { cosigner } from '../lib/api';
-import { setUnlocked, unlock, unlockState, UnlockError } from '../lib/device';
+import { setUnlocked, unlockState, unlockWithDuressCheck, UnlockError } from '../lib/device';
+import { startDecoy } from '../lib/decoy';
 import type { HDNodeWallet, Wallet } from 'ethers';
 import { useLocal } from '../lib/hooks';
 import { Button, cx, DemoFooter, Field, inputCls, Logo, SecretInput, Spinner, useCountdown } from '../components/ui';
@@ -12,7 +13,7 @@ import { tr } from '../lib/i18n';
 
 /** Password (decrypts the device key locally) then passkey (Touch ID). Never asks for a private key or recovery code. */
 export function UnlockForm({ onDone }: { onDone: () => void }) {
-  const { device } = useLocal();
+  const { device, session } = useLocal();
   const [pw, setPw] = useState('');
   const [phase, setPhase] = useState<'idle' | 'decrypt' | 'passkey' | 'done'>('idle');
   const [progress, setProgress] = useState(0);
@@ -21,8 +22,23 @@ export function UnlockForm({ onDone }: { onDone: () => void }) {
   const [mode, setMode] = useState<'passkey' | 'code'>('passkey');
   const [code, setCode] = useState('');
   const [hasCode, setHasCode] = useState(false);
+  const prefs = useRef<unknown>(undefined); // display preferences only (kept identical in every session)
+  const protection = useRef<unknown>(undefined);
   useEffect(() => {
-    if (device?.clientId) cosigner.get(`/clients/${device.clientId}`).then((c) => setHasCode(!!c.backupCode?.configured)).catch(() => undefined);
+    if (device?.clientId)
+      cosigner
+        .get(`/clients/${device.clientId}`)
+        .then((c) => {
+          setHasCode(!!c.backupCode?.configured);
+          prefs.current = c.preferences;
+        })
+        .catch(() => undefined);
+    // On-chain protection status (shown identically whatever the session — see lib/decoy.ts)
+    if (device?.clientId)
+      cosigner
+        .get(`/clients/${device.clientId}/protection`)
+        .then((p) => (protection.current = p))
+        .catch(() => undefined);
   }, [device?.clientId]);
   const left = useCountdown(lockedUntil > Date.now() ? lockedUntil : undefined);
   const locked = left > 0;
@@ -36,8 +52,17 @@ export function UnlockForm({ onDone }: { onDone: () => void }) {
     setPhase('decrypt');
     setProgress(0);
     let key: Wallet | HDNodeWallet;
+    let decoy = false;
     try {
-      key = await unlock(pw, (p) => setProgress(p), { commit: false });
+      // #16: the duress check runs on every unlock (same work and requests whichever code is typed).
+      const r = await unlockWithDuressCheck(
+        pw,
+        device!.clientId,
+        (proof) => cosigner.post<{ verified: boolean }>(`/clients/${device!.clientId}/unlock/check`, { proof }).then((x) => x.verified === true),
+        (p) => setProgress(p),
+      );
+      key = r.key;
+      decoy = r.decoy;
     } catch (e: any) {
       setPhase('idle');
       setPw('');
@@ -57,6 +82,7 @@ export function UnlockForm({ onDone }: { onDone: () => void }) {
         await cosigner.post('/webauthn/auth/verify', { clientId: device!.clientId, purpose: 'unlock', response });
       }
       setPhase('done');
+      if (decoy) startDecoy({ device: device!, session: session!, code: pw, key, preferences: prefs.current, protection: protection.current });
       setUnlocked(key); // only now: password AND passkey verified
       onDone();
     } catch (e: any) {

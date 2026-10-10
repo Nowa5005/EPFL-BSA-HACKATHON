@@ -197,6 +197,7 @@ function Console() {
             </Card>
           </section>
 
+          <DuressSection />
           <TravelRuleSection />
 
           <TermsAdminSection />
@@ -314,6 +315,60 @@ function RecoveryRow({ r }: { r: any }) {
       </span>
       <TxLink hash={r.txHash}>tx</TxLink>
     </div>
+  );
+}
+
+/** #16 — Duress alerts: a client typed the duress code (co-signing was frozen silently). Never shown to the client. */
+function DuressSection() {
+  const { data, error, reload } = usePoll<any[]>(() => cosigner.get('/admin/duress'), 5000);
+  const [busy, setBusy] = useState<string | null>(null);
+  const open = (data ?? []).filter((a) => a.status === 'open');
+  return (
+    <section>
+      <h2 className="mb-2 text-[17px] font-semibold">
+        {tr('Duress alerts', 'Alertes de contrainte')} {open.length > 0 && <span className="ml-1 rounded-full bg-sq-down px-2 py-0.5 text-[12px] font-semibold text-white">{open.length}</span>}
+      </h2>
+      <Card className="space-y-2 p-4 text-[13px]">
+        {error && <div className="text-sq-down">{error}</div>}
+        {!data?.length && <div className="text-sq-muted">{tr('No duress alert.', 'Aucune alerte de contrainte.')}</div>}
+        {data?.map((a) => (
+          <div key={a.id} className={cx('rounded-[10px] border p-3', a.status === 'open' ? 'border-sq-down/40 bg-sq-bad-50' : 'border-sq-line')}>
+            <div className="font-medium">
+              {a.status === 'open' ? tr('DURESS — client may be under threat', 'CONTRAINTE — client possiblement menacé') : tr('Resolved', 'Résolue')} · {a.clientName ?? a.clientId} ({a.clientId})
+            </div>
+            <div className="text-[12px] text-sq-muted">
+              {tr('Duress code used', 'Code de contrainte utilisé')} {new Date(a.at).toLocaleString(locale(), { timeZone: 'Europe/Zurich' })}
+              {a.count > 1 && ` · ${a.count}× (${tr('last', 'dernier')} ${new Date(a.lastAt).toLocaleString(locale(), { timeZone: 'Europe/Zurich' })})`} · {a.frozen ? tr('co-signing frozen', 'co-signature gelée') : tr('not frozen any more', 'plus gelée')}
+              {a.resolvedAt && ` · ${tr('resolved', 'résolue')} ${new Date(a.resolvedAt).toLocaleString(locale(), { timeZone: 'Europe/Zurich' })} — ${a.note ?? ''}`}
+            </div>
+            <p className="mt-1 text-[12px]">
+              {tr(
+                'The client saw a decoy wallet. Procedure: contact the client through a verified channel without revealing the alert, involve security / police if needed; lift the freeze (Clients section) only once the client is safe.',
+                'Le client a vu un wallet leurre. Procédure : contacter le client par un canal vérifié sans révéler l’alerte, impliquer la sécurité / la police si nécessaire ; lever le gel (section Clients) seulement quand le client est en sécurité.',
+              )}
+            </p>
+            {a.status === 'open' && (
+              <Button
+                variant="secondary"
+                className="mt-2 min-h-9 w-auto px-3 text-[13px]"
+                disabled={busy === a.id}
+                onClick={async () => {
+                  setBusy(a.id);
+                  try {
+                    await cosigner.post(`/admin/duress/${a.id}/resolve`, { note: tr('Client contacted, situation resolved', 'Client contacté, situation résolue') });
+                    await reload();
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+              >
+                {tr('Mark as resolved', 'Marquer comme résolue')}
+              </Button>
+            )}
+          </div>
+        ))}
+      </Card>
+    </section>
   );
 }
 

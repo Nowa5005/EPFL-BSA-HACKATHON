@@ -48,6 +48,7 @@ import { decodeBilingual, evaluatePolicy, ethToUsdcEquivalent, usdcEquivalent, D
 import { feeChf, policyRates } from './rates';
 import { recordOpportunistic, registerSnapshotRoutes, startSnapshotTimer } from './snapshots';
 import { registerRecoveryKitRoutes } from './recoveryKit';
+import { effectiveDailyLimit, registerDuressRoutes } from './duress';
 import { applyTravelRule, assertTravelRuleCleared, recordPrepared, recordSubmitted, registerTravelRuleRoutes, registerTrpRoutes, transmitTravelRule, travelRuleSummary } from './travelRuleGlue';
 import { registerStatementRoutes } from './statements';
 import { confirmWalletTx, docIdOf, hasReceipt, referenceOf, simulateReceive, trackIncoming, upsertWalletTx, type WalletTx } from './walletTx';
@@ -375,6 +376,7 @@ async function analyse(c: Client, safeTx: SafeTx) {
     unrecognisedTokens: unrecognisedTokensOf(c.clientId), // #19
     lookalikeRefs: c.contacts, // #19 address poisoning
     recipientKind: rcptKind, // #20 contract recipient
+    dailyLimitUsdc: effectiveDailyLimit(c), // #16 limit chosen by the client (raises only after a delay)
   });
   const simulation = await simulateInner(c.safeAddress, safeTx);
   if (!simulation.success) {
@@ -918,6 +920,7 @@ app.post('/clients/:id/receipts/track', route((req) => {
 registerFeatureRoutes(app, route, publicClient);
 registerTravelRuleRoutes(app, route);
 registerTrpRoutes(app, route); // #9 public Travel Rule identity
+registerDuressRoutes(app, route); // #16 duress code (decoy + silent freeze + console alert) and protective limits
 registerStatementRoutes(app, route);
 registerSnapshotRoutes(app, route);
 registerRecoveryKitRoutes(app, route); // recovery key part ② (security-key ciphertext) + recovery-key rotation
@@ -985,6 +988,7 @@ async function tick() {
     for (const r of Object.values(db.data.txRequests)) {
       if (r.status === 'awaiting-approval' && r.approval?.decision === 'approved') {
         if (r.coolingOffUntil && new Date(r.coolingOffUntil).getTime() > now) continue;
+        if (db.data.clients[r.clientId]?.frozen) continue; // #16 a freeze (client, compliance or duress) stops any co-signature
         await execute(r).catch(() => undefined);
       }
     }

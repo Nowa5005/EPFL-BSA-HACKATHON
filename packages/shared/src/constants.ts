@@ -48,6 +48,9 @@ export const POLICY = {
   defaultSlippageBps: 50,
   backupCodeMaxAttempts: 5,
   backupCodeLockMinutes: 15,
+  // #16 — protective limits chosen by the client: lowering is immediate, raising takes effect after this delay
+  dailyLimitMaxUsdc: 10_000, // highest daily limit a client may choose (prod: per client tier)
+  limitRaiseDelaySec: 60, // prod: 24 h
 };
 /** Mock referent address for the messaging demo — not a validated Swissquote integration. */
 export const SWISSQUOTE_REFERENT_EMAIL = 'moncontact@swissquote.ch';

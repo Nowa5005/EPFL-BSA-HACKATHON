@@ -43,6 +43,8 @@ export interface PolicyInput {
   unrecognisedTokens?: string[];
   /** #19 — every saved contact (cooling-off included), with names: a look-alike of one of them is refused. */
   lookalikeRefs?: { name: string; address: string }[];
+  /** #16 — daily limit chosen by the client (defaults to POLICY.dailyLimitUsdc). */
+  dailyLimitUsdc?: number;
   /** #20 — what the recipient address is on-chain (presend.ts): an unknown contract needs a strong warning. */
   recipientKind?: 'account' | 'safe' | 'dapp' | 'contract' | 'unknown';
 }
@@ -186,12 +188,20 @@ export function evaluatePolicy(input: PolicyInput): PolicyResult {
     const known = input.contacts.some((c) => lc(c.address) === lc(decoded.recipient));
     const REC: Txt = ['Known recipient', 'Destinataire connu'];
     add(known ? ck('recipient', 'pass', REC) : ck('recipient', 'step-up', REC, ['First payment to this address', 'Premier paiement vers cette adresse']));
+    // #16 — a new recipient above the threshold (or of unknown value) is ALWAYS delayed: confirmation code, cooling-off
+    // period and four-eyes validation; nothing (not even a compliance approval) shortens the cooling-off.
+    if (!known && (amount === null || amount >= POLICY.stepUpThresholdUsdc))
+      add(ck('new-recipient-delay', 'step-up', ['New recipient: security delay', 'Nouveau destinataire : délai de sécurité'], [
+        'A first payment of this size to a new address is always delayed (cooling-off period) — protection against coercion and scams',
+        'Un premier paiement de ce montant vers une nouvelle adresse est toujours différé (délai de réflexion) — protection contre la contrainte et les arnaques',
+      ]));
   }
 
   // 8. Daily limit
   const dailyUnknown = amount === null || input.spentTodayUsdc === null;
-  const dailyOk = !dailyUnknown && input.spentTodayUsdc! + amount! <= POLICY.dailyLimitUsdc;
-  const DAY: Txt = [`Daily limit (${POLICY.dailyLimitUsdc} USDC)`, `Limite journalière (${POLICY.dailyLimitUsdc} USDC)`];
+  const limit = input.dailyLimitUsdc ?? POLICY.dailyLimitUsdc;
+  const dailyOk = !dailyUnknown && input.spentTodayUsdc! + amount! <= limit;
+  const DAY: Txt = [`Daily limit (${limit} USDC)`, `Limite journalière (${limit} USDC)`];
   add(
     dailyUnknown
       ? ck('daily', 'step-up', DAY, ['Daily limit cannot be verified without a market rate: enhanced checks', 'Limite journalière invérifiable sans cours de marché : contrôles renforcés'])

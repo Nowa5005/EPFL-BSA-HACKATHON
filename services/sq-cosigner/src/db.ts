@@ -36,6 +36,10 @@ export interface Client {
   demoFeeChf?: number;
   /** Travel Rule beneficiary records (personal data: this client + compliance only; never in logs/activity/chain). */
   travelRule?: { records: import('./travelRule').TravelRuleRecord[]; challenges?: import('./travelRule').OwnershipChallengeRecord[] };
+  /** #16 — duress code: only scrypt(proof, salt) is stored (proof = scrypt of the code, derived on the device). */
+  duress?: { salt: string; hash: string; createdAt: string };
+  /** #16 — daily limit chosen by the client (raise pending until its delay is over). */
+  limits?: import('./duress').ClientLimits;
 }
 
 export interface Preferences {
@@ -170,6 +174,8 @@ export interface Db {
   indexer?: import('./indexer').IndexerState;
   /** Unrecognised tokens received per client (#19) — never valued, never interacted with. */
   tokenSightings?: Record<string, Record<string, import('./indexer').TokenSighting>>;
+  /** #16 — duress alerts for the compliance console (never shown to the client). */
+  duressAlerts?: import('./duress').DuressAlert[];
 }
 
 export const db = new JsonStore<Db>(DATA_DIR, 'db', () => ({
