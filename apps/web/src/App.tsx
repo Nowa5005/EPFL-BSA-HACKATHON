@@ -38,6 +38,8 @@ import AppModeEffects from './components/AppModeEffects';
 import { tr } from './lib/i18n';
 import { TermsGate } from './components/Terms';
 import About from './pages/About';
+import Emergency from './pages/Emergency';
+import { ServiceHealthBanner } from './components/ServiceHealthBanner';
 
 /** My Wall pages: Swissquote session + a wallet on this device + unlocked (password + passkey). */
 function WalletRoute({ children }: { children: ReactNode }) {
@@ -149,10 +151,13 @@ export default function App() {
         <Route path="/admin" element={<Admin />} />
         <Route path="/attacker" element={<Attacker />} />
         <Route path="/preview/app" element={<PreviewApp />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/emergency" element={<Emergency />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
         <Route path="/about" element={<About />} />
       {/* Owner preview tool (dev or ?preview=1 only) and app-mode behaviour (native shell / preview frame). */}
+      <ServiceHealthBanner />
       <PreviewSwitch />
       <AppModeEffects />
     </UnlockProvider>

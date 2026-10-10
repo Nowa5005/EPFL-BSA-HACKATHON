@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, us
 import { Lock } from 'lucide-react';
 import { getDevice, getSession, isUnlocked, subscribe, unlock, UnlockError } from './device';
 import { cosigner } from './api';
+import { cacheWalletTxs } from './serviceHealth';
 import { Button, Field, SecretInput, Spinner, Why } from '../components/ui';
 import { tr } from './i18n';
 
@@ -90,7 +91,16 @@ export interface WalletTxView {
 export function useWalletTxs(ms = 4000) {
   const { device } = useLocal();
   const clientId = device?.clientId;
-  return usePoll<WalletTxView[]>(async () => (clientId ? cosigner.get(`/clients/${clientId}/wallet-txs`) : []), ms, [clientId]);
+  return usePoll<WalletTxView[]>(
+    async () => {
+      if (!clientId) return [];
+      const txs: WalletTxView[] = await cosigner.get(`/clients/${clientId}/wallet-txs`);
+      cacheWalletTxs(device?.safeAddress, txs); // #21 Emergency mode: on-chain facts only, for when services are down
+      return txs;
+    },
+    ms,
+    [clientId],
+  );
 }
 
 /** Read / unread state for information items (per browser, best effort; shared by all components). */
