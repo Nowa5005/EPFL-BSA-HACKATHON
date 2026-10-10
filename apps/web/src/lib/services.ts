@@ -18,7 +18,7 @@ const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
  * reach them directly, so it goes through the Vite proxy on its own origin: <origin>/svc/<service>
  * (apps/web/vite.config.ts). Explicit VITE_* settings always win; on localhost nothing changes.
  */
-export function resolveServiceUrls(env: Env, page?: { origin: string; hostname: string; protocol: string }): typeof SERVICE_URLS {
+export function resolveServiceUrls(env: Env, page?: { origin: string; hostname: string; protocol: string }): Omit<typeof SERVICE_URLS, 'vasp'> {
   const host = env.VITE_API_HOST?.trim().replace(/\/+$/, '');
   const viaProxy = !host && !!page && /^https?:$/.test(page.protocol) && !LOCAL_HOSTNAMES.has(page.hostname);
   const base = (k: keyof typeof PORTS) =>

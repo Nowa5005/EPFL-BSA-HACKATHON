@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { PORTS } from '@sq/shared';
 
-const ports = [PORTS.cosigner, PORTS.partner, PORTS.bank, PORTS.market];
+const ports = [PORTS.cosigner, PORTS.partner, PORTS.bank, PORTS.market, PORTS.vasp];
 let bad = 0;
 for (const port of ports) {
   let out = '';

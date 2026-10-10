@@ -48,7 +48,7 @@ import { decodeBilingual, evaluatePolicy, ethToUsdcEquivalent, usdcEquivalent, D
 import { feeChf, policyRates } from './rates';
 import { recordOpportunistic, registerSnapshotRoutes, startSnapshotTimer } from './snapshots';
 import { registerRecoveryKitRoutes } from './recoveryKit';
-import { applyTravelRule, recordPrepared, recordSubmitted, registerTravelRuleRoutes } from './travelRuleGlue';
+import { applyTravelRule, assertTravelRuleCleared, recordPrepared, recordSubmitted, registerTravelRuleRoutes, registerTrpRoutes, transmitTravelRule, travelRuleSummary } from './travelRuleGlue';
 import { registerStatementRoutes } from './statements';
 import { confirmWalletTx, docIdOf, hasReceipt, referenceOf, simulateReceive, trackIncoming, upsertWalletTx, type WalletTx } from './walletTx';
 import { registerIndexerRoutes, startIndexer, unrecognisedTokensOf } from './indexer';
@@ -76,6 +76,7 @@ const security = createSecurity({
     ['GET', '/health'],
     ['GET', '/config'],
     ['GET', '/pricing'],
+    ['GET', '/trp/identity'], // #9 Travel Rule identity (Ed25519 public key) for counterparty VASPs
   ],
   internalRoutes: [['POST', '/recovery/alerts']], // sent by the recovery partner
   owner: (req) => {
@@ -468,6 +469,7 @@ async function execute(r: TxRequest) {
       })
     : null;
   try {
+    assertTravelRuleCleared(r); // #9: a transfer to a VASP is co-signed only after its verified "approved"
     const { txHash } = await cosignAndExecute(r.clientId, r.safeAddress, r.safeTx, { signer: r.deviceAddress, signature: r.signatureK1 }, (hash) => {
       if (wtx) upsertWalletTx({ id: wtx.id, clientId: r.clientId, status: 'pending', txHash: hash });
     });
@@ -549,6 +551,8 @@ app.post(
     if (!a.state.owners.includes(signer) || signer.toLowerCase() === c.owners.cosigner.toLowerCase())
       throw new HttpError(401, t('The signature does not come from an authorised key of this wallet', "La signature ne provient pas d'une clé autorisée de ce wallet"));
     if (signer.toLowerCase() !== c.owners.device.toLowerCase()) throw new HttpError(401, t('Everyday operations must be signed by the device key', "Les opérations courantes doivent être signées par la clé de l'appareil"));
+    // 3. #9 Travel Rule: recipient managed by a VASP → signed IVMS101 sent BEFORE co-signing; only "approved" continues
+    await transmitTravelRule({ c, previewId: p.id, tr, policy: a.policy });
 
     const base: TxRequest = {
       id: newId(),
@@ -867,7 +871,7 @@ async function executeRecovery(id: string) {
 }
 
 // ───────────────────────────── Wallet transactions & receipts ─────────────────────────────
-const txWithDoc = (t: WalletTx) => ({ ...t, docId: t.status === 'confirmed' && hasReceipt(t) ? docIdOf(t) : undefined, reference: referenceOf(t), explorer: t.txHash ? explorerTx(t.txHash) : undefined });
+const txWithDoc = (t: WalletTx) => ({ ...t, docId: t.status === 'confirmed' && hasReceipt(t) ? docIdOf(t) : undefined, reference: referenceOf(t), explorer: t.txHash ? explorerTx(t.txHash) : undefined, travelRule: travelRuleSummary(t.clientId, t.requestId) });
 
 app.get('/clients/:id/wallet-txs', route((req) =>
   Object.values(db.data.walletTxs ?? {})
@@ -913,6 +917,7 @@ app.post('/clients/:id/receipts/track', route((req) => {
 
 registerFeatureRoutes(app, route, publicClient);
 registerTravelRuleRoutes(app, route);
+registerTrpRoutes(app, route); // #9 public Travel Rule identity
 registerStatementRoutes(app, route);
 registerSnapshotRoutes(app, route);
 registerRecoveryKitRoutes(app, route); // recovery key part ② (security-key ciphertext) + recovery-key rotation

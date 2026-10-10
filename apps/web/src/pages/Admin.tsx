@@ -328,7 +328,7 @@ function TravelRuleSection() {
         {data && (
           <p className="text-sq-muted">
             {tr('Rules', 'Règles')} {data.config.version} · {tr('threshold', 'seuil')} {data.config.thresholdChf} CHF ({tr('inclusive', 'inclus')}) · {data.config.linkedWindowDays} {tr('days linked', 'jours liés')} ·{' '}
-            {data.config.demoMode ? <MockBadge label={tr('Demo mode — not transmitted, not compliant', 'Mode démo — non transmis, non conforme')} /> : tr('third-party transfers blocked (no transmission integration)', 'transferts à des tiers bloqués (pas d’intégration de transmission)')}
+            {tr('transmission', 'transmission')}: {data.config.transmissionIntegration ?? '—'}
           </p>
         )}
         {!data?.records?.length && <div className="text-sq-muted">{tr('No third-party transfer recorded.', 'Aucun transfert à un tiers enregistré.')}</div>}
@@ -343,6 +343,18 @@ function TravelRuleSection() {
                 {r.clientId} · {new Date(r.createdAt).toLocaleString(locale(), { timeZone: 'Europe/Zurich' })} · {r.chf === null ? tr('CHF value unknown', 'contre-valeur inconnue') : `≈ ${r.chf} CHF`} · {b.walletType === 'hosted' ? `${tr('hosted', 'hébergé')} (${b.providerName})` : tr('personal wallet', 'wallet personnel')}
                 {b.country && ` · ${[b.street, b.postcode, b.city, b.country].filter(Boolean).join(', ')} · ${b.relationship} · ${b.purpose}`} · {r.requestStatus ?? '—'} · {tr('kept until', 'conservé jusqu’au')} {r.retainUntil.slice(0, 10)}
               </div>
+              <div className="text-[12px]">
+                Travel Rule:{' '}
+                {r.route === 'vasp'
+                  ? `${tr('transmitted to', 'transmis à')} ${r.vasp?.name} — ${r.trp?.status ?? tr('not sent', 'non envoyé')}${r.trp?.reference ? ` · ref ${r.trp.reference}` : ''}${r.trp?.reasonCode ? ` · ${r.trp.reasonCode}` : ''}${r.trp?.responseVerified ? ` · ${tr('signed answer verified', 'réponse signée vérifiée')}` : ''}`
+                  : r.route === 'self-hosted-proof'
+                    ? tr('personal wallet — ownership proven (EIP-191 signature)', 'wallet personnel — propriété prouvée (signature EIP-191)')
+                    : r.route === 'self-hosted-declaration'
+                      ? tr('personal wallet — client declaration (below threshold)', 'wallet personnel — déclaration du client (sous le seuil)')
+                      : r.demo
+                        ? tr('legacy demo mode — not transmitted', 'ancien mode démo — non transmis')
+                        : '—'}
+              </div>
             </div>
           );
         })}
@@ -352,7 +364,7 @@ function TravelRuleSection() {
             <ul className="mt-1 space-y-1 font-mono text-[11px]">
               {data.audit.slice(0, 50).map((a: any) => (
                 <li key={a.id}>
-                  {a.at} {a.stage} {a.clientId} {a.ruleVersion} {a.category} chf={a.chfValue ?? 'null'} rate={a.rate ? `${a.rate.chf}@${a.rate.asOf}` : a.rateIssue} agg={a.aggregateChf ?? 'null'} enh={String(a.enhancedRequired)} missing=[{a.missingFields.join(',')}] {a.demo ? 'DEMO' : ''} → {a.decision}
+                  {a.at} {a.stage} {a.clientId} {a.ruleVersion} {a.category} chf={a.chfValue ?? 'null'} rate={a.rate ? `${a.rate.chf}@${a.rate.asOf}` : a.rateIssue} agg={a.aggregateChf ?? 'null'} enh={String(a.enhancedRequired)} missing=[{a.missingFields.join(',')}] {a.route ? `route=${a.route}` : ''} {a.trp ? `trp=${a.trp.status}${a.trp.reference ? `/${a.trp.reference}` : ''}${a.trp.reasonCode ? `/${a.trp.reasonCode}` : ''} req=${a.trp.requestIdentifier.slice(0, 8)}` : ''} {a.demo ? 'DEMO(legacy)' : ''} → {a.decision}
                 </li>
               ))}
             </ul>

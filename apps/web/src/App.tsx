@@ -21,6 +21,7 @@ import Dapps from './pages/Dapps';
 import Recover from './pages/Recover';
 import Admin from './pages/Admin';
 import Attacker from './pages/Attacker';
+import ProveWallet from './pages/ProveWallet';
 import { MoreMenu, WalletShell } from './wallet/WalletShell';
 import UnlockPage from './wallet/Unlock';
 import Home from './wallet/Home';
@@ -150,6 +151,7 @@ export default function App() {
         <Route path="/recover" element={<Recover />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/attacker" element={<Attacker />} />
+        <Route path="/prove-wallet" element={<ProveWallet />} />
         <Route path="/preview/app" element={<PreviewApp />} />
         <Route path="/about" element={<About />} />
         <Route path="/emergency" element={<Emergency />} />

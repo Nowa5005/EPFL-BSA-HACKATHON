@@ -21,25 +21,31 @@ const base = (over: Partial<TravelRuleInput> = {}): TravelRuleInput => ({
 });
 const enhanced = { name: 'Bob Example', walletType: 'unhosted' as const, street: 'Rue 1', city: 'Lausanne', country: 'CH', relationship: 'friend', purpose: 'gift', accuracyConfirmed: true };
 
-test('config: demo mode ON by default outside production, OFF in production, env overrides', () => {
-  assert.equal(travelRuleConfig({ NODE_ENV: 'development' } as any).demoMode, true);
-  assert.equal(travelRuleConfig({ NODE_ENV: 'production' } as any).demoMode, false);
-  assert.equal(travelRuleConfig({ NODE_ENV: 'production', TRAVEL_RULE_DEMO_MODE: '1' } as any).demoMode, true);
-  assert.equal(travelRuleConfig({ TRAVEL_RULE_DEMO_MODE: 'off' } as any).demoMode, false);
+test('config: no demo mode any more (#9), env overrides of the threshold', () => {
+  assert.equal('demoMode' in travelRuleConfig({ NODE_ENV: 'development' } as any), false);
+  assert.ok(travelRuleConfig({} as any).transmissionIntegration);
   assert.equal(travelRuleConfig({ TRAVEL_RULE_THRESHOLD_CHF: '500' } as any).thresholdChf, 500);
   assert.equal(travelRuleConfig({ TRAVEL_RULE_THRESHOLD_CHF: 'abc' } as any).thresholdChf, 1000);
 });
 
-test('third party below threshold: name required even for tiny amounts; demo mode labelled not compliant', () => {
-  const noName = evaluateTravelRule(base({ declaration: { kind: 'third-party', beneficiary: { name: '', walletType: 'unhosted' } } }));
+test('third party below threshold: name required even for tiny amounts; personal wallet → proof or declaration', () => {
+  const noName = evaluateTravelRule(base({ declaration: { kind: 'third-party', beneficiary: { name: '', walletType: 'unhosted', declaresOwnership: true } } }));
   assert.equal(noName.decision, 'reject');
   assert.ok(noName.missing.includes('name'));
-  const r = evaluateTravelRule(base());
+  // neither a proof nor a declaration → refused
+  const bare = evaluateTravelRule(base());
+  assert.equal(bare.decision, 'reject');
+  assert.equal(bare.transmission, 'proof-required');
+  const r = evaluateTravelRule(base({ declaration: { kind: 'third-party', beneficiary: { name: 'Bob Example', walletType: 'unhosted', declaresOwnership: true } } }));
   assert.equal(r.decision, 'allow');
   assert.equal(r.enhancedRequired, false);
   assert.equal(r.chf.value, 80);
-  assert.equal(r.demo, true);
-  assert.ok(r.checks.some((c) => /not compliant/.test(c.label)));
+  assert.equal(r.route, 'self-hosted-declaration');
+  assert.equal(r.transmission, 'client-declaration');
+  // a valid ownership proof also works
+  const p = evaluateTravelRule(base({ ownership: { status: 'valid' } }));
+  assert.equal(p.decision, 'allow');
+  assert.equal(p.route, 'self-hosted-proof');
 });
 
 test('threshold is inclusive: exactly 1000 CHF requires the enhanced fields', () => {
@@ -48,8 +54,12 @@ test('threshold is inclusive: exactly 1000 CHF requires the enhanced fields', ()
   assert.equal(r.enhancedRequired, true);
   assert.equal(r.decision, 'reject');
   for (const f of ['street', 'city', 'country', 'relationship', 'purpose', 'accuracyConfirmed']) assert.ok(r.missing.includes(f), f);
-  const ok = evaluateTravelRule(base({ transfer: { asset: 'USDC', amount: '1250', recipient: bob }, declaration: { kind: 'third-party', beneficiary: enhanced } }));
+  const ok = evaluateTravelRule(base({ transfer: { asset: 'USDC', amount: '1250', recipient: bob }, declaration: { kind: 'third-party', beneficiary: enhanced }, ownership: { status: 'valid' } }));
   assert.equal(ok.decision, 'allow');
+  // ≥ threshold: the client's declaration is NOT enough for a personal wallet — the beneficiary must prove ownership
+  const decl = evaluateTravelRule(base({ transfer: { asset: 'USDC', amount: '1250', recipient: bob }, declaration: { kind: 'third-party', beneficiary: { ...enhanced, declaresOwnership: true } } }));
+  assert.equal(decl.decision, 'reject');
+  assert.equal(decl.transmission, 'proof-required');
   const below = evaluateTravelRule(base({ transfer: { asset: 'USDC', amount: '1249.98', recipient: bob } }));
   assert.equal(below.enhancedRequired, false);
 });
@@ -87,11 +97,24 @@ test('linked operations: same beneficiary (name or address) within 30 days are s
   assert.equal(r3.enhancedRequired, true);
 });
 
-test('production (no demo): real third-party transfers are blocked (no transmission integration)', () => {
-  const r = evaluateTravelRule(base({ config: cfg({ demoMode: false }), declaration: { kind: 'third-party', beneficiary: enhanced } }));
-  assert.equal(r.decision, 'reject');
-  assert.equal(r.transmission, 'required-not-available');
-  assert.ok(r.checks.some((c) => c.id === 'travel-rule-transmission' && c.status === 'fail'));
+test('#9 routes: VASP in the directory → TRP before co-signing; unknown hosted institution → refused; invalid proof → refused', () => {
+  const vasp = { vaspId: 'demo-exchange-ag', name: 'Demo Exchange AG', lei: 'DEMO00DEMOEXCHG00166', country: 'CH', endpoint: 'http://x' };
+  const v = evaluateTravelRule(base({ vasp, declaration: { kind: 'third-party', beneficiary: { name: 'Dana Example', walletType: 'hosted', providerName: 'Demo Exchange AG' } } }));
+  assert.equal(v.decision, 'allow');
+  assert.equal(v.route, 'vasp');
+  assert.equal(v.transmission, 'trp-required');
+  assert.deepEqual(v.vasp, { vaspId: 'demo-exchange-ag', name: 'Demo Exchange AG' });
+  assert.ok(v.checks.some((c) => c.id === 'travel-rule-transmission' && /before co-signing/.test(c.label)));
+  // the directory wins over a "personal wallet" declaration
+  assert.equal(evaluateTravelRule(base({ vasp, declaration: { kind: 'third-party', beneficiary: { name: 'Dana Example', walletType: 'unhosted' } } })).route, 'vasp');
+  // still subject to the beneficiary fields (≥ threshold → enhanced)
+  assert.equal(evaluateTravelRule(base({ vasp, rate: undefined, declaration: { kind: 'third-party', beneficiary: { name: 'Dana Example', walletType: 'hosted', providerName: 'X' } } })).decision, 'reject');
+  const h = evaluateTravelRule(base({ declaration: { kind: 'third-party', beneficiary: { ...enhanced, walletType: 'hosted', providerName: 'Unknown Bank' } } }));
+  assert.equal(h.decision, 'reject');
+  assert.equal(h.transmission, 'trp-unreachable');
+  const bad = evaluateTravelRule(base({ ownership: { status: 'invalid', detail: ['wrong signer', 'mauvais signataire'] }, declaration: { kind: 'third-party', beneficiary: { name: 'Bob Example', walletType: 'unhosted', declaresOwnership: true } } }));
+  assert.equal(bad.decision, 'reject');
+  assert.ok(bad.reasons.includes('wrong signer'));
 });
 
 test('own wallet: must be a wallet verified for this client; registry outage refuses', () => {

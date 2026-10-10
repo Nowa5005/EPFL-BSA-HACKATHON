@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { isAddress, parseEther, parseUnits } from 'ethers';
+import { getAddress, isAddress, parseEther, parseUnits } from 'ethers';
 import {
   RELATIONSHIPS,
   TRAVEL_RULE,
@@ -20,12 +20,15 @@ import { bank, cosigner } from '../lib/api';
 import { useLocal, usePoll, useWalletData } from '../lib/hooks';
 import { useWalletRates } from '../lib/market';
 import { getLang, locale, tr } from '../lib/i18n';
-import { Addr, Button, Card, cx, Field, fmt, inputCls, MockBadge, Notice, PageHeader, Why } from '../components/ui';
+import { Addr, Button, Card, cx, Field, fmt, inputCls, Notice, PageHeader, Why } from '../components/ui';
 import { TxFlow } from '../components/TxFlow';
 import { RecipientCheckView } from '../components/RecipientCheck';
 import { Money } from '../lib/prefs';
+import { proveWalletLink } from './ProveWallet';
 
 const DEMO_BOB = '0xb0b0000000000000000000000000000000000b0b';
+/** #9 — deposit address of “Dana Example” at Demo Exchange AG (simulated counterparty VASP on the Travel Rule network). */
+const DEMO_EXCHANGE = '0xDE0E0000000000000000000000000000000d0E01';
 const DEMO_SANCTIONED = '0x098B716B8Aaf21512996dC57EB0615e2383E2f96';
 
 // Common ISO 3166-1 alpha-2 codes for the beneficiary's country (names localised by the browser).
@@ -98,6 +101,10 @@ export default function Send() {
   const [ben, setBen] = useState<Partial<BeneficiaryInput>>({});
   const [moreDetails, setMoreDetails] = useState(false);
   const setB = (p: Partial<BeneficiaryInput>) => setBen((b) => ({ ...b, ...p }));
+  // #9 — personal wallet of a third party: ownership proof (message signed by the beneficiary) or declaration
+  const [proofMsg, setProofMsg] = useState('');
+  const [proofSig, setProofSig] = useState('');
+  const [proofErr, setProofErr] = useState('');
 
   const contacts: any[] = data?.client?.contacts ?? [];
   const balance = Number(asset === 'USDC' ? data?.onchain?.usdc ?? 0 : data?.onchain?.eth ?? 0);
@@ -125,7 +132,18 @@ export default function Send() {
   const trCfg = usePoll(() => cosigner.get(`/clients/${clientId}/travel-rule/config`), 300000, [clientId]);
   const threshold: number = trCfg.data?.thresholdChf ?? TRAVEL_RULE.enhancedThresholdChf;
   const maxAgeSec: number = trCfg.data?.rateMaxAgeSec ?? TRAVEL_RULE.rateMaxAgeSec;
-  const demoMode: boolean | undefined = trCfg.data?.demoMode;
+  // #9 — Travel Rule directory (address → VASP), public data from the co-signer
+  const directory: Record<string, { vaspId: string; name: string }> = trCfg.data?.directory ?? {};
+  const vaspOf = isAddress(to) ? directory[getAddress(to)] : undefined;
+  // #9 — an address of a VASP on the Travel Rule network is an account at that institution.
+  useEffect(() => {
+    if (vaspOf) setB({ walletType: 'hosted', providerName: vaspOf.name });
+  }, [vaspOf?.vaspId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A new recipient or beneficiary invalidates a previous ownership proof.
+  useEffect(() => {
+    setProofMsg('');
+    setProofSig('');
+  }, [to, ben.name]);
   const rates = useWalletRates();
   const rate = rates.data?.rates?.[asset];
   const rateOk = !!rate && !rate.stale && Date.now() - new Date(rate.asOf).getTime() <= maxAgeSec * 1000;
@@ -137,6 +155,7 @@ export default function Send() {
     () => [
       ...contacts.map((c) => ({ name: c.name, address: c.address, note: c.known ? tr('contact', 'contact') : tr('new (cooling-off)', 'nouveau (délai de réflexion)') })),
       ...(contacts.some((c) => c.address.toLowerCase() === DEMO_BOB) ? [] : [{ name: tr('Bob (demo)', 'Bob (démo)'), address: DEMO_BOB, note: tr('not a contact yet', 'pas encore contact') }]),
+      { name: tr('Dana at Demo Exchange AG (demo)', 'Dana chez Demo Exchange AG (démo)'), address: DEMO_EXCHANGE, note: tr('Travel Rule network', 'réseau Travel Rule') },
       { name: tr('Sanctioned address (demo)', 'Adresse sanctionnée (démo)'), address: DEMO_SANCTIONED, note: tr('OFAC list', 'liste OFAC') },
     ],
     [contacts],
@@ -159,6 +178,12 @@ export default function Send() {
       if (kind === 'third-party') {
         const missing = missingBeneficiaryFields(ben, enhanced);
         if (missing.length) return setErr(tr(`Beneficiary information missing: ${missing.map(fieldLabel).join(', ')}.`, `Informations sur le bénéficiaire manquantes : ${missing.map(fieldLabel).join(', ')}.`));
+        if (!vaspOf && ben.walletType === 'unhosted' && !(proofMsg && proofSig) && !(ben.declaresOwnership && !enhanced))
+          return setErr(
+            enhanced
+              ? tr('From this amount, the beneficiary must prove they own this personal wallet: get the message to sign below.', 'À partir de ce montant, le bénéficiaire doit prouver qu’il détient ce wallet personnel : obtenez ci-dessous le message à signer.')
+              : tr('Ask the beneficiary to prove they own this personal wallet, or declare that it belongs to them.', 'Demandez au bénéficiaire de prouver qu’il détient ce wallet personnel, ou déclarez qu’il lui appartient.'),
+          );
       }
     }
     try {
@@ -173,7 +198,19 @@ export default function Send() {
         nav('/wallet/scheduled');
         return;
       }
-      setDecl(kind === 'own' ? { kind: 'own' } : { kind: 'third-party', beneficiary: { ...(ben as BeneficiaryInput), country: ben.country?.toUpperCase() } });
+      setDecl(
+        kind === 'own'
+          ? { kind: 'own' }
+          : {
+              kind: 'third-party',
+              beneficiary: {
+                ...(ben as BeneficiaryInput),
+                country: ben.country?.toUpperCase(),
+                ownershipProof: !vaspOf && ben.walletType === 'unhosted' && proofMsg && proofSig ? { message: proofMsg, signature: proofSig.trim() } : undefined,
+                declaresOwnership: !vaspOf && ben.walletType === 'unhosted' && !enhanced && ben.declaresOwnership ? true : undefined,
+              },
+            },
+      );
       const nonce = (await cosigner.get(`/clients/${clientId}/onchain`)).nonce;
       setTx(
         asset === 'USDC'
@@ -189,9 +226,12 @@ export default function Send() {
     return (
       <div className="mx-auto max-w-[640px] space-y-3">
         <PageHeader title={tr('Review', 'Vérification')} />
-        {decl?.kind === 'third-party' && demoMode && (
-          <Notice tone="warn" title={tr('Demo — Travel Rule data collected but not transmitted; not compliant', 'Démo — données Travel Rule collectées mais non transmises ; non conforme')}>
-            {tr('The beneficiary information stays with Swissquote (it is never written on the blockchain). No Travel Rule network is connected in this prototype.', 'Les informations sur le bénéficiaire restent chez Swissquote (jamais inscrites sur la blockchain). Aucun réseau Travel Rule n’est connecté dans ce prototype.')}
+        {decl?.kind === 'third-party' && vaspOf && (
+          <Notice title={tr(`Travel Rule: sent to ${vaspOf.name} before co-signing`, `Travel Rule : transmis à ${vaspOf.name} avant la co-signature`)}>
+            {tr(
+              `When you confirm, your details and the beneficiary’s go to ${vaspOf.name} in a signed message (never on the blockchain). Swissquote co-signs only once ${vaspOf.name} has approved.`,
+              `À la confirmation, vos informations et celles du bénéficiaire sont envoyées à ${vaspOf.name} dans un message signé (jamais sur la blockchain). Swissquote ne co-signe qu’après l’approbation de ${vaspOf.name}.`,
+            )}
           </Notice>
         )}
         <TxFlow clientId={clientId} safeAddress={device!.safeAddress!} safeTx={tx} note={note.trim() || undefined} transfer={decl} onBack={() => setTx(null)} onDone={() => void reload()} />
@@ -336,12 +376,11 @@ export default function Send() {
         <Card className="space-y-3" as="section">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-[16px] font-semibold">{tr('Beneficiary', 'Bénéficiaire')}</h2>
-            {demoMode && <MockBadge label={tr('Demo — not transmitted', 'Démo — non transmis')} />}
           </div>
           <p className="text-[13px] text-sq-ink-2">
             {tr(
-              'Swiss anti-money-laundering rules (the “Travel Rule”) require information on the person you send to. It stays with Swissquote and is never written on the blockchain.',
-              'Les règles suisses de lutte contre le blanchiment (la « Travel Rule ») exigent des informations sur la personne à qui vous envoyez. Elles restent chez Swissquote et ne sont jamais inscrites sur la blockchain.',
+              'Swiss anti-money-laundering rules (the “Travel Rule”) require information on the person you send to. It is never written on the blockchain; if the address belongs to an exchange or a bank, it is sent to that institution before Swissquote co-signs.',
+              'Les règles suisses de lutte contre le blanchiment (la « Travel Rule ») exigent des informations sur la personne à qui vous envoyez. Elles ne sont jamais inscrites sur la blockchain ; si l’adresse appartient à une plateforme ou à une banque, elles sont transmises à cet établissement avant la co-signature de Swissquote.',
             )}
           </p>
           <Field label={tr('Full name of the beneficiary', 'Nom complet du bénéficiaire')} hint={tr('First and last name, or the full company name. Always required.', 'Prénom et nom, ou la raison sociale complète. Toujours obligatoire.')}>
@@ -436,17 +475,66 @@ export default function Send() {
               </label>
             </div>
           )}
-          <Notice tone="info">
-            {tr(
-              'Giving a name is not enough on its own to make a transfer compliant. The information is not verified, and Swissquote is not yet connected to a Travel Rule network to transmit it.',
-              'Indiquer un nom ne suffit pas, à lui seul, à rendre un transfert conforme. Les informations ne sont pas vérifiées, et Swissquote n’est pas encore connecté à un réseau Travel Rule pour les transmettre.',
-            )}{' '}
-            {demoMode === false
-              ? tr('Transfers to someone else’s wallet are therefore blocked.', 'Les transferts vers le wallet de quelqu’un d’autre sont donc bloqués.')
-              : demoMode
-                ? tr('Demo mode: the transfer can go ahead, labelled “not compliant”.', 'Mode démo : le transfert peut avoir lieu, marqué « non conforme ».')
-                : null}
-          </Notice>
+          {vaspOf ? (
+            <Notice title={tr(`Account at ${vaspOf.name} — Travel Rule network`, `Compte chez ${vaspOf.name} — réseau Travel Rule`)}>
+              {tr(
+                `This address is managed by ${vaspOf.name}. Before co-signing, Swissquote sends your details and the beneficiary’s to ${vaspOf.name} in a signed message; ${vaspOf.name} checks that the name matches its customer, and Swissquote co-signs only after its approval.`,
+                `Cette adresse est gérée par ${vaspOf.name}. Avant de co-signer, Swissquote transmet vos informations et celles du bénéficiaire à ${vaspOf.name} dans un message signé ; ${vaspOf.name} vérifie que le nom correspond à son client, et Swissquote ne co-signe qu’après son approbation.`,
+              )}
+            </Notice>
+          ) : ben.walletType === 'hosted' ? (
+            <Notice tone="warn">
+              {tr(
+                'This address is not known on the Travel Rule network: Swissquote cannot transmit the required information to the institution, so the transfer will be refused. Ask the beneficiary for a deposit address of a connected institution, or for their personal wallet.',
+                'Cette adresse n’est pas connue du réseau Travel Rule : Swissquote ne peut pas transmettre les informations requises à l’établissement, le transfert sera donc refusé. Demandez au bénéficiaire une adresse de dépôt d’un établissement connecté, ou son wallet personnel.',
+              )}
+            </Notice>
+          ) : ben.walletType === 'unhosted' ? (
+            <div className="space-y-3 rounded-[10px] border border-sq-line p-3">
+              <div className="text-[14px] font-medium">{tr('Proof that this personal wallet is the beneficiary’s', 'Preuve que ce wallet personnel est celui du bénéficiaire')}</div>
+              <p className="text-[13px] text-sq-ink-2">
+                {enhanced
+                  ? tr(`Required from ${fmt(threshold, 0)} CHF: the beneficiary signs a message with this wallet (free, no transaction).`, `Obligatoire dès ${fmt(threshold, 0)} CHF : le bénéficiaire signe un message avec ce wallet (gratuit, sans transaction).`)
+                  : tr('Recommended: the beneficiary signs a message with this wallet (free, no transaction). Below the threshold you may instead declare it yourself.', 'Recommandé : le bénéficiaire signe un message avec ce wallet (gratuit, sans transaction). Sous le seuil, vous pouvez à la place le déclarer vous-même.')}
+              </p>
+              {!proofMsg ? (
+                <Button
+                  variant="secondary"
+                  className="w-auto px-4 text-[14px]"
+                  onClick={async () => {
+                    setProofErr('');
+                    try {
+                      const r = await cosigner.post(`/clients/${clientId}/travel-rule/ownership-challenge`, { address: to, name: ben.name });
+                      setProofMsg(r.message);
+                    } catch (e: any) {
+                      setProofErr(e.message);
+                    }
+                  }}
+                >
+                  {tr('Get the message for the beneficiary to sign', 'Obtenir le message à faire signer au bénéficiaire')}
+                </Button>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-[13px]">
+                    {tr('Send this link to the beneficiary. They open it, sign with their wallet and send you back the signature.', 'Envoyez ce lien au bénéficiaire. Il l’ouvre, signe avec son wallet et vous renvoie la signature.')}{' '}
+                    <a className="font-medium underline underline-offset-2" href={proveWalletLink(proofMsg)} target="_blank" rel="noreferrer">
+                      {tr('Open the signing page', 'Ouvrir la page de signature')}
+                    </a>
+                  </p>
+                  <Field label={tr('Signature from the beneficiary', 'Signature du bénéficiaire')} hint={tr('0x… (132 characters). Swissquote verifies it before co-signing.', '0x… (132 caractères). Swissquote la vérifie avant de co-signer.')}>
+                    <input className={cx(inputCls, 'font-mono text-[13px]')} value={proofSig} onChange={(e) => setProofSig(e.target.value.trim())} placeholder="0x…" spellCheck={false} />
+                  </Field>
+                </div>
+              )}
+              {proofErr && <Notice tone="bad">{proofErr}</Notice>}
+              {!enhanced && (
+                <label className="flex cursor-pointer gap-3 text-[14px]">
+                  <input type="checkbox" checked={ben.declaresOwnership === true} onChange={(e) => setB({ declaresOwnership: e.target.checked })} className="mt-1 accent-sq-orange" />
+                  <span>{tr('Instead, I declare that this personal wallet belongs to the beneficiary named above (below the threshold only).', 'À la place, je déclare que ce wallet personnel appartient au bénéficiaire nommé ci-dessus (sous le seuil uniquement).')}</span>
+                </label>
+              )}
+            </div>
+          ) : null}
         </Card>
       )}
 

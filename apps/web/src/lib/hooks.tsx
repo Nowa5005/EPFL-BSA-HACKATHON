@@ -86,6 +86,17 @@ export interface WalletTxView {
   backfilled?: boolean;
   flags?: ('lookalike' | 'zero-value' | 'dust')[];
   lookalikeOf?: { name?: string; address: string };
+  /** #9 — Travel Rule status of a send (no personal data): route, counterparty VASP, TRP answer and reference. */
+  travelRule?: {
+    category: 'own' | 'third-party' | 'undeclared';
+    route?: 'vasp' | 'self-hosted-proof' | 'self-hosted-declaration';
+    vaspName?: string;
+    status?: 'approved' | 'rejected' | 'error';
+    reference?: string;
+    transmittedAt?: string;
+    ownership?: 'eip191-signature' | 'client-declaration';
+    legacyDemo?: boolean;
+  };
 }
 
 export function useWalletTxs(ms = 4000) {

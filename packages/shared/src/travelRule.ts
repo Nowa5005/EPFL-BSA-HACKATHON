@@ -1,11 +1,12 @@
 // Travel Rule / third-party transfer policy — shared by the co-signer (authoritative, server-side) and the web app
 // (same field rules, for a helpful form). Sources and limits: docs/COMPLIANCE.md. NOT legal advice; to be validated
 // by compliance. Server-side env overrides: TRAVEL_RULE_THRESHOLD_CHF, TRAVEL_RULE_RATE_MAX_AGE_SEC,
-// TRAVEL_RULE_LINKED_WINDOW_DAYS, TRAVEL_RULE_DEMO_MODE (see services/sq-cosigner/src/travelRule.ts).
+// TRAVEL_RULE_LINKED_WINDOW_DAYS (see services/sq-cosigner/src/travelRule.ts). #9: transmission over a TRP-like
+// network (packages/shared/src/trp.ts, IVMS101 in ivms101.ts) to a simulated counterparty VASP (services/vasp-mock).
 
 export const TRAVEL_RULE = {
   /** Bumped whenever the rules below change; recorded in every audit entry. */
-  version: 'TR-2026-10-10.1',
+  version: 'TR-2026-10-11.1',
   /**
    * Enhanced beneficiary-data collection from this CHF counter-value INCLUDED (≥). Product hypothesis from the brief,
    * aligned on the CHF 1'000 / 30 days figure of the 2023 AMLO-FINMA revision (which concerns exchange transactions
@@ -18,8 +19,14 @@ export const TRAVEL_RULE = {
   linkedAggregation: 'same-beneficiary' as const,
   /** A CHF rate older than this (or flagged stale) is not trusted: the transfer is treated as ≥ threshold. */
   rateMaxAgeSec: 15 * 60,
-  /** No Travel Rule transmission network (TRP, OpenVASP, Notabene…) is connected in this prototype. */
-  transmissionIntegration: null as null | string,
+  /**
+   * #9 — Transmission: IVMS101 messages signed with Ed25519, sent over a TRP-like API to the beneficiary VASP BEFORE
+   * co-signing. In this prototype the network is SIMULATED (one counterparty: services/vasp-mock, "Demo Exchange AG").
+   * Production: a real Travel Rule network (TRP / OpenVASP, or a commercial provider), to be chosen with compliance.
+   */
+  transmissionIntegration: 'TRP-like, simulated network (vasp-mock)' as null | string,
+  /** A beneficiary's ownership proof (signed message) must have been requested less than this long ago. */
+  ownershipProofMaxAgeSec: 24 * 3600,
   /** Retention of beneficiary records (configured value, see docs/COMPLIANCE.md). */
   retentionYears: 10,
 };
@@ -41,6 +48,13 @@ export interface BeneficiaryInput {
   relationship?: string;
   purpose?: string;
   accuracyConfirmed?: boolean;
+  /**
+   * #9 — Personal (unhosted) wallet of a third party: proof that the beneficiary controls the address — a message
+   * produced by the co-signer (ownershipProofMessage) signed by that address (EIP-191 personal_sign).
+   */
+  ownershipProof?: { message: string; signature: string };
+  /** #9 — Personal wallet, below the threshold only: the client declares the wallet belongs to the beneficiary. */
+  declaresOwnership?: boolean;
 }
 
 /** What the client declares in the send flow. */

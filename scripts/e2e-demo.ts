@@ -125,17 +125,22 @@ async function main() {
   ok(`Safe.isValidSignature → ${magic} (valid, verified on-chain)`);
 
   step(2, 'SIGN — device key K1 + Swissquote co-signature K2, gas sponsored');
-  const bob = Wallet.createRandom().address;
+  const bobWallet = Wallet.createRandom(); // Bob's personal wallet (he signs the Travel Rule ownership proof)
+  const bob = bobWallet.address;
   await call('POST', `${C}/clients/${clientId}/contacts`, { name: 'Bob', address: bob });
   const cfg = await call('GET', `${C}/config`);
   const cool = cfg.policy.coolingOffNewRecipientSec;
   info(`contact Bob ${bob} added — waiting the ${cool}s cooling-off for new recipients…`);
   // Travel Rule: Bob is a third party → his full name is always required. The enhanced fields are also given so the
   // ping passes even if no CHF rate is available (an unknown counter-value is treated as ≥ the threshold).
-  // The services run in Travel Rule DEMO mode outside production (data collected, not transmitted — not compliant).
+  // #9: a personal (unhosted) wallet of a third party → Bob proves he controls it by signing the message issued by
+  // the co-signer (EIP-191), verified before co-signing.
+  const challenge = await call('POST', `${C}/clients/${clientId}/travel-rule/ownership-challenge`, { address: bob, name: 'Bob Example' });
+  const ownershipProof = { message: challenge.message, signature: await bobWallet.signMessage(challenge.message) };
+  ok('Travel Rule: Bob signed the ownership proof of his personal wallet (EIP-191)');
   const transfer = {
     kind: 'third-party',
-    beneficiary: { name: 'Bob Example', walletType: 'unhosted', street: 'Rue du Test 1', city: 'Lausanne', country: 'CH', relationship: 'friend', purpose: 'E2E test ping (0 ETH)', accuracyConfirmed: true },
+    beneficiary: { name: 'Bob Example', walletType: 'unhosted', street: 'Rue du Test 1', city: 'Lausanne', country: 'CH', relationship: 'friend', purpose: 'E2E test ping (0 ETH)', accuracyConfirmed: true, ownershipProof },
   };
   await sleep((cool + 2) * 1000);
 
@@ -164,6 +169,28 @@ async function main() {
   const tx1 = await sendPing(k1, 'K1');
   if (tx1.status !== 'executed') throw new Error(`tx1 not executed: ${JSON.stringify(tx1)}`);
   ok(`Executed (signed K1 + K2, Safe holds 0 ETH): ${explorerTx(tx1.txHash)}`);
+
+  step('2-TR', 'TRAVEL RULE — transfer to an account at Demo Exchange AG: signed IVMS101 sent BEFORE co-signing (no gas)');
+  {
+    const dana = '0xDE0E0000000000000000000000000000000d0E01'; // deposit address of "Dana Example" at the simulated VASP
+    await call('GET', `${SERVICE_URLS.vasp}/health`).catch(() => {
+      throw new Error('vasp-mock (Demo Exchange AG) is not running — start the services with npm run dev:services');
+    });
+    const toDana = async (name: string) => {
+      const tx = buildSafeTx({ to: dana, value: 0n, nonce: await s.nonce() });
+      const decl = { kind: 'third-party', beneficiary: { name, walletType: 'hosted', providerName: 'Demo Exchange AG', street: 'Rue du Test 2', city: 'Zug', country: 'CH', relationship: 'friend', purpose: 'E2E Travel Rule test', accuracyConfirmed: true } };
+      const prep = await call('POST', `${C}/tx/prepare`, { clientId, safeTx: tx, transfer: decl });
+      return call('POST', `${C}/tx/submit`, { clientId, previewId: prep.previewId, safeTx: tx, signatureK1: await signSafeTx(k1, safe, tx) }, true);
+    };
+    const refused = await toDana('Mallory Example');
+    if (refused._status !== 403 || !JSON.stringify(refused.policy?.checks ?? []).includes('refused by Demo Exchange AG')) throw new Error(`Name mismatch not refused: ${JSON.stringify(refused)}`);
+    ok('Wrong beneficiary name → Demo Exchange AG answered "rejected" (signed) → Swissquote refused to co-sign');
+    const approved = await toDana('Dana Example');
+    const trCheck = (approved.policy?.checks ?? []).find((c: any) => c.id === 'travel-rule-transmission');
+    if (!/approved/.test(trCheck?.label ?? '')) throw new Error(`TRP approval missing: ${JSON.stringify(approved)}`);
+    ok(`Matching name → "approved" by Demo Exchange AG (${trCheck.detail}) — decision ${approved.status} (new recipient: enhanced checks)`);
+    if (approved.requestId) await call('POST', `${C}/tx/${approved.requestId}/cancel`, {}, true); // nothing broadcast
+  }
 
   step(3, 'LOSE DEVICE — K1 is gone. New device generates K1′');
   const k1new = Wallet.createRandom();

@@ -109,7 +109,7 @@ Each service is a **separate process with its own `data/` directory** (JSON file
 | Inspiration articles | Editorial prototype content, sourced (not market data, not advice) |
 | Price / % / reminder alerts | **REAL** evaluation by the demo server every minute while it runs; in-app notifications only |
 | Order ticket (Buy / Sell) | **MOCK** — never sends an order |
-| Travel Rule beneficiary data | **REAL** collection + server checks; **no** transmission integration → third-party transfers allowed only in labelled demo mode |
+| Travel Rule (#9) | **REAL** IVMS101 messages (validated), **REAL** Ed25519 signatures (node:crypto), **REAL** EIP-191 ownership proofs; the Travel Rule **network is SIMULATED**: one counterparty VASP (`services/vasp-mock`, "Demo Exchange AG", port 4005) and a static address → VASP directory. Production: a real network (TRP / OpenVASP or a commercial provider), to be chosen with compliance |
 | External wallet proof (SIWE / EIP-4361, EIP-1271) | **REAL** signature verification (free, no transaction) |
 | Annual statement / CSV | **REAL** chain reconstruction at 31.12 Europe/Zurich; valuation = CoinGecko estimate (official ESTV rates not integrated) |
 | Native iOS / Android app (Capacitor) | Projects generated and synced; **not compiled** here (no Xcode / Android SDK) |
@@ -222,7 +222,7 @@ All four services install the same shared middleware (`packages/shared/src/serve
 
 **Receive QR** — encodes the EIP-681 URI `ethereum:<checksummed Safe address>@11155111` (address + Sepolia chain id only — no amount, key, code or session data), with the network shown prominently; the bare address stays copyable for scanners that refuse URIs; decoding verified in tests (#20).
 
-**Compliance** — send flow distinguishes *my own wallet* (verified wallets only) from *someone else's wallet* (beneficiary name always; enhanced data from a configurable CHF 1'000 threshold incl. 30-day linked transfers; missing rate ⇒ treated as above). Checked server-side at prepare and again before co-signing. No Travel Rule transmission integration exists, so third-party transfers are blocked outside a labelled demo mode. External wallets proven with **SIWE (EIP-4361)** / EIP-1271. Annual statement (31.12 23:59:59 Europe/Zurich, balances read from the chain at that block) + CSV export (UTF-8, formula-injection safe). Sources and limits: [docs/COMPLIANCE.md](docs/COMPLIANCE.md).
+**Compliance** — send flow distinguishes *my own wallet* (verified wallets only) from *someone else's wallet* (beneficiary name always; enhanced data from a configurable CHF 1'000 threshold incl. 30-day linked transfers; missing rate ⇒ treated as above). Checked server-side at prepare and again before co-signing. **#9 Travel Rule transmission**: to an address managed by a VASP (directory), the co-signer sends a signed IVMS101 inquiry over a TRP-like API to that VASP (simulated: `services/vasp-mock`) and K2 co-signs only after its signed "approved"; to a personal wallet, the beneficiary proves ownership by signing a message (EIP-191, page `/prove-wallet`), or — below the threshold only — the client declares it. External wallets proven with **SIWE (EIP-4361)** / EIP-1271. Annual statement (31.12 23:59:59 Europe/Zurich, balances read from the chain at that block) + CSV export (UTF-8, formula-injection safe). Sources and limits: [docs/COMPLIANCE.md](docs/COMPLIANCE.md).
 
 **Language** — English by default (also on first visit, whatever the browser locale); French on explicit choice (login page switch or Settings → Language), persisted on the device; server messages follow the `x-lang` header.
 
@@ -230,7 +230,7 @@ All four services install the same shared middleware (`packages/shared/src/serve
 
 **Web and App** — see *Web and App versions* below and [docs/MOBILE.md](docs/MOBILE.md).
 
-New environment variables (all optional in development): `COINGECKO_API_KEY`, `MARKET_URL`, `ALERT_EVAL_MS`, `TRAVEL_RULE_DEMO_MODE`, `SESSION_SIGNING_KEY`, `INTERNAL_API_TOKEN`, `ALLOWED_ORIGINS`, `VITE_API_HOST`.
+New environment variables (all optional in development): `COINGECKO_API_KEY`, `MARKET_URL`, `ALERT_EVAL_MS`, `VASP_PORT` / `VASP_DATA_DIR` (vasp-mock), `SESSION_SIGNING_KEY`, `INTERNAL_API_TOKEN`, `ALLOWED_ORIGINS`, `VITE_API_HOST`.
 
 ## Iteration 3
 Simulation before signing (debited / estimated received / network fee / service commission / balances before → after / approvals with cap), unlimited-approval warning with cap limiting, preview expiry and re-confirmation, recipient verification (full address, look-alike characters highlighted), authorised-apps centre with on-chain revocation, scheduled payments & reminders (never auto-signed), subscriptions & fees page, demo exchange quote, display personalisation (background, accent, highlight, hidden wallets), amount masking (reveal with passkey), message composer (local draft + your own email client; nothing is sent by the app), biometrics alternatives.

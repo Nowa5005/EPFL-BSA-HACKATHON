@@ -48,12 +48,37 @@ currencies for cash or other anonymous means of payment*, not transfers between 
   - **Linked operations** (product decision): the client's submitted third-party transfers (not failed / cancelled /
     rejected) to the **same beneficiary** — same normalised name *or* same address — within a rolling **30 days** are
     summed with the current one; any linked transfer that could not be valued makes the aggregate unknown (→ enhanced).
-  - **Transmission**: no Travel Rule network is connected (no TRP / OpenVASP / Notabene…). Per Guidance 02/2019 a
-    transfer to a third party then requires prior identification of the third party and proof of its wallet ownership,
-    which we cannot do either. Therefore **every real third-party transfer is BLOCKED** unless the demo mode is on.
-  - **Demo mode** (`TRAVEL_RULE_DEMO_MODE`; default **ON only when `NODE_ENV !== 'production'`**, OFF in production):
-    the transfer proceeds and every screen/check is labelled **"Demo — Travel Rule data collected but not transmitted;
-    not compliant"**.
+  - **Transmission (#9)** — the former "demo mode" (collected, not transmitted) is **removed**. For a third party:
+    - **Address managed by a VASP** (Travel Rule directory, `packages/shared/src/trp.ts`): at `/tx/submit`, after the
+      client's verification and device signature and **before any co-signature**, the co-signer builds an **IVMS101**
+      message (originator = the KYC'd client from sq-bank: legal name, address, customer number — no ID number, no
+      date of birth; beneficiary = name + address + country entered; originating / beneficiary VASP = legal name + LEI
+      + country), validates it (`packages/shared/src/ivms101.ts`), signs it with **Swissquote's Ed25519 key**
+      (`node:crypto`) and sends a **TRP-like transfer inquiry** to the beneficiary VASP. The VASP answers a **signed**
+      "approved" (+ reference) or "rejected" (+ reason code). The answer is accepted only if its signature verifies with
+      the VASP's **pinned** public key and it is bound to our inquiry (same request identifier, sha256 of the exact
+      inquiry bytes, same VASP, same address). **K2 signs only after a verified "approved"** — and `execute()` checks it
+      again right before co-signing (`assertTravelRuleCleared`). Rejected / unreachable / unverifiable → refused, nothing
+      co-signed. A hosted wallet whose institution is not in the directory → refused (nothing can be transmitted).
+    - **Personal (unhosted) wallet**: the beneficiary proves control of the address by signing (EIP-191
+      `personal_sign`) a message issued by the co-signer for this client (nonce, address, beneficiary name, 24 h
+      validity) — page **`/prove-wallet`** (wallet extension, or a demo test wallet kept in the browser). Verified with
+      `ethers.verifyMessage` at prepare and again at submit. **Below the threshold only** (linked transfers included,
+      unknown value ⇒ above), the client may instead **declare** that the wallet belongs to the beneficiary (stored as
+      such, not verified). This follows the spec; Guidance 02/2019 also mentions identifying the third party — to be
+      validated by compliance.
+    - **Simulated network**: one counterparty VASP, `services/vasp-mock` ("Demo Exchange AG", separate process, port
+      4005, own data dir, loopback only). It is not behind our client auth guard; it authenticates every inquiry by
+      the Ed25519 signature of the sending VASP (Swissquote's key fetched from `GET /trp/identity` on the co-signer and
+      pinned on first use) and refuses replays (request identifier) and messages outside a ±5 min window. It approves
+      when the address belongs to one of its (fictitious) customers **and** the beneficiary's name matches that
+      customer (case/accents/word order ignored); otherwise it rejects (`beneficiary-name-mismatch`, `unknown-address`,
+      `invalid-ivms101`, `invalid-inquiry`). Demo: `0xDE0E0000000000000000000000000000000d0E01` = "Dana Example".
+    - **Differences with real TRP** (Travel Rule Protocol, OpenVASP association): authentication by per-message Ed25519
+      signatures instead of mutual TLS; static directory instead of Travel Addresses / network discovery; no callback /
+      confirmation of the broadcast tx hash. **Production**: connect to a real Travel Rule network (TRP / OpenVASP, or a
+      commercial provider such as Notabene, Sumsub, 21 Analytics…) — **to be chosen and validated with compliance**;
+      keys in an HSM; LEIs registered with GLEIF (the LEIs here are fictitious demo values with valid check digits).
   - Transfers to the client's own verified wallets need no beneficiary data. A transfer with no declaration is accepted
     only if the recipient is one of those wallets.
   - Out of scope / not modelled: transfers to another Swissquote client ("permissible" per the guidance) are treated as
@@ -61,8 +86,9 @@ currencies for cash or other anonymous means of payment*, not transfers between 
 
 ### Configuration (auditable)
 `packages/shared/src/travelRule.ts` (`TRAVEL_RULE`, version `TR-2026-10-10.1`) + env overrides read by the co-signer:
-`TRAVEL_RULE_THRESHOLD_CHF` (1000), `TRAVEL_RULE_RATE_MAX_AGE_SEC` (900), `TRAVEL_RULE_LINKED_WINDOW_DAYS` (30),
-`TRAVEL_RULE_DEMO_MODE` (`1`/`0`). Effective values: `GET /clients/:id/travel-rule/config`.
+`TRAVEL_RULE_THRESHOLD_CHF` (1000), `TRAVEL_RULE_RATE_MAX_AGE_SEC` (900), `TRAVEL_RULE_LINKED_WINDOW_DAYS` (30).
+(`TRAVEL_RULE_DEMO_MODE` no longer exists.) Effective values + the public VASP directory:
+`GET /clients/:id/travel-rule/config`.
 
 ### Personal data & audit
 - Beneficiary data is stored **only in the client record** of the co-signer (`client.travelRule.records`), returned
@@ -73,8 +99,14 @@ currencies for cash or other anonymous means of payment*, not transfers between 
   `retainUntil` = creation + **10 years** (configured value — matching the 10-year record-keeping period commonly
   cited for Swiss AML law, art. 7 AMLA; *not fetched in this iteration — to be validated*). No automatic deletion job yet.
 - **Audit trail** (`db.travelRuleAudit`): rule version, threshold, rate + asOf + provider (or the rate issue), CHF
-  value, aggregate, linked count, enhanced yes/no, missing field ids, wallet type, transmission status, demo flag,
-  decision, stage (prepare/submit), pseudonymous client id — **no name, no address, no purpose**.
+  value, aggregate, linked count, enhanced yes/no, missing field ids, wallet type, transmission status, route
+  (vasp / ownership proof / declaration), VASP id, **TRP outcome** (status, reference, reason code, request
+  identifier, signature verified), decision, stage (prepare / transmit / submit), pseudonymous client id — **no name,
+  no address, no purpose**. The record keeps the TRP outcome (`trp`) with the sha256 of the exact inquiry sent.
+- **Receipt (PDF) and history**: a "Travel Rule" line — e.g. *Transmitted to Demo Exchange AG before co-signing —
+  approved (reference DEX-TR-…)*, *Personal wallet — ownership proven by the beneficiary*, *Your own verified wallet*.
+  No personal data. The compliance console (`/admin`) shows each record's route and TRP status/reference.
+- Console logs (co-signer and vasp-mock) carry only request identifiers, decisions and reason codes.
 
 ## 3. External wallet verification — SIWE (spec §16)
 
@@ -138,5 +170,8 @@ Server: `services/sq-cosigner/src/statements.ts`; UI: Swaplet → Documents → 
 
 ## 5. Tests
 `services/sq-cosigner/test/travelRule.test.ts`, `services/sq-cosigner/test/statements.test.ts`,
-`services/sq-bank/test/siwe.test.ts` (run by `npm test`). `scripts/e2e-demo.ts` sends a 0 ETH ping to a third party
-("Bob Example", unhosted) with the beneficiary data; it relies on the demo mode being on (default outside production).
+`services/sq-bank/test/siwe.test.ts`, **`services/sq-cosigner/test/trp.test.ts`** (IVMS101 validation, Ed25519
+verify/tamper, approve/reject/forged/replayed/unreachable paths gating the co-signature, EIP-191 ownership proof),
+**`services/vasp-mock/test/vasp.test.ts`** (run by `npm test`). `scripts/e2e-demo.ts` sends a 0 ETH ping to a third
+party ("Bob Example", personal wallet) **with Bob's signed ownership proof**, and step 2-TR sends a transfer inquiry to
+Demo Exchange AG: wrong name → signed rejection → no co-signature; right name → signed approval (then cancelled, no gas).

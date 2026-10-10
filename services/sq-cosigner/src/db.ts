@@ -35,7 +35,7 @@ export interface Client {
   /** Demo-only override of the network-fee estimate (CHF), to show a fee change during confirmation. */
   demoFeeChf?: number;
   /** Travel Rule beneficiary records (personal data: this client + compliance only; never in logs/activity/chain). */
-  travelRule?: { records: import('./travelRule').TravelRuleRecord[] };
+  travelRule?: { records: import('./travelRule').TravelRuleRecord[]; challenges?: import('./travelRule').OwnershipChallengeRecord[] };
 }
 
 export interface Preferences {
@@ -44,6 +44,8 @@ export interface Preferences {
   highlight: boolean;
   hiddenWallets: string[];
   hideAmounts: boolean;
+  /** Home widget layouts per target (N6), validated by validateWidgetsPatch (@sq/shared/widgets). Display only. */
+  widgets?: import('@sq/shared/widgets').WidgetLayouts;
 }
 export const DEFAULT_PREFERENCES: Preferences = { background: 'default', accent: 'orange', highlight: false, hiddenWallets: [], hideAmounts: false };
 

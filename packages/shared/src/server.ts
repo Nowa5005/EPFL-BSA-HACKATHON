@@ -85,3 +85,6 @@ export * from './serverAuth';
 
 // ───────────── Bind address (#2: loopback by default, HOST to override) ─────────────
 export * from './listen';
+
+// ───────────── #9 Travel Rule: Ed25519 signed envelopes between VASPs ─────────────
+export * from './trpCrypto';

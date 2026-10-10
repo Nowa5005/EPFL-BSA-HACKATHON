@@ -78,6 +78,7 @@ export function buildReceipt(t: WalletTxView, clientName: string): Receipt {
     { label: tr('Reference / note', 'Motif / note'), value: t.simulated ? tr('Not provided', 'Non renseigné') : t.note || tr('Not provided', 'Non renseigné') },
     { label: tr('Indicative CHF value', 'Contre-valeur indicative'), value: counterValue, sensitive: !!v },
     { label: tr('Transaction ID', 'Identifiant de transaction'), value: t.txHash ?? (t.simulated ? `Simulation ${t.id}` : '—'), mono: true },
+    ...(t.kind === 'send' && t.travelRule ? [{ label: 'Travel Rule', value: travelRuleText(t.travelRule) }] : []),
   ];
   return {
     reference: t.reference,
@@ -90,6 +91,22 @@ export function buildReceipt(t: WalletTxView, clientName: string): Receipt {
     date: when.isoDay,
     fileName: `${when.isoDay}_${typeSlug}_${t.asset}_${t.reference}.pdf`,
   };
+}
+
+/** #9 — Travel Rule line of a receipt: how the rule was satisfied, without any personal data. */
+export function travelRuleText(r: NonNullable<WalletTxView['travelRule']>): string {
+  if (r.category === 'own') return tr('Your own verified wallet — no third-party data required', 'Votre propre wallet vérifié — aucune donnée de tiers requise');
+  if (r.route === 'vasp')
+    return r.status === 'approved'
+      ? tr(
+          `Transmitted to ${r.vaspName} before co-signing — approved (reference ${r.reference}${r.transmittedAt ? `, ${dateTime(r.transmittedAt)}` : ''})`,
+          `Transmis à ${r.vaspName} avant la co-signature — approuvé (référence ${r.reference}${r.transmittedAt ? `, ${dateTime(r.transmittedAt)}` : ''})`,
+        )
+      : tr(`Transmission to ${r.vaspName}: ${r.status ?? 'pending'}`, `Transmission à ${r.vaspName} : ${r.status ?? 'en attente'}`);
+  if (r.route === 'self-hosted-proof') return tr('Personal wallet — ownership proven by the beneficiary (signed message)', 'Wallet personnel — propriété prouvée par le bénéficiaire (message signé)');
+  if (r.route === 'self-hosted-declaration') return tr('Personal wallet — declared by the sender (below the threshold)', 'Wallet personnel — déclaré par l’expéditeur (sous le seuil)');
+  if (r.legacyDemo) return tr('Collected, not transmitted (former demo mode)', 'Collecté, non transmis (ancien mode démo)');
+  return '—';
 }
 
 let logoData: Promise<string> | null = null;

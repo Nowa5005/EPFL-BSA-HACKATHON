@@ -12,3 +12,5 @@ export * from './recipient';
 export * from './i18n';
 export * from './travelRule';
 export * from './tokens';
+export * from './ivms101';
+export * from './trp';
