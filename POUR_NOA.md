@@ -178,3 +178,23 @@ Tout ce que tu as demandé dans le prompt « Accueil, marchés et wallet » est 
 3. Clique **App** : tu vois l'application dans un cadre de téléphone (tu peux changer la taille). Clique **Web** pour revenir.
 **Limite :** la vraie application iPhone / Android est préparée mais n'a pas pu être compilée sur ce Mac (il faudrait installer Xcode, gratuit mais ~15 Go, ou Android Studio). Dis-moi si tu veux le faire.
 **Comment me répondre :** rien à faire, sauf si tu veux compiler l'app native.
+
+---
+
+## [NON BLOQUANT] Plan et estimation pour « SECURITY_GAPS_FIX » — 10.10.2026, 23:55
+J'ai bien reçu le document et l'image de référence (copiée dans `docs/design/assets/mobile-reference.png`). Estimation (travail en parallèle par plusieurs agents, puis vérification et intégration par moi) :
+- **N1–N3** (verrouillage biométrique au retour, fin du cloud → clé physique, audit de la récupération) : ≈ 3–4 h
+- **Phase A** (serveurs en local, réceptions extérieures, jetons arnaque, contrôles avant envoi, page « About », mode urgence) : ≈ 2–3 h
+- **Phase B** (contrat Guard + délais on-chain D1/D2, veto, sortie protégée, « Take full control ») : ≈ 4–6 h — la plus lourde
+- **N4–N8** (CGU, thème jour/nuit, widgets, refonte mobile, harmonisation ordinateur) : ≈ 3–4 h
+- **Phase C** (clé liée au matériel, Travel Rule IVMS101, succession, contact de confiance, code de contrainte, rotation de K2) : ≈ 4–5 h
+- **Phase D** (multi-chaînes, Bitcoin) : documentation au minimum, code si le temps le permet
+Le relayer a ≈ 0.047 ETH de test ; les frais Sepolia sont très bas en ce moment, ça suffit pour démarrer.
+**Comment me répondre :** rien à faire pour l'instant.
+
+## [NON BLOQUANT] ETH de test supplémentaire pour la phase B — 10.10.2026, 23:55
+Chaque nouveau wallet recevra une petite « réserve de gas d'urgence ». Pour être tranquille, remets si possible **0.05 Sepolia ETH** sur le relayer (même adresse et même méthode que la première fois) :
+```
+0xba45B64A7c1954aC12D6ceF82672150145d976a6
+```
+**Comment me répondre :** tape `relayer alimenté` quand c'est fait. Je continue en attendant.
