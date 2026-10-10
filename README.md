@@ -1,7 +1,7 @@
 # My Wall — prototype
 
 **The self-custody wallet a Swiss bank could launch, one tap away from the Swissquote app.** The client holds the keys; Swissquote adds bank-grade security as a **co-signer that can never move funds alone**; recovery works even if Swissquote disappears.
-A **Safe 2-of-3 smart account on Ethereum Sepolia**: device key (passkey-protected) + Swissquote co-signer + a recovery key split 2-of-3 (paper code · encrypted cloud backup · independent Swiss trustee).
+A **Safe 2-of-3 smart account on Ethereum Sepolia**: device key (passkey-protected) + Swissquote co-signer + a recovery key split 2-of-3 (paper code · part locked to a physical security key · independent Swiss trustee) — no cloud backup anywhere.
 Built for the *Swissquote Wallet Challenge* (EPFL hackathon, Oct. 2026). Prototype with fictitious data; the Swissquote logo is used only to stage the challenge demo (reconstructed app screens are labelled as such).
 
 ![My Wall — desktop](docs/design/screens/20-wallet-desktop.png)
@@ -23,7 +23,7 @@ On first start the services generate their keys and print the **relayer address*
 |---|---|
 | `npm run dev` | Starts `sq-cosigner` (:4001), `recovery-partner` (:4002), `sq-bank` (:4003) and the web app (:5173) |
 | `npm run e2e` | **Headless end-to-end run on Sepolia**: create → sign → attacker refused → recover (delay) → old key revoked on-chain → sign with the new key. Prints Etherscan links |
-| `npm run escape-hatch -- --device-key … --paper … --cloud … --to 0x…` | Moves all funds with **device key + recovery key only** — no Swissquote server |
+| `npm run escape-hatch -- --device-key … --paper … (--security-key <part.json> --prf-output <hex> \| --offline <file.json>) --to 0x…` | Moves all funds with **device key + recovery key only** — no Swissquote server |
 | `npm test` | Unit tests: policy engine, recovery code, question picker, answer normalisation, password policy (22 tests) |
 | `npm run screenshots` | Playwright captures at 3 sizes (virtual passkey authenticator) |
 | `npm run fund-check` | Relayer / treasury balances; tops up treasury gas |
@@ -92,7 +92,7 @@ Each service is a **separate process with its own `data/` directory** (JSON file
 | USDC transfers (Circle Sepolia USDC `0x1c7D…7238`), gas sponsoring by the relayer | **REAL** |
 | EIP-1271 proof of ownership verified on-chain (`isValidSignature`) | **REAL** |
 | Passkeys / WebAuthn (Touch ID), challenge bound to the Safe tx hash | **REAL** (browser) |
-| Shamir split of K3 (`shamir-secret-sharing`), keystore (scrypt), AES-GCM cloud backup | **REAL** libraries |
+| Shamir split of K3 (`shamir-secret-sharing`), keystore (scrypt); part ② encrypted with AES-GCM under an HKDF key from the security key's WebAuthn PRF output, or (fallback) scrypt + AES-GCM offline file | **REAL** libraries (WebAuthn PRF tested with Chrome's virtual FIDO2 authenticator; the headless e2e client simulates the PRF output — test only) |
 | Policy engine, simulation (`eth_call`), thresholds, delays, four-eyes | **REAL** logic (demo values) |
 | Swissquote core banking, KYC, client account | **MOCK** |
 | Liveness / video-ident, SMS, email (Mock Inbox) | **MOCK** |
@@ -136,7 +136,7 @@ Honesty about what is simulated lives here and on the discreet **About this prot
 |---|---|---|---|
 | K1 device key | Client | Browser/app, encrypted by password, unlocked + used only after a passkey | Daily signing |
 | K2 co-signer | Swissquote | `sq-cosigner` only (HSM in prod) | Co-signs after checks |
-| K3 recovery key | Client | Split 2-of-3: ① paper QR · ② cloud (encrypted) · ③ recovery partner | Recovery & escape hatch |
+| K3 recovery key | Client | Split 2-of-3: ① paper code (steel plate advised) · ② physical security key (FIDO2 PRF; Swissquote stores only the ciphertext) · ③ recovery partner | Recovery & escape hatch |
 
 - **Normal use** K1 + K2 · **lost device** K3 + K2 → `swapOwner` after identity checks and a delay · **Swissquote gone** K1 + K3.
 - Swissquote alone **cannot move** funds (1/3). Swissquote + partner **cannot** either (share ③ is 1 of 3). Swissquote **can block** (refuse to co-sign) → bounded by the escape hatch.
@@ -144,7 +144,7 @@ Honesty about what is simulated lives here and on the discreet **About this prot
 | Threat | Steal? | Block? | Counter-measure |
 |---|---|---|---|
 | Phone thief | No | No | Passkey per tx, encrypted K1, K2 refuses; rotation revokes the device on-chain |
-| Phone + email | No | No | Liveness (hard), paper kit required, risk score, delay + cancel from the Swissquote account |
+| Phone + email | No | No | Liveness (hard), paper kit required, risk score, delay + cancel from the Swissquote account; part ② needs the physical key, which a phone thief does not have |
 | SIM swap | No | No | SMS never sufficient alone; raises recovery risk |
 | Swissquote / rogue employee | **No** | Yes | Escape hatch, four-eyes, audit log |
 | Swissquote + partner | **No** | — | Shares split 1/3 |
@@ -163,7 +163,21 @@ SMS/email are notifications or a secondary factor only — never enough alone.
 ### Recovery
 - **A — lost phone**: Swissquote login → partner: **liveness vs KYC** (mock) + 3 questions (low weight) + **paper kit** → partner releases share ③ → K3 rebuilt in the browser → new passkey + new K1 → `swapOwner(K1→K1′)` signed by K3 → **2-min delay (48 h prod)** with notifications and one-tap cancel → K2 co-signs → old device **revoked on-chain**.
 - **B — phone + email stolen**: refused (liveness, no paper kit, SIM swap, risk score); real client alerted. See `/attacker`.
-- **C — Swissquote disappears**: K1 + K3 (paper + cloud) → `npm run escape-hatch`, or app.safe.global (Sepolia). Extreme case (device **and** Swissquote lost): Zodiac Delay module in production (documented, not built).
+- **C — Swissquote disappears**: K1 + K3 (paper + security key, or paper + offline file) → `npm run escape-hatch`, or app.safe.global (Sepolia). Extreme case (device **and** Swissquote lost): Zodiac Delay module (see on-chain protection).
+
+### Recovery key parts — no cloud (N2)
+The cloud backup was removed: a cloud account is reachable from a stolen, unlocked phone. K3 is split Shamir 2-of-3 (generic 2-of-N, ready for a trusted-contact 4th part):
+
+| Part | Held by | Protection |
+|---|---|---|
+| ① Paper code | Client — printed, ideally **engraved on a steel plate**, at home or in a bank safe-deposit box | 19 groups of 4 checksummed characters |
+| ② Security key | Client's **physical FIDO2 key** (e.g. YubiKey) or second device | A dedicated WebAuthn credential with the **PRF extension** (CTAP2 hmac-secret) evaluates a fixed per-wallet salt inside the key; HKDF-SHA256 → AES-256-GCM key (WebCrypto). **Swissquote (sq-cosigner) stores only the ciphertext** (`/clients/:id/recovery-kit`, session-protected); an offline copy is downloadable. Opening it needs the key, present and touched. |
+| ② fallback | Client — **offline file** on a USB stick, only when no PRF-capable key exists | scrypt (N = 2¹⁷) + AES-256-GCM, a **distinct backup password** (same rules as the wallet password, must differ from it), labelled "Keep offline — never upload to a cloud". Never sent to Swissquote. |
+| ③ Partner | Independent recovery partner (mock) | Released after identity checks; the partner **never holds part ②**, so no single party keeps two parts. |
+
+Valid pairs in `/recover`: paper + security key, paper + partner, security key + partner. The shared function `reconstructK3FromShares()` (packages/shared) is the single entry point (recover, escape hatch, protected exit).
+
+**Replace my recovery kit / "Replace cloud backup"** (Security): re-splitting the *same* K3 would not retire anything — an old paper code plus an old cloud file would still rebuild it. So the device creates a **new K3′**, splits it (new paper code, new security-key part, new partner share) and **K1 + K2 swap K3 → K3′ on-chain** (immediate). On a protected wallet the swap is one MultiSendCallOnly batch that also moves the guard configuration and the D2 queuer to K3′ (tested in `contracts/test/recoveryRotation.test.ts`, including the counter-example). The partner activates its new share only after the on-chain swap. Old parts then rebuild a key that owns nothing. Residual: the emergency gas reserve deposited on the old K3 address stays there (testnet amount).
 
 ---
 
@@ -238,7 +252,7 @@ Simulation before signing (debited / estimated received / network fee / service 
 ## My Wall UX highlights
 - **Entry from the Swissquote app**: pull-up "Mon wallet" tab (swipe or tap, keyboard accessible) on touch devices; "Mon wallet" button next to the account icon on desktop.
 - **Unlock** = wallet password (decrypts the device key locally, 5 attempts then a 30 s wait) **then** passkey. A recovery code or private key is never asked to open the wallet.
-- **Activation in 7 steps**: welcome → ID document (simulated) → passkey → password (≥ 15 chars, ≥ 5 letters incl. upper + lower, ≥ 2 digits, ≥ 1 special, no name / birth date — live checklist) → 3 distinct questions out of 15 (answers normalised and scrypt-hashed by the partner, never stored in clear) → wallet creation → recovery kit **without QR code** (masked code, 30 s reveal, print sheet, copy) + encrypted cloud backup.
+- **Activation in 7 steps**: welcome → ID document (simulated) → passkey → password (≥ 15 chars, ≥ 5 letters incl. upper + lower, ≥ 2 digits, ≥ 1 special, no name / birth date — live checklist) → 3 distinct questions out of 15 (answers normalised and scrypt-hashed by the partner, never stored in clear) → wallet creation → recovery kit **without QR code** (masked code, 30 s reveal, print sheet, copy, steel-plate advice) + **physical security key** for part ② (or offline file fallback).
 - **Transactions**: statuses détectée → en attente → confirmée / échouée (confirmed = 1 block on Sepolia, `CONFIRMATIONS` env); orange check animation **only** on confirmation; PDF receipt (reference `MW-YYYYMMDD-<hash8>`, fees, Europe/Zurich time, full addresses, names only when known, no secrets) available from the transaction and from **Swaplet → Documents** without duplicates.
 - **Keys & security**: public address / device private key / recovery code clearly separated; secrets revealed 30 s after password + passkey re-authentication, re-masked on expiry, page exit or background; encrypted device-key backup export + verification (wrong password, altered file, other wallet).
 - **Informations** in 3 stable categories (my transactions · crypto market (demo content) · My Wall updates with "Action requise"), read/unread, filters kept in the URL.
@@ -277,7 +291,7 @@ docs/                     PLAN, THREAT_MODEL, LEGAL, BUSINESS, DEMO_SCRIPT
 ```
 
 ## Libraries (no custom cryptography)
-`ethers` v6 (EIP-712, keystore, signatures) · Safe v1.4.1 contracts (`@safe-global/safe-deployments` addresses) · `shamir-secret-sharing` (audited) · `@simplewebauthn/browser` + `/server` v14 · WebCrypto (AES-GCM, PBKDF2) · Express 5 · React 19 · Vite 8 · Tailwind 4.
+`ethers` v6 (EIP-712, keystore, signatures) · Safe v1.4.1 contracts (`@safe-global/safe-deployments` addresses) · `shamir-secret-sharing` (audited) · `@simplewebauthn/browser` + `/server` v14 (incl. the WebAuthn PRF extension) · WebCrypto (AES-GCM, HKDF, PBKDF2) · Express 5 · React 19 · Vite 8 · Tailwind 4.
 We use the Safe contracts directly with ethers rather than `@safe-global/protocol-kit`: fewer moving parts, and the SafeTx hash is cross-checked against `Safe.getTransactionHash` on-chain before co-signing.
 
 ## AI tools used

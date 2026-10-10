@@ -6,7 +6,7 @@
 
 **The test.** Under the Swiss approach (FINMA practice; Banking Act / Banking Ordinance provisions on crypto-based assets, DLT Act 2021 and the bankruptcy segregation rules for crypto-assets — e.g. Art. 242a SchKG/LP — *to verify*), the decisive question is **who has the power of disposal**: who can move the assets, alone or jointly with others?
 
-**Our design.** The wallet is a Safe 2-of-3 on Ethereum. Swissquote holds **one key (K2)**. The client holds the device key (K1) and controls the recovery key (K3), split in 3 Shamir shares of which the client holds two (paper + encrypted cloud) and an **independent Swiss recovery partner** holds one.
+**Our design.** The wallet is a Safe 2-of-3 on Ethereum. Swissquote holds **one key (K2)**. The client holds the device key (K1) and controls the recovery key (K3), split in 3 Shamir shares of which the client holds two (a paper code, and a part locked to a physical security key — Swissquote stores only its unreadable ciphertext) and an **independent Swiss recovery partner** holds one. No cloud backup.
 
 - Swissquote **cannot move funds alone** (1 of 3 keys).
 - Swissquote **+ the partner cannot either**: the partner holds 1 of 3 Shamir shares — K3 cannot be rebuilt (closes the "grey zone" raised in the brief).
@@ -19,7 +19,7 @@
 2. contractual commitment: Swissquote will not refuse co-signature except for legal reasons, and informs the client;
 3. a freeze is visible to the client in the app.
 
-**Residual risks to flag.** A court or authority compelling **both** the recovery partner **and** the client's cloud provider (share ②) — mitigated because share ② is encrypted with the client's password. A Swissquote co-signature without the client is impossible by construction.
+**Residual risks to flag.** A court or authority compelling **both** the recovery partner **and** Swissquote obtains share ③ and an unreadable ciphertext of share ② — not enough to rebuild K3 without the client's physical security key (no cloud provider is involved any more). A Swissquote co-signature without the client is impossible by construction.
 
 **Why not "two Swissquote signatures above a threshold"?** An early idea was to have a second Swissquote employee sign on-chain for large amounts. If Swissquote held 2 of 3 keys, it could move funds alone → **custody**. We kept the idea **off-chain**: above the threshold, K2 co-signs only after a **four-eyes approval** by a compliance officer (admin console). Swissquote keeps a single key on-chain.
 

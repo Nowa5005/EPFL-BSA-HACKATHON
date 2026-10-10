@@ -65,7 +65,7 @@ Priority: the **create → sign → recover** journey must work end-to-end on Se
 - [x] `npm run e2e` green on Sepolia after the redesign; `npm run reset-demo` resets services + browser state (on next load)
 - [x] Screenshots in `docs/design/screens/` at 3 sizes (2 comparison passes done)
 
-Verified in a real browser (Playwright + virtual WebAuthn, real Sepolia): onboarding, unlock + wrong-password counter, recovery via encrypted cloud backup, recovery-code typo detection, standard send, reinforced send (email code + admin approval), key reveal, backup export / import error cases, PDF receipt content.
+Verified in a real browser (Playwright + virtual WebAuthn, real Sepolia): onboarding, unlock + wrong-password counter, recovery via the encrypted part ② (since N2: physical security key with WebAuthn PRF — the cloud backup was removed), recovery-code typo detection, standard send, reinforced send (email code + admin approval), key reveal, backup export / import error cases, PDF receipt content.
 Bugs found and fixed during these runs: session marked unlocked before the passkey check; recovery-kit step skipped by the route guard; relayer nonce desync after external use of its key; deploy re-binding an existing wallet.
 
 ## Iteration 3 — wallet-level security, pricing, UX controls (prompt "Claude Terminal — My Wall")
