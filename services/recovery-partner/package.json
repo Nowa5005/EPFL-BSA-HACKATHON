@@ -10,11 +10,11 @@
   },
   "dependencies": {
     "@sq/shared": "*",
-    "express": "^5.1.0",
-    "cors": "^2.8.5"
+    "cors": "^2.8.6",
+    "express": "^5.3.0"
   },
   "devDependencies": {
-    "@types/express": "^5.0.0",
-    "@types/cors": "^2.8.17"
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0"
   }
 }

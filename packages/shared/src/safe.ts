@@ -161,3 +161,17 @@ export function explorerTx(hash: string) {
 export function explorerAddress(addr: string) {
   return `https://sepolia.etherscan.io/address/${addr}`;
 }
+
+// ── EIP-1271 proof of ownership (SafeMessage, CompatibilityFallbackHandler v1.4.1) ──
+export const SAFE_MESSAGE_TYPES = { SafeMessage: [{ name: 'message', type: 'bytes' }] };
+export const EIP1271_MAGIC = '0x1626ba7e';
+export const EIP1271_ABI = ['function isValidSignature(bytes32 _dataHash, bytes _signature) view returns (bytes4)'];
+
+export function ownershipStatement(clientId: string, safeAddress: string, ts: string) {
+  return `SQ Wallet proof of ownership\nClient: ${clientId}\nWallet: ${safeAddress}\nChain: Ethereum Sepolia (11155111)\nIssued: ${ts}`;
+}
+
+/** An owner's EIP-712 signature over SafeMessage(dataHash) — combined with a 2nd owner it satisfies EIP-1271. */
+export async function signSafeMessage(signer: Signer | BaseWallet, safeAddress: string, dataHash: string) {
+  return signer.signTypedData(safeDomain(safeAddress), SAFE_MESSAGE_TYPES, { message: dataHash });
+}
