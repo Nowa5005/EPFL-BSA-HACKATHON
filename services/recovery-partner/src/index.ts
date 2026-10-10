@@ -250,6 +250,15 @@ app.get(
 
 app.get('/admin/sessions', route(() => Object.values(store.data.sessions).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 50)));
 
+app.post('/admin/clients/:id/reset', route((req) => {
+  const id = String(req.params.id);
+  store.update((d) => {
+    delete d.shares[id];
+    for (const k of Object.keys(d.sessions)) if (d.sessions[k].clientId === id) delete d.sessions[k];
+  });
+  return { reset: true };
+}));
+
 app.post('/admin/reset', route(() => {
   store.update((d) => {
     d.shares = {};

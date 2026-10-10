@@ -240,6 +240,14 @@ app.post(
   }),
 );
 
+app.post('/admin/clients/:id/reset', route((req) => {
+  const id = String(req.params.id);
+  const seed = seedClients()[id];
+  if (!seed) throw new HttpError(404, 'Client inconnu');
+  store.update((d) => (d.clients[id] = seed));
+  return { reset: true };
+}));
+
 app.post('/admin/reset', route(() => {
   store.update((d) => {
     d.clients = seedClients();

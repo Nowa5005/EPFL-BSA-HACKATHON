@@ -143,3 +143,8 @@ Les clés de Swissquote (relayer et co-signataire) sont maintenant **chiffrées*
 - Si ce fichier est supprimé, ces clés deviennent illisibles : le relayer (et ses ETH de test) serait perdu. Les wallets restent récupérables par la porte de sortie, mais la démo ne marcherait plus sans tout recréer.
 - Si tu veux une copie de sécurité : copie le fichier `.env` sur une clé USB ou dans ton gestionnaire de mots de passe. Ne le colle jamais dans un chat.
 **Comment me répondre :** rien à faire, sauf si tu veux que je t’aide à en faire une copie.
+
+---
+
+## ✅ Blocage « 1 ordinateur + 1 téléphone » à la connexion corrigé — 19:45
+Si un wallet existe déjà pour ton client mais pas sur ton navigateur, My Wall ne tente plus une nouvelle activation (qui était refusée par la règle des appareils). Il affiche « Votre wallet existe déjà » avec deux choix : **Restaurer mon wallet sur cet appareil** (ne compte pas comme un appareil en plus) ou **Démo : recommencer l’activation à zéro**. La règle reste appliquée quand on lie un appareil supplémentaire (Paramètres). J’ai aussi remis toute la démo à zéro : connecte-toi avec `alice` et clique « Mon wallet ».

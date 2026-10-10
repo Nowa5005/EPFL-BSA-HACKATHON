@@ -1,7 +1,9 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useLocal, UnlockProvider } from './lib/hooks';
-import { Card, DemoFooter } from './components/ui';
+import { Card, DemoFooter, Spinner } from './components/ui';
+import { cosigner } from './lib/api';
+import ExistingWallet from './wallet/ExistingWallet';
 import { SqShell } from './sq/SqShell';
 import SqHome from './sq/SqHome';
 import SqMarkets from './sq/SqMarkets';
@@ -45,11 +47,29 @@ function SqRoute({ children }: { children: ReactNode }) {
 
 function OnboardingRoute() {
   const { session, device } = useLocal();
+  const loc = useLocation();
   // Decided once on arrival: the wallet gets saved during onboarding, and the recovery-kit step must still show.
   const [alreadyHasWallet] = useState(() => !!device?.safeAddress && device.clientId === session?.clientId);
+  // A wallet that exists on the server but not on this device must be RESTORED, not activated again.
+  const [remote, setRemote] = useState<'checking' | 'none' | 'exists'>('checking');
+  useEffect(() => {
+    if (!session || alreadyHasWallet) return;
+    setRemote('checking');
+    cosigner
+      .get(`/clients/${session.clientId}`)
+      .then((c) => setRemote(c.safeAddress ? 'exists' : 'none'))
+      .catch(() => setRemote('none'));
+  }, [session?.clientId, (loc.state as any)?.fresh]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!session) return <Navigate to="/login" replace />;
   if (alreadyHasWallet) return <Navigate to="/wallet" replace />;
-  return <Onboarding />;
+  if (remote === 'checking')
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-sq-bg text-sq-muted">
+        <Spinner />
+      </div>
+    );
+  if (remote === 'exists') return <ExistingWallet clientId={session.clientId} onReset={() => setRemote('none')} />;
+  return <Onboarding key={(loc.state as any)?.fresh ?? 'onboarding'} />;
 }
 
 function InboxRoute() {

@@ -7,7 +7,8 @@ import { ArrowUp, Box, ChartColumn, CircleUser, CreditCard, House, LogOut, Searc
 import { cosigner } from '../lib/api';
 import { isUnlocked, lock, saveSession } from '../lib/device';
 import { useLocal } from '../lib/hooks';
-import { Button, cx, DemoFooter, ICON, IconButton, Logo, useMedia } from '../components/ui';
+import { Button, cx, DemoFooter, ICON, IconButton, Logo, Spinner, useMedia } from '../components/ui';
+import { ExistingWalletActions } from '../wallet/ExistingWallet';
 import { UnlockForm } from '../wallet/Unlock';
 
 const NAV = [
@@ -239,10 +240,14 @@ function WalletPanel({ onClose }: { onClose: () => void }) {
           ) : (
             <UnlockForm onDone={() => nav('/wallet')} />
           )
+        ) : session && hasRemoteWallet === null ? (
+          <div className="flex justify-center py-8 text-sq-muted">
+            <Spinner />
+          </div>
         ) : hasRemoteWallet ? (
           <div className="space-y-3">
-            <p className="text-center text-[14px] text-sq-ink-2">Votre wallet existe, mais pas sur cet appareil.</p>
-            <Button onClick={() => nav('/recover')}>Restaurer mon wallet</Button>
+            <p className="text-center text-[14px] text-sq-ink-2">Votre wallet existe déjà, mais pas sur cet appareil : restaurez-le ici (ce n’est pas compté comme un appareil supplémentaire).</p>
+            <ExistingWalletActions clientId={session!.clientId} onReset={onClose} />
           </div>
         ) : (
           <div className="space-y-3">

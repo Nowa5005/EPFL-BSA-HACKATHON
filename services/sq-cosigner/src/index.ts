@@ -763,6 +763,26 @@ app.get('/clients/:id/inbox', route((req) => db.data.inbox.filter((m) => m.clien
 app.get('/clients/:id/activity', route((req) => db.data.activity.filter((e) => e.clientId === req.params.id).slice(-200).reverse()));
 
 // ───────────────────────────── Demo reset (keeps keys: relayer stays funded) ─────────────────────────────
+/** Demo only: forget ONE client's wallet record so the activation can be replayed (the old Safe stays on Sepolia). */
+app.post(
+  '/admin/clients/:id/reset',
+  route((req) => {
+    const id = String(req.params.id);
+    db.update((d) => {
+      delete d.clients[id];
+      for (const k of Object.keys(d.txRequests)) if (d.txRequests[k].clientId === id) delete d.txRequests[k];
+      for (const k of Object.keys(d.recoveries)) if (d.recoveries[k].clientId === id) delete d.recoveries[k];
+      for (const k of Object.keys(d.walletTxs ?? {})) if (d.walletTxs![k].clientId === id) delete d.walletTxs![k];
+      for (const k of Object.keys(d.documents ?? {})) if (d.documents![k].clientId === id) delete d.documents![k];
+      for (const k of Object.keys(d.scheduled ?? {})) if (d.scheduled![k].clientId === id) delete d.scheduled![k];
+      d.activity = d.activity.filter((e) => e.clientId !== id);
+      d.inbox = d.inbox.filter((m) => m.clientId !== id);
+    });
+    console.log(`[cosigner] demo reset of client ${id}`);
+    return { reset: true };
+  }),
+);
+
 app.post(
   '/admin/reset',
   route(() => {
