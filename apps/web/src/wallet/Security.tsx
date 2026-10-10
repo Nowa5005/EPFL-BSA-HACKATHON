@@ -14,6 +14,7 @@ import { useLocal } from '../lib/hooks';
 import { Button, Card, CopyButton, cx, Field, MockBadge, Notice, SecretInput, Spinner, Why } from '../components/ui';
 import { PasswordChecklist } from '../components/PasswordChecklist';
 import { BackupCodeCard, FreezeCard } from './SecurityExtras';
+import { CosignerDecisions, YourGuarantees } from '../components/Refusal';
 import { tr } from '../lib/i18n';
 
 const REVEAL_SEC = 30;
@@ -53,6 +54,8 @@ export default function Security() {
         <h1 className="text-[22px] font-semibold tracking-tight">{tr('Keys & security', 'Clés et sécurité')}</h1>
         <p className="mt-1 text-[14px] text-sq-muted">{tr('Your wallet doesn’t use a seed phrase: security relies on 3 keys, 2 of which are required.', "Votre wallet n'utilise pas de phrase secrète : la sécurité repose sur 3 clés, dont 2 sont nécessaires.")}</p>
       </div>
+
+      <YourGuarantees />
 
       <FreezeCard clientId={session!.clientId} />
 
@@ -104,6 +107,8 @@ export default function Security() {
       {asking && <Reauth clientId={session!.clientId} onCancel={() => setAsking(null)} onDone={onAuthed} />}
 
       <BackupCodeCard clientId={session!.clientId} />
+
+      <CosignerDecisions clientId={session!.clientId} />
 
       <BackupCard />
     </div>

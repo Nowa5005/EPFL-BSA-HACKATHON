@@ -17,6 +17,7 @@ import { Button, Card, Checks, cx, Field, fmt, inputCls, mmss, MockBadge, Notice
 import { CheckDisc, ConfirmedCard, PendingIndicator } from './Confirm';
 import { RecipientCheckView } from './RecipientCheck';
 import { PreSendChecks, useAcks } from './PreSendChecks';
+import { FundsNeverLocked, isCosignerRefusal, RefusalExplained } from './Refusal';
 
 type Phase =
   | { k: 'loading' }
@@ -114,6 +115,7 @@ export function TxFlow({ clientId, safeAddress, safeTx: initialTx, note, onDone,
         <Notice tone="bad" title={tr('Nothing was sent', 'Rien n’a été envoyé')}>
           {phase.message}
         </Notice>
+        {isCosignerRefusal(phase.message) && <FundsNeverLocked />}
         <Button variant="secondary" onClick={onBack}>
           {tr('Back', 'Retour')}
         </Button>
@@ -257,8 +259,9 @@ export function TxFlow({ clientId, safeAddress, safeTx: initialTx, note, onDone,
         {reject ? (
           <>
             <Notice tone="bad" title={tr('Swissquote will not co-sign this transaction', 'Swissquote ne co-signera pas cette opération')}>
-              {prep.policy.reasons.join(' · ')}
+              {tr('Reason, rule and how to fix it:', 'Motif, règle et comment le résoudre :')}
             </Notice>
+            <RefusalExplained checks={prep.policy.checks} reasons={prep.policy.reasons} />
             <Button variant="secondary" onClick={onBack}>
               {tr('Edit the transaction', 'Modifier l’opération')}
             </Button>
@@ -321,7 +324,7 @@ export function TxFlow({ clientId, safeAddress, safeTx: initialTx, note, onDone,
               <div className="text-[14px] text-sq-muted">{tr('Your funds have not moved.', 'Vos fonds n’ont pas bougé.')}</div>
             </div>
           </div>
-          <p className="text-[14px]">{phase.policy.reasons.join(' · ')}</p>
+          <RefusalExplained checks={phase.policy.checks} reasons={phase.policy.reasons} />
           <Checks checks={phase.policy.checks} />
           <Why>{tr('Swissquote can refuse to co-sign (to protect you and comply with Swiss law), but can never move your funds on its own. If in doubt, contact your advisor.', 'Swissquote peut refuser de co-signer (pour vous protéger et respecter le droit suisse), mais ne peut jamais déplacer vos fonds seul. En cas de doute, contactez votre conseiller.')}</Why>
         </Card>
@@ -486,7 +489,8 @@ function StepUp({ requestId, summary, onDone }: { requestId: string; summary: st
           </Button>
         </Card>
       )}
-      {r.status === 'rejected' && <Notice tone="bad" title={tr('Refused by Swissquote compliance', 'Refusée par la conformité Swissquote')}>{r.approval?.note ?? tr('The transaction was not executed. Your funds have not moved.', 'L’opération n’a pas été exécutée. Vos fonds n’ont pas bougé.')}</Notice>}
+      {r.status === 'rejected' && <Notice tone="bad" title={tr('Refused by Swissquote compliance', 'Refusée par la conformité Swissquote')}>{r.approval?.note ?? tr('The transaction was not executed. Your funds have not moved.', 'L’opération n’a pas été exécutée. Vos fonds n’ont pas bougé.')} {tr('Rule: human review (four-eyes). How to fix it: contact your advisor with reference', 'Règle : revue humaine (quatre yeux). Comment le résoudre : contactez votre conseiller avec la référence')} {r.id.slice(0, 8)}.</Notice>}
+      {r.status === 'rejected' && <FundsNeverLocked />}
       {r.status === 'failed' && <Notice tone="bad" title={tr('Execution failed', 'Exécution échouée')}>{r.error} — {tr('please start the transaction again.', 'recommencez l’opération.')}</Notice>}
       {!['executed', 'rejected', 'cancelled', 'failed', 'executing'].includes(r.status) && (
         <Button
