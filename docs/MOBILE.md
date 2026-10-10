@@ -84,7 +84,17 @@ VITE_API_HOST=http://10.0.2.2     npm run app:sync   # Android emulator → the 
 # full per-service override: VITE_COSIGNER_URL, VITE_PARTNER_URL, VITE_BANK_URL, VITE_MARKET_URL
 ```
 
-(implemented in `apps/web/src/lib/services.ts`; the services already listen on all interfaces.)
+(implemented in `apps/web/src/lib/services.ts`.)
+
+**Bind address (#2).** The services listen on **127.0.0.1 only** by default (`HOST` overrides it; the start-up log
+prints the real bound address; `npm run check-bind` verifies it with `lsof`). Two ways to reach them from a phone:
+- **Web on a phone / dev tunnel (recommended)** — expose **only Vite** (`npm run dev -w apps/web -- --host 0.0.0.0`,
+  or a tunnel to :5173). When the page is not served from `localhost`, the web app calls `<page origin>/svc/<service>`
+  and Vite proxies it to `127.0.0.1:400x` (`apps/web/vite.config.ts`; the proxy drops `x-internal-token` and only
+  vouches for same-origin pages — a cross-site Origin is still refused by the services). Passkeys on a tunnel domain
+  also need `WEBAUTHN_ORIGIN` and `WEBAUTHN_RP_ID` set to that domain.
+- **Native app with `VITE_API_HOST=http://<LAN IP>`** — start the services with `HOST=0.0.0.0` on a trusted network
+  only (it exposes them to the LAN).
 
 **CORS / origins.** The services use an explicit allow-list (`ALLOWED_ORIGINS`, see `packages/shared/src/serverAuth.ts`);
 never `*`. The default dev list already contains the app origins:

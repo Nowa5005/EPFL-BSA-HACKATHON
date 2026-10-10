@@ -26,6 +26,7 @@
     "e2e": "tsx scripts/e2e-demo.ts",
     "escape-hatch": "tsx scripts/escape-hatch.ts",
     "fund-check": "tsx scripts/fund-check.ts",
+    "check-bind": "tsx scripts/check-bind.ts",
     "reset-demo": "tsx scripts/reset-demo.ts",
     "test": "node --import tsx --test services/sq-cosigner/test/*.test.ts services/market-data/test/*.test.ts services/sq-bank/test/*.test.ts packages/shared/test/*.test.ts apps/web/test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit",

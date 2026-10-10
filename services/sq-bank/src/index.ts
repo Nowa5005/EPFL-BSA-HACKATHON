@@ -2,7 +2,7 @@
 // Separate process, own data/ directory. Client profile, CHF/USDC account, verified-wallet registry (Travel Rule),
 // transfers account ↔ wallet. The USDC leg is REAL on Sepolia when the treasury holds test USDC.
 
-import { createSecurity, fetchWalletRates, internalHeaders, issueToken, isProduction, loadDotenv, localizeResponses, principalOf, JsonStore, newId, nowIso, t as tl } from '@sq/shared/server';
+import { createSecurity, fetchWalletRates, internalHeaders, issueToken, listenService, isProduction, loadDotenv, localizeResponses, principalOf, JsonStore, newId, nowIso, t as tl } from '@sq/shared/server';
 loadDotenv();
 
 import express, { type NextFunction, type Request, type Response } from 'express';
@@ -320,7 +320,6 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: String((err as Error)?.message ?? err) });
 });
 
-app.listen(PORTS.bank, () => {
-  console.log(`sq-bank (MOCK core banking) listening on http://localhost:${PORTS.bank}`);
+listenService(app, PORTS.bank, 'sq-bank (MOCK core banking)', () => {
   console.log(`Treasury (test USDC float) address: ${treasury.address}`);
 });

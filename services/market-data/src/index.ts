@@ -2,7 +2,7 @@
 // instrument pages, alerts, wallet widgets, CHF conversions in the co-signer). Read-only public data; provider
 // credentials (if any) stay here, server-side. See providers.ts / news.ts for sources and caching.
 
-import { createSecurity, loadDotenv } from '@sq/shared/server';
+import { createSecurity, listenService, loadDotenv } from '@sq/shared/server';
 loadDotenv();
 
 import express, { type NextFunction, type Request, type Response } from 'express';
@@ -104,4 +104,4 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: String((err as Error)?.message ?? err) });
 });
 
-app.listen(PORTS.market, () => console.log(`market-data listening on http://localhost:${PORTS.market}`));
+listenService(app, PORTS.market, 'market-data');

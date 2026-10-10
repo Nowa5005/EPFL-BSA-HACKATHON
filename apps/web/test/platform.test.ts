@@ -23,3 +23,13 @@ test('service URLs: localhost by default, build-time host for a device, per-serv
   assert.deepEqual(lan, { cosigner: 'http://192.168.1.20:4001', partner: 'http://192.168.1.20:4002', bank: 'http://192.168.1.20:4003', market: 'http://192.168.1.20:4004' });
   assert.equal(resolveServiceUrls({ VITE_API_HOST: 'http://10.0.2.2', VITE_MARKET_URL: 'https://market.example/' }).market, 'https://market.example');
 });
+
+test('#2 phone / tunnel page uses the same-origin Vite proxy; localhost and explicit hosts unchanged', () => {
+  const page = (origin: string) => { const u = new URL(origin); return { origin: u.origin, hostname: u.hostname, protocol: u.protocol }; };
+  assert.equal(resolveServiceUrls({}, page('http://localhost:5173')).cosigner, 'http://localhost:4001');
+  assert.equal(resolveServiceUrls({}, page('http://127.0.0.1:5173')).bank, 'http://localhost:4003');
+  assert.equal(resolveServiceUrls({}, page('capacitor://localhost')).bank, 'http://localhost:4003');
+  assert.equal(resolveServiceUrls({}, page('http://192.168.1.20:5173')).cosigner, 'http://192.168.1.20:5173/svc/cosigner');
+  assert.equal(resolveServiceUrls({}, page('https://abc.trycloudflare.com')).market, 'https://abc.trycloudflare.com/svc/market');
+  assert.equal(resolveServiceUrls({ VITE_API_HOST: 'http://10.0.2.2' }, page('http://192.168.1.20:5173')).partner, 'http://10.0.2.2:4002');
+});

@@ -2,7 +2,7 @@
 // Separate process, own data/ directory. Holds ONLY share ③ of the recovery key (1 of 3 → useless alone).
 // Releases it only after strong identity verification + risk scoring.
 
-import { createSecurity, internalHeaders, localizeResponses, principalOf, segmentsOf, loadDotenv, JsonStore, newId, nowIso, t } from '@sq/shared/server';
+import { createSecurity, internalHeaders, listenService, localizeResponses, principalOf, segmentsOf, loadDotenv, JsonStore, newId, nowIso, t } from '@sq/shared/server';
 loadDotenv();
 
 import express, { type NextFunction, type Request, type Response } from 'express';
@@ -308,4 +308,4 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: String((err as Error)?.message ?? err) });
 });
 
-app.listen(PORTS.partner, () => console.log(`recovery-partner (MOCK trustee) listening on http://localhost:${PORTS.partner}`));
+listenService(app, PORTS.partner, 'recovery-partner (MOCK trustee)');

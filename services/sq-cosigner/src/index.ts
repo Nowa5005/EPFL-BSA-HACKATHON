@@ -1,7 +1,7 @@
 // sq-cosigner — Swissquote co-signing service (K2), policy engine, gas relayer, activity log.
 // Separate process with its own data/ directory. Holds K2 (mock HSM) + relayer key. Never sees K1 or K3.
 
-import { createSecurity, fetchWalletRates, internalHeaders, loadDotenv, localizeResponses, newId, nowIso, segmentsOf, t } from '@sq/shared/server';
+import { createSecurity, fetchWalletRates, internalHeaders, listenService, loadDotenv, localizeResponses, newId, nowIso, segmentsOf, t } from '@sq/shared/server';
 loadDotenv();
 
 import express, { type NextFunction, type Request, type Response } from 'express';
@@ -986,8 +986,7 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: shortErr(err) });
 });
 
-app.listen(PORTS.cosigner, () => {
-  console.log(`sq-cosigner listening on http://localhost:${PORTS.cosigner}`);
+listenService(app, PORTS.cosigner, 'sq-cosigner', () => {
   console.log(`Relayer (gas sponsor) address: ${relayerAddress}`);
   provider
     .getBalance(relayerAddress)

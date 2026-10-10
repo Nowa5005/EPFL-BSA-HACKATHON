@@ -82,3 +82,6 @@ export * from './requestLang';
 
 // ───────────── Service authentication, CORS allow-list, CSRF defences ─────────────
 export * from './serverAuth';
+
+// ───────────── Bind address (#2: loopback by default, HOST to override) ─────────────
+export * from './listen';
