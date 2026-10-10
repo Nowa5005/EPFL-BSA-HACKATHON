@@ -52,8 +52,8 @@ import { applyTravelRule, recordPrepared, recordSubmitted, registerTravelRuleRou
 import { registerStatementRoutes } from './statements';
 import { confirmWalletTx, docIdOf, hasReceipt, referenceOf, simulateReceive, trackIncoming, upsertWalletTx, type WalletTx } from './walletTx';
 import { registerIndexerRoutes, startIndexer, unrecognisedTokensOf } from './indexer';
-import {
 import { isFirstSend, recipientKind } from './presend';
+import {
   authOptionsForAction,
   authOptionsForHash,
   HEADLESS_ALLOWED,
@@ -360,9 +360,9 @@ async function analyse(c: Client, safeTx: SafeTx) {
   const decoded = decodeBilingual(safeTx, c.safeAddress, contactName); // English + French twins (stored with the request)
   const usage = usageOf(c);
   const valuation = await policyValuation(c);
-  const policy = evaluatePolicy({
   const rcpt = intent.kind === 'erc20-transfer' || intent.kind === 'eth-transfer' ? intent.to : undefined; // #20
   const rcptKind = rcpt ? await recipientKind(rcpt) : undefined;
+  const policy = evaluatePolicy({
     tx: safeTx,
     decoded,
     safeAddress: c.safeAddress,
@@ -371,7 +371,6 @@ async function analyse(c: Client, safeTx: SafeTx) {
     sponsoredToday: usage.sponsoredTx,
     rates: valuation.rates,
     balances,
-  });
     unrecognisedTokens: unrecognisedTokensOf(c.clientId), // #19
     lookalikeRefs: c.contacts, // #19 address poisoning
     recipientKind: rcptKind, // #20 contract recipient
@@ -964,9 +963,9 @@ app.post(
       d.scheduled = {};
       d.swapQuotes = {};
       d.snapshots = {};
+      d.tokenSightings = {};
     });
     console.log('[cosigner] demo state reset');
-      d.tokenSightings = {};
     return { reset: true };
   }),
 );

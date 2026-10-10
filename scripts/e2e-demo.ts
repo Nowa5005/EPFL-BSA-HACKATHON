@@ -235,6 +235,9 @@ async function main() {
   if (tx2.status !== 'executed') throw new Error(`tx2 not executed: ${JSON.stringify(tx2)}`);
   ok(`Executed with new device key: ${explorerTx(tx2.txHash)}`);
 
+  step('5b', 'EXTERNAL RECEIPT — a third party pays the Safe directly; the on-chain indexer records row + receipt (#3)');
+  await externalReceiptStep({ provider, clientId, safe, call, ok, info });
+
   const state = { clientId, safe, deployTx: dep.txHash, tx1: tx1.txHash, recoveryTx: r.txHash, tx2: tx2.txHash, at: new Date().toISOString() };
   fs.writeFileSync(new URL('./.e2e-state.json', import.meta.url), JSON.stringify(state, null, 2));
   console.log(`\n\x1b[1m\x1b[32m✅ E2E PASSED in ${Math.round((Date.now() - t0) / 1000)}s\x1b[0m — Safe ${explorerAddress(safe)}`);
@@ -244,7 +247,3 @@ main().catch((e) => {
   console.error(`\n\x1b[31m❌ E2E FAILED: ${e.message}\x1b[0m`);
   process.exit(1);
 });
-
-  step('5b', 'EXTERNAL RECEIPT — a third party pays the Safe directly; the on-chain indexer records row + receipt (#3)');
-  await externalReceiptStep({ provider, clientId, safe, call, ok, info });
-
