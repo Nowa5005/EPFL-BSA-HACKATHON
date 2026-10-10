@@ -141,7 +141,7 @@ export default function Home() {
       {/* Balances stay underneath (sticky); the white sheet slides over them on scroll. */}
       <div className={cx('sticky z-0', isDesktop ? 'top-16' : 'top-14')}>{hero}</div>
       <div ref={sentinel} aria-hidden className="h-px" />
-      <div className={cx('relative z-10 -mx-4 rounded-t-[16px] bg-sq-bg px-4 pb-4 shadow-[0_-8px_24px_rgba(0,0,0,0.05)]', isDesktop && '-mx-6 px-6 pt-6')}>
+      <div className={cx('relative z-10 -mx-4 rounded-t-[16px] bg-white px-4 pb-4 shadow-[0_-6px_20px_rgba(0,0,0,0.06)] [&_.mw-card]:border [&_.mw-card]:border-sq-line [&_.mw-card]:shadow-none', isDesktop && '-mx-6 px-6 pt-6')}>
         {!isDesktop && <SheetHandle />}
         {isDesktop ? (
           <div className="grid grid-cols-12 gap-5">

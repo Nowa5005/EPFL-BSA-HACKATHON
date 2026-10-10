@@ -326,7 +326,11 @@ function BackupCard() {
           <Upload size={18} strokeWidth={1.75} /> Vérifier une sauvegarde
         </h3>
         <div className="space-y-3">
-          <input type="file" accept="application/json,.json" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="block w-full text-[14px] file:mr-3 file:min-h-11 file:rounded-[10px] file:border file:border-sq-line file:bg-white file:px-4 file:font-semibold" />
+          <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-[10px] border border-dashed border-sq-line px-4 text-[14px] hover:bg-sq-bg/60">
+            <Upload size={18} strokeWidth={1.75} className="text-sq-ink-2" />
+            <span className="min-w-0 flex-1 truncate">{file ? file.name : 'Choisir un fichier de sauvegarde (.json)'}</span>
+            <input type="file" accept="application/json,.json" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          </label>
           <Field label="Mot de passe de la sauvegarde">
             <SecretInput value={ipw} onChange={setIpw} autoComplete="off" />
           </Field>

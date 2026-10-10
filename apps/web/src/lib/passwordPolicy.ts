@@ -58,7 +58,8 @@ export function checkPassword(password: string, ctx: PasswordContext = {}): { ok
   const ok = rules.every((r) => r.ok);
   let message: string | undefined;
   if (!ok) {
-    const bad = rules.find((r) => !r.ok)!;
+    // The personal-data rule is the most actionable message; otherwise the generic composition rule.
+    const bad = rules.find((r) => r.id === 'personal' && !r.ok && password.length > 0) ?? rules.find((r) => !r.ok)!;
     message =
       bad.id === 'personal'
         ? 'Votre mot de passe ne doit pas contenir votre nom ou votre date de naissance.'

@@ -78,7 +78,7 @@ const label = (t: WalletTx) => `${t.kind === 'receive' ? 'Réception' : 'Envoi'}
 
 export function confirmWalletTx(id: string) {
   const t = upsertWalletTx({ id, clientId: db.data.walletTxs![id].clientId, status: 'confirmed' });
-  logActivity({ clientId: t.clientId, actor: 'system', type: 'wallet-tx.confirmed', message: `${label(t)} confirmée${t.simulated ? ' (simulée)' : ''} — justificatif disponible`, txHash: t.txHash, data: { walletTxId: t.id } });
+  logActivity({ clientId: t.clientId, actor: 'system', type: 'wallet-tx.confirmed', message: `${label(t)} ${t.kind === 'receive' ? 'confirmée' : 'confirmé'}${t.simulated ? ' (simulée)' : ''} — justificatif disponible`, txHash: t.txHash, data: { walletTxId: t.id } });
   return t;
 }
 

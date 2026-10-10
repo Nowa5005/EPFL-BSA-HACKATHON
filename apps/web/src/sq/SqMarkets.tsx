@@ -84,13 +84,13 @@ export default function SqMarkets() {
             <ul>
               {rows.map((q) => (
                 <li key={q.symbol}>
-                  <button className="flex min-h-[64px] w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-sq-bg/60">
+                  <button className="flex min-h-[64px] w-full items-center gap-2.5 px-3 py-2.5 text-left hover:bg-sq-bg/60 sm:gap-3 sm:px-4">
                     {q.index ? <span className="w-8" /> : <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sq-orange text-[13px] font-semibold text-white">T</span>}
                     <span className="min-w-0 flex-1">
                       <span className="block text-[16px] text-sq-ink">{q.symbol}</span>
-                      <span className="block truncate text-[12px] uppercase tracking-wide text-sq-muted">{q.name}</span>
+                      <span className="block text-[11px] uppercase leading-tight tracking-wide text-sq-muted">{q.name}</span>
                     </span>
-                    <span className="num whitespace-nowrap text-[16px] text-sq-ink">
+                    <span className="num whitespace-nowrap text-[15px] text-sq-ink">
                       {fmt(q.price)}
                       <span className="ml-1 text-[12px]">{q.currency}</span>
                     </span>

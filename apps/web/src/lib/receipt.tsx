@@ -102,7 +102,7 @@ export async function downloadReceiptPdf(r: Receipt) {
   const ink: [number, number, number] = [48, 49, 55];
   const muted: [number, number, number] = [111, 116, 128];
   try {
-    doc.addImage(await loadLogo(), 'PNG', 18, 16, 14, 14);
+    doc.addImage(await loadLogo(), 'PNG', 18, 16, 14, 14, undefined, 'FAST');
   } catch {
     /* logo optional */
   }

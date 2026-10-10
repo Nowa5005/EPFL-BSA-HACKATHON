@@ -43,7 +43,7 @@ export function NetBadge({ className }: { className?: string }) {
 export function ChangeBadge({ value, className }: { value: number; className?: string }) {
   const up = value >= 0;
   return (
-    <span className={cx('num inline-flex min-w-[68px] justify-center rounded-[4px] px-2 py-1.5 text-[13px] font-medium text-white', up ? 'bg-sq-up' : 'bg-sq-down', className)}>
+    <span className={cx('num inline-flex min-w-[62px] shrink-0 justify-center rounded-[4px] px-1.5 py-1.5 text-[13px] font-medium text-white', up ? 'bg-sq-up' : 'bg-sq-down', className)}>
       {up ? '+' : '−'}
       {Math.abs(value).toFixed(2)} %
     </span>
@@ -70,7 +70,7 @@ export function StatusPill({ status, className }: { status: TxStatus; className?
 // ── Surfaces ──
 export function Card({ children, className, id, as: As = 'div' }: { children: ReactNode; className?: string; id?: string; as?: 'div' | 'section' }) {
   return (
-    <As id={id} className={cx('rounded-[12px] bg-sq-surface p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)]', className)}>
+    <As id={id} className={cx('mw-card rounded-[12px] bg-sq-surface p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)]', className)}>
       {children}
     </As>
   );
@@ -125,7 +125,8 @@ export function Button({
       disabled={disabled}
       aria-label={ariaLabel}
       className={cx(
-        'inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[10px] px-4 py-3 text-[15px] font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40',
+        'inline-flex min-h-12 items-center justify-center gap-2 rounded-[10px] px-4 py-3 text-[15px] font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40',
+        /(^|\s)w-/.test(className ?? '') ? '' : 'w-full',
         styles,
         className,
       )}

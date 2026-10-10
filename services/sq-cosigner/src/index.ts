@@ -162,7 +162,7 @@ app.post(
       clientId,
       actor: 'client',
       type: recoveryAttestationId ? 'device.pending' : 'device.registered',
-      message: recoveryAttestationId ? `New ${deviceType} passkey registered (activates when recovery completes)` : `Passkey registered on ${label} (${deviceType})`,
+      message: recoveryAttestationId ? `Nouvelle passkey (${deviceType === 'mobile' ? 'mobile' : 'ordinateur'}) enregistrée — active à la fin de la récupération` : `Passkey enregistrée sur ${label} (${deviceType === 'mobile' ? 'mobile' : 'ordinateur'})`,
     });
     if (!recoveryAttestationId) notify({ clientId, channel: 'email', subject: 'Nouvel appareil lié à My Wall', body: `Une passkey a été enregistrée sur « ${label} ». Si ce n'est pas vous, contactez Swissquote immédiatement.` });
     return { credentialId: dev.credentialId, status: dev.status };

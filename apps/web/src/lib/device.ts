@@ -102,11 +102,14 @@ export async function decryptDeviceKey(password: string, onProgress?: (p: number
   return Wallet.fromEncryptedJson(d.keystore, password, onProgress);
 }
 
-export async function unlock(password: string, onProgress?: (p: number) => void) {
+/** Checks the password (with attempt limiting). With `commit: false` the key is returned but the session
+ *  stays locked — the caller commits with setUnlocked() once the passkey has also been verified. */
+export async function unlock(password: string, onProgress?: (p: number) => void, opts: { commit?: boolean } = {}) {
   const st = unlockState();
   if (st.lockedUntil > Date.now()) throw new UnlockError('Trop de tentatives. Patientez avant de réessayer.', 0, st.lockedUntil);
+  let key: Wallet | HDNodeWallet;
   try {
-    unlocked = await decryptDeviceKey(password, onProgress);
+    key = await decryptDeviceKey(password, onProgress);
   } catch (e) {
     if (e instanceof Error && e.message.startsWith('Aucun')) throw e;
     const fails = st.fails + 1;
@@ -120,8 +123,11 @@ export async function unlock(password: string, onProgress?: (p: number) => void)
     throw new UnlockError(`Mot de passe incorrect. Il vous reste ${remaining} essai${remaining > 1 ? 's' : ''}.`, remaining);
   }
   setUnlockState({ fails: 0, lockedUntil: 0 });
-  emit();
-  return unlocked;
+  if (opts.commit !== false) {
+    unlocked = key;
+    emit();
+  }
+  return key;
 }
 
 /** Re-authentication before showing a secret: wallet password + passkey. Returns the decrypted key. */

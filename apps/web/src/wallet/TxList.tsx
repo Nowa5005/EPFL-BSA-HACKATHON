@@ -47,14 +47,15 @@ export function TxListCompact({ items, loading }: { items: WalletTxView[]; loadi
           <Link to={`/wallet/tx/${t.id}`} className="flex min-h-[64px] items-center gap-3 py-2.5 hover:bg-sq-bg/50">
             <KindIcon kind={t.kind} />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[15px] font-medium">
-                {kindLabel(t.kind)} · {counterparty(t)}
-              </span>
-              <span className="mt-0.5 flex items-center gap-2 text-[12px] text-sq-muted">
-                {dateTime(t.createdAt)} <StatusPill status={t.status} />
+              <span className="block text-[15px] font-medium">{kindLabel(t.kind)}</span>
+              <span className="mt-0.5 block truncate text-[12px] text-sq-muted">
+                {counterparty(t)} · {dateTime(t.createdAt)}
               </span>
             </span>
-            <SignedAmount t={t} className="text-[15px]" />
+            <span className="flex shrink-0 flex-col items-end gap-1">
+              <SignedAmount t={t} className="text-[15px]" />
+              <StatusPill status={t.status} />
+            </span>
             <ChevronRight size={18} strokeWidth={1.75} className="shrink-0 text-sq-muted" />
           </Link>
         </li>

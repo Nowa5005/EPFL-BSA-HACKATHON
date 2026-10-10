@@ -3,7 +3,8 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Fingerprint } from 'lucide-react';
 import { startAuthentication } from '@simplewebauthn/browser';
 import { cosigner } from '../lib/api';
-import { lock, unlock, unlockState, UnlockError } from '../lib/device';
+import { setUnlocked, unlock, unlockState, UnlockError } from '../lib/device';
+import type { HDNodeWallet, Wallet } from 'ethers';
 import { useLocal } from '../lib/hooks';
 import { Button, DemoFooter, Field, Logo, SecretInput, Spinner, useCountdown } from '../components/ui';
 
@@ -26,8 +27,9 @@ export function UnlockForm({ onDone }: { onDone: () => void }) {
     setErr('');
     setPhase('decrypt');
     setProgress(0);
+    let key: Wallet | HDNodeWallet;
     try {
-      await unlock(pw, (p) => setProgress(p));
+      key = await unlock(pw, (p) => setProgress(p), { commit: false });
     } catch (e: any) {
       setPhase('idle');
       setPw('');
@@ -41,9 +43,9 @@ export function UnlockForm({ onDone }: { onDone: () => void }) {
       const response = await startAuthentication({ optionsJSON: options });
       await cosigner.post('/webauthn/auth/verify', { clientId: device!.clientId, purpose: 'unlock', response });
       setPhase('done');
+      setUnlocked(key); // only now: password AND passkey verified
       onDone();
     } catch (e: any) {
-      lock();
       setPhase('idle');
       setErr(e?.name === 'NotAllowedError' ? 'Touch ID annulé ou expiré. Réessayez.' : e.message);
     }

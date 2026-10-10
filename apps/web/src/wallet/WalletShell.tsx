@@ -86,7 +86,7 @@ export function WalletShell({ children, wide }: { children: ReactNode; wide?: bo
           </header>
         )}
 
-        <main key={loc.pathname} className={cx('mw-page mx-auto px-4', isDesktop ? (wide ? 'max-w-[1200px] px-6 pt-6' : 'max-w-[1200px] px-6 pt-6') : 'max-w-[720px] pb-28 pt-2')}>
+        <main key={['/send', '/dapps'].includes(loc.pathname) ? loc.key : loc.pathname} className={cx('mw-page mx-auto px-4', isDesktop ? (wide ? 'max-w-[1200px] px-6 pt-6' : 'max-w-[1200px] px-6 pt-6') : 'max-w-[720px] pb-28 pt-2')}>
           {children}
           <DemoFooter />
         </main>

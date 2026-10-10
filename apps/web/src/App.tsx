@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useLocal, UnlockProvider } from './lib/hooks';
 import { Card, DemoFooter } from './components/ui';
 import { SqShell } from './sq/SqShell';
@@ -42,8 +42,10 @@ function SqRoute({ children }: { children: ReactNode }) {
 
 function OnboardingRoute() {
   const { session, device } = useLocal();
+  // Decided once on arrival: the wallet gets saved during onboarding, and the recovery-kit step must still show.
+  const [alreadyHasWallet] = useState(() => !!device?.safeAddress && device.clientId === session?.clientId);
   if (!session) return <Navigate to="/login" replace />;
-  if (device?.safeAddress && device.clientId === session.clientId) return <Navigate to="/wallet" replace />;
+  if (alreadyHasWallet) return <Navigate to="/wallet" replace />;
   return <Onboarding />;
 }
 
