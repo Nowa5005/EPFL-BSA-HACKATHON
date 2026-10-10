@@ -4,6 +4,7 @@ import { Check, ChevronLeft, CircleAlert, Copy, ExternalLink, Eye, EyeOff, Info,
 import type { PolicyCheck } from '@sq/shared';
 import { MOCK_USDC_CHF } from '@sq/shared';
 import { useMasked } from '../lib/prefs';
+import { locale } from '../lib/i18n';
 
 export function cx(...c: (string | false | null | undefined)[]) {
   return c.filter(Boolean).join(' ');
@@ -367,8 +368,8 @@ export function Amount({ value, currency = 'CHF', decimals = 2, className }: { v
 }
 
 export const dateTime = (iso: string) =>
-  new Date(iso).toLocaleString('fr-CH', { timeZone: 'Europe/Zurich', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-export const dateOnly = (iso: string) => new Date(iso).toLocaleDateString('fr-CH', { timeZone: 'Europe/Zurich', day: '2-digit', month: '2-digit', year: 'numeric' });
+  new Date(iso).toLocaleString(locale(), { timeZone: 'Europe/Zurich', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+export const dateOnly = (iso: string) => new Date(iso).toLocaleDateString(locale(), { timeZone: 'Europe/Zurich', day: '2-digit', month: '2-digit', year: 'numeric' });
 
 export function Addr({ a, full }: { a?: string; full?: boolean }) {
   if (!a) return null;

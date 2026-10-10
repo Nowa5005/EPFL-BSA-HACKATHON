@@ -21,11 +21,12 @@ export const SAFE_THRESHOLD = 2;
 export const SENTINEL_OWNERS = '0x0000000000000000000000000000000000000001';
 
 // Service ports
-export const PORTS = { cosigner: 4001, partner: 4002, bank: 4003, web: 5173 } as const;
+export const PORTS = { cosigner: 4001, partner: 4002, bank: 4003, market: 4004, web: 5173 } as const;
 export const SERVICE_URLS = {
   cosigner: `http://localhost:${PORTS.cosigner}`,
   partner: `http://localhost:${PORTS.partner}`,
   bank: `http://localhost:${PORTS.bank}`,
+  market: `http://localhost:${PORTS.market}`,
 };
 
 // Policy (demo values; prod in comments)

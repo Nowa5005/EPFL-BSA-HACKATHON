@@ -2,7 +2,7 @@
   "name": "sq-wallet",
   "version": "0.1.0",
   "private": true,
-  "description": "SQ Wallet \u2014 self-custody Safe 2-of-3 wallet prototype (Swissquote Wallet Challenge, EPFL hackathon)",
+  "description": "SQ Wallet — self-custody Safe 2-of-3 wallet prototype (Swissquote Wallet Challenge, EPFL hackathon)",
   "type": "module",
   "workspaces": [
     "packages/*",
@@ -10,17 +10,18 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "tsx scripts/fund-check.ts --quiet; concurrently -k -n cosigner,partner,bank,web -c blue,magenta,green,cyan \"npm:dev:cosigner\" \"npm:dev:partner\" \"npm:dev:bank\" \"npm:dev:web\"",
-    "dev:services": "concurrently -k -n cosigner,partner,bank -c blue,magenta,green \"npm:dev:cosigner\" \"npm:dev:partner\" \"npm:dev:bank\"",
+    "dev": "tsx scripts/fund-check.ts --quiet; concurrently -k -n cosigner,partner,bank,market,web -c blue,magenta,green,yellow,cyan \"npm:dev:cosigner\" \"npm:dev:partner\" \"npm:dev:bank\" \"npm:dev:market\" \"npm:dev:web\"",
+    "dev:services": "concurrently -k -n cosigner,partner,bank,market -c blue,magenta,green,yellow \"npm:dev:cosigner\" \"npm:dev:partner\" \"npm:dev:bank\" \"npm:dev:market\"",
     "dev:cosigner": "npm run dev -w services/sq-cosigner",
     "dev:partner": "npm run dev -w services/recovery-partner",
     "dev:bank": "npm run dev -w services/sq-bank",
+    "dev:market": "npm run dev -w services/market-data",
     "dev:web": "npm run dev -w apps/web",
     "e2e": "tsx scripts/e2e-demo.ts",
     "escape-hatch": "tsx scripts/escape-hatch.ts",
     "fund-check": "tsx scripts/fund-check.ts",
     "reset-demo": "tsx scripts/reset-demo.ts",
-    "test": "node --import tsx --test services/sq-cosigner/test/*.test.ts packages/shared/test/*.test.ts apps/web/test/*.test.ts",
+    "test": "node --import tsx --test services/sq-cosigner/test/*.test.ts services/market-data/test/*.test.ts packages/shared/test/*.test.ts apps/web/test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit",
     "screenshots": "tsx scripts/screenshots.ts"
   },
