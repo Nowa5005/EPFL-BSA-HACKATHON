@@ -31,6 +31,19 @@ See **[docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)** for the 3-minute demo.
 
 ---
 
+## Proof on Sepolia (headless run `npm run e2e`, 2026-10-10)
+
+| Step | Transaction |
+|---|---|
+| Safe 2-of-3 deployed by the relayer (client paid no gas) | [0xf725d1d9…](https://sepolia.etherscan.io/tx/0xf725d1d9dcd5db01478e8224c05230302a8634824aa49da0fe8269f99a72ea7c) |
+| Transaction signed K1 + K2, gas sponsored (Safe holds 0 ETH) | [0x475e8bc8…](https://sepolia.etherscan.io/tx/0x475e8bc8f648ec7052f28b8c8e09a0250669e2131ea42da47ed636f9da56a5e0) |
+| Recovery: old device key revoked on-chain (`swapOwner`, K3 + K2, after the delay) | [0x693390bd…](https://sepolia.etherscan.io/tx/0x693390bd4719fd7eebb63668aee4ed7252f9d9c155371cb5ce89a5918d53358e) |
+| Transaction with the new device key (old key refused by the co-signer) | [0x338f0fa2…](https://sepolia.etherscan.io/tx/0x338f0fa22892acb7b4719422cb1f8a60cb864a1be6c01d10f733504418f1a283) |
+
+Safe: [0x51B970E72005600345D743D9aFf7A5f88549F93f](https://sepolia.etherscan.io/address/0x51B970E72005600345D743D9aFf7A5f88549F93f). The same run also verified the EIP-1271 proof on-chain (`0x1626ba7e`) and the refusal of an attacker holding phone + email (risk score 125).
+
+---
+
 ## Architecture
 
 ```mermaid

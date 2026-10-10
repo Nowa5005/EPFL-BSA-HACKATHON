@@ -73,3 +73,18 @@ Tout le reste est prêt et testé sur une copie locale de la blockchain. Dès qu
 
 **Si tu bloques, copie-colle ce prompt à Claude (dans le chat) :**
 > Je fais un hackathon. J'ai un projet Node.js dans le dossier ~/EPFL-BSA-HACKATHON sur mon Mac. On m'a dit de taper `npm run dev` dans le Terminal puis d'ouvrir http://localhost:5173 dans Chrome. <colle ici le message d'erreur exact>. Explique-moi pas à pas comme à une débutante sur Mac.
+
+---
+
+## ✅ Relayer alimenté — parcours complet réussi sur le vrai Sepolia — 15:15
+
+Merci ! Création → signature → attaquant refusé → récupération → ancienne clé révoquée → nouvelle signature : **tout passe sur la vraie blockchain de test**. Les liens Etherscan sont dans le README (section « Proof on Sepolia »).
+
+## [NON BLOQUANT] Encore 2 choses quand tu as un moment — 15:15
+**1. USDC de test pour la trésorerie** (pour montrer les envois en USDC) :
+1. Va sur https://faucet.circle.com, choisis **USDC** et **Ethereum Sepolia**.
+2. Colle `0x8f5aC56Fe53A3af46EBb565a936bc094E2Ec3FA0` et clique « Send ». Recommence si le site le permet (idéal : ≥ 80 USDC au total, pour montrer un envoi de 60).
+**Comment me répondre :** tape `usdc envoyé`.
+
+**2. Tester Touch ID** : lance la démo (voir « Comment lancer la démo » plus haut), clique « Create my wallet » puis « Create passkey », et pose ton doigt. 
+**Comment me répondre :** tape `touch id ok`, ou copie le message d'erreur affiché.

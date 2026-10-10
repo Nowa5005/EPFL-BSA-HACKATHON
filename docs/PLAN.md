@@ -40,4 +40,5 @@ Priority: the **create → sign → recover** journey must work end-to-end on Se
   recovery kit download, bank → wallet USDC, standard send, step-up (OTP + cooling-off + admin approval), sanctions refusal,
   dApp approvals (whitelisted / unknown), attacker page, lost-device recovery with paper-kit PNG upload, send with the new device.
 - **Escape hatch verified on the fork with all Swissquote services stopped.**
-- ⏳ **Pending: the same runs on real Sepolia** — blocked only by funding the relayer with Sepolia ETH (POUR_NOA.md).
+- ✅ **`npm run e2e` passed on real Sepolia** (201 s) — tx links in the README.
+- ⏳ Real-Sepolia USDC flows need test USDC in the treasury (faucet.circle.com); real Touch ID to be tried by Noa in Chrome.
