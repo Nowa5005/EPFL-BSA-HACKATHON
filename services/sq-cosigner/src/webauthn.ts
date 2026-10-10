@@ -10,6 +10,7 @@ import { isoBase64URL } from '@simplewebauthn/server/helpers';
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/server';
 import { getBytes } from 'ethers';
 import { POLICY } from '@sq/shared';
+import { t } from '@sq/shared/server';
 import { db, getClient, HttpError, type Client, type Device } from './db';
 
 export const RP_ID = process.env.WEBAUTHN_RP_ID ?? 'localhost';
@@ -29,9 +30,21 @@ export async function registrationOptions(client: Client, deviceType: 'mobile' |
   const active = c.devices.filter((d) => d.status === 'active');
   if (!recovery) {
     if (active.length >= POLICY.maxDevicesPerClient)
-      throw new HttpError(409, `Limite atteinte : ${POLICY.maxDevicesPerClient} appareils maximum (1 mobile + 1 ordinateur). Utilisez « changer d'appareil » ou la récupération.`);
+      throw new HttpError(
+        409,
+        t(
+          `Limit reached: ${POLICY.maxDevicesPerClient} devices maximum (1 mobile + 1 computer). Use “change device” or recovery.`,
+          `Limite atteinte : ${POLICY.maxDevicesPerClient} appareils maximum (1 mobile + 1 ordinateur). Utilisez « changer d'appareil » ou la récupération.`,
+        ),
+      );
     if (active.some((d) => d.deviceType === deviceType))
-      throw new HttpError(409, `Un ${deviceType === 'mobile' ? 'mobile' : 'ordinateur'} est déjà enregistré. Seuls 1 mobile + 1 ordinateur sont autorisés.`);
+      throw new HttpError(
+        409,
+        t(
+          `A ${deviceType === 'mobile' ? 'mobile' : 'computer'} is already registered. Only 1 mobile + 1 computer are allowed.`,
+          `Un ${deviceType === 'mobile' ? 'mobile' : 'ordinateur'} est déjà enregistré. Seuls 1 mobile + 1 ordinateur sont autorisés.`,
+        ),
+      );
   }
   const options = await generateRegistrationOptions({
     rpName: RP_NAME,
@@ -53,7 +66,7 @@ export async function registrationOptions(client: Client, deviceType: 'mobile' |
 
 export async function verifyRegistration(c: Client, response: RegistrationResponseJSON, deviceType: 'mobile' | 'desktop', label: string, recovery: boolean): Promise<Device> {
   const ch = db.data.challenges[key(c.clientId, 'register')];
-  if (!ch || new Date(ch.expiresAt) < new Date()) throw new HttpError(400, 'La demande de passkey a expiré, réessayez.');
+  if (!ch || new Date(ch.expiresAt) < new Date()) throw new HttpError(400, t('The passkey request has expired, please try again.', 'La demande de passkey a expiré, réessayez.'));
   const v = await verifyRegistrationResponse({
     response,
     expectedChallenge: ch.challenge,
@@ -61,7 +74,7 @@ export async function verifyRegistration(c: Client, response: RegistrationRespon
     expectedRPID: RP_ID,
     requireUserVerification: true,
   });
-  if (!v.verified) throw new HttpError(400, "La passkey n'a pas pu être vérifiée.");
+  if (!v.verified) throw new HttpError(400, t('The passkey could not be verified.', "La passkey n'a pas pu être vérifiée."));
   const cred = v.registrationInfo.credential;
   const device: Device = {
     credentialId: cred.id,
@@ -111,15 +124,15 @@ export async function verifyAssertion(
   const c = getClient(clientId);
   if (!response) {
     if (c.headless && HEADLESS_ALLOWED) return { device: null, headless: true };
-    throw new HttpError(401, 'Confirmation biométrique (passkey) requise.');
+    throw new HttpError(401, t('Biometric confirmation (passkey) required.', 'Confirmation biométrique (passkey) requise.'));
   }
   const device = c.devices.find((d) => d.credentialId === response.id && d.status === 'active');
-  if (!device) throw new HttpError(401, "Cet appareil n'est pas (ou plus) autorisé pour ce wallet.");
+  if (!device) throw new HttpError(401, t('This device is not (or no longer) authorised for this wallet.', "Cet appareil n'est pas (ou plus) autorisé pour ce wallet."));
   let expectedChallenge: string;
   if ('hash' in expected) expectedChallenge = isoBase64URL.fromBuffer(new Uint8Array(getBytes(expected.hash)));
   else {
     const ch = db.data.challenges[key(clientId, expected.purpose)];
-    if (!ch || new Date(ch.expiresAt) < new Date()) throw new HttpError(401, 'Confirmation expirée, réessayez.');
+    if (!ch || new Date(ch.expiresAt) < new Date()) throw new HttpError(401, t('Confirmation expired, please try again.', 'Confirmation expirée, réessayez.'));
     expectedChallenge = ch.challenge;
   }
   const v = await verifyAuthenticationResponse({
@@ -130,7 +143,7 @@ export async function verifyAssertion(
     credential: { id: device.credentialId, publicKey: isoBase64URL.toBuffer(device.publicKey), counter: device.counter, transports: device.transports },
     requireUserVerification: true,
   });
-  if (!v.verified) throw new HttpError(401, 'La confirmation biométrique a échoué.');
+  if (!v.verified) throw new HttpError(401, t('Biometric confirmation failed.', 'La confirmation biométrique a échoué.'));
   db.update((d) => {
     const dev = d.clients[clientId].devices.find((x) => x.credentialId === device.credentialId)!;
     dev.counter = v.authenticationInfo.newCounter;

@@ -2,6 +2,7 @@
 // A saved address is not a guarantee of safety, and a resemblance is never presented as a match.
 
 import { getAddress } from 'ethers';
+import { pick, type Lang } from './i18n';
 
 export type RecipientCheck =
   | { status: 'invalid'; reason: string }
@@ -11,14 +12,14 @@ export type RecipientCheck =
 
 const HEX = /^0x[0-9a-fA-F]{40}$/;
 
-export function checkRecipient(input: string, contacts: { name: string; address: string }[]): RecipientCheck {
+export function checkRecipient(input: string, contacts: { name: string; address: string }[], lang: Lang = 'en'): RecipientCheck {
   const s = input.trim();
-  if (!HEX.test(s)) return { status: 'invalid', reason: 'Une adresse Ethereum compte 42 caractères : « 0x » suivi de 40 caractères hexadécimaux.' };
+  if (!HEX.test(s)) return { status: 'invalid', reason: pick(lang, 'An Ethereum address has 42 characters: “0x” followed by 40 hexadecimal characters.', 'Une adresse Ethereum compte 42 caractères : « 0x » suivi de 40 caractères hexadécimaux.') };
   let address: string;
   try {
     address = getAddress(s); // mixed-case input must carry a valid EIP-55 checksum
   } catch {
-    return { status: 'invalid', reason: 'La casse des lettres ne correspond pas au contrôle EIP-55 : une lettre a probablement été modifiée.' };
+    return { status: 'invalid', reason: pick(lang, 'The letter case does not match the EIP-55 checksum: a letter was probably changed.', 'La casse des lettres ne correspond pas au contrôle EIP-55 : une lettre a probablement été modifiée.') };
   }
   const lc = address.toLowerCase();
   const exact = contacts.find((c) => c.address.toLowerCase() === lc);

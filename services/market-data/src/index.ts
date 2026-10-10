@@ -2,19 +2,22 @@
 // instrument pages, alerts, wallet widgets, CHF conversions in the co-signer). Read-only public data; provider
 // credentials (if any) stay here, server-side. See providers.ts / news.ts for sources and caching.
 
-import { loadDotenv } from '@sq/shared/server';
+import { createSecurity, loadDotenv } from '@sq/shared/server';
 loadDotenv();
 
 import express, { type NextFunction, type Request, type Response } from 'express';
-import cors from 'cors';
 import { PORTS } from '@sq/shared';
 import { LISTS, WALLET_ASSET_INSTRUMENT, type ListId } from './catalog';
 import { getCryptoPriceOn, getHistory, getQuote, getQuotes, ProviderError, RANGES, search, type Range } from './providers';
 import { FEEDS, getNews, type NewsTopic } from './news';
 
 const app = express();
-app.use(cors());
+// Public read-only market data: every GET is public, but the Origin allow-list / CORS / JSON-only writes still apply,
+// and anything else (a future POST…) falls under the shared default-deny guard.
+const security = createSecurity({ service: 'market-data', publicRoutes: [['GET', '/*']] });
+app.use(security.edge);
 app.use(express.json({ limit: '100kb' }));
+app.use(security.guard);
 
 type H = (req: Request, res: Response) => Promise<unknown> | unknown;
 const route = (fn: H) => (req: Request, res: Response, next: NextFunction) => {

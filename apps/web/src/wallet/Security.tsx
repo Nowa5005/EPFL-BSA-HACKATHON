@@ -14,6 +14,7 @@ import { useLocal } from '../lib/hooks';
 import { Button, Card, CopyButton, cx, Field, MockBadge, Notice, SecretInput, Spinner, Why } from '../components/ui';
 import { PasswordChecklist } from '../components/PasswordChecklist';
 import { BackupCodeCard, FreezeCard } from './SecurityExtras';
+import { tr } from '../lib/i18n';
 
 const REVEAL_SEC = 30;
 type Secret = { kind: 'k1' | 'code'; value: string; until: number };
@@ -41,7 +42,7 @@ export default function Security() {
     if (asking === 'code') {
       const share = await revealPaperCode(password);
       setSecret(share ? { kind: 'code', value: encodeRecoveryCode(share), until: Date.now() + REVEAL_SEC * 1000 } : null);
-      if (!share) alert("Le code de récupération n'est plus conservé sur cet appareil.");
+      if (!share) alert(tr('The recovery code is no longer stored on this device.', "Le code de récupération n'est plus conservé sur cet appareil."));
     }
     setAsking(null);
   };
@@ -49,25 +50,25 @@ export default function Security() {
   return (
     <div className="mx-auto max-w-[760px] space-y-4">
       <div>
-        <h1 className="text-[22px] font-semibold tracking-tight">Clés et sécurité</h1>
-        <p className="mt-1 text-[14px] text-sq-muted">Votre wallet n'utilise pas de phrase secrète : la sécurité repose sur 3 clés, dont 2 sont nécessaires.</p>
+        <h1 className="text-[22px] font-semibold tracking-tight">{tr('Keys & security', 'Clés et sécurité')}</h1>
+        <p className="mt-1 text-[14px] text-sq-muted">{tr('Your wallet doesn’t use a seed phrase: security relies on 3 keys, 2 of which are required.', "Votre wallet n'utilise pas de phrase secrète : la sécurité repose sur 3 clés, dont 2 sont nécessaires.")}</p>
       </div>
 
       <FreezeCard clientId={session!.clientId} />
 
       <Card className="space-y-2">
-        <SectionHead icon={<WalletIcon size={20} strokeWidth={1.75} />} title="Adresse publique du wallet" tag="Publique" />
-        <p className="text-[13px] text-sq-muted">Sert à recevoir des fonds. La partager ne présente aucun risque.</p>
+        <SectionHead icon={<WalletIcon size={20} strokeWidth={1.75} />} title={tr('Public wallet address', 'Adresse publique du wallet')} tag={tr('Public', 'Publique')} />
+        <p className="text-[13px] text-sq-muted">{tr('Used to receive funds. Sharing it is safe.', 'Sert à recevoir des fonds. La partager ne présente aucun risque.')}</p>
         <code className="block break-all rounded-[10px] bg-sq-bg p-3 font-mono text-[13px]">{device!.safeAddress}</code>
         <CopyButton value={device!.safeAddress!} />
       </Card>
 
       <SecretCard
         icon={<KeyRound size={20} strokeWidth={1.75} />}
-        title="Clé privée de cet appareil"
+        title={tr('This device’s private key', 'Clé privée de cet appareil')}
         tag="Secret"
-        desc="Permet de signer depuis cet appareil (toujours avec la co-signature de Swissquote). Ne la communiquez jamais."
-        extra={<p className="text-[12px] font-medium text-sq-warn">Réseau de test — aucune valeur réelle.</p>}
+        desc={tr('Lets you sign from this device (always together with Swissquote’s co-signing). Never share it.', 'Permet de signer depuis cet appareil (toujours avec la co-signature de Swissquote). Ne la communiquez jamais.')}
+        extra={<p className="text-[12px] font-medium text-sq-warn">{tr('Testnet — no real value.', 'Réseau de test — aucune valeur réelle.')}</p>}
         secret={secret?.kind === 'k1' ? secret : null}
         onReveal={() => setAsking('k1')}
         onHide={() => setSecret(null)}
@@ -75,9 +76,9 @@ export default function Security() {
 
       <SecretCard
         icon={<FileCheck2 size={20} strokeWidth={1.75} />}
-        title="Code de récupération"
-        tag="Secret partiel"
-        desc="Partie ① sur 3 de votre clé de secours. Seul, il ne permet rien ; avec une autre partie, il restaure votre accès."
+        title={tr('Recovery code', 'Code de récupération')}
+        tag={tr('Partial secret', 'Secret partiel')}
+        desc={tr('Part ① of 3 of your backup key. On its own it can do nothing; combined with another part, it restores your access.', 'Partie ① sur 3 de votre clé de secours. Seul, il ne permet rien ; avec une autre partie, il restaure votre accès.')}
         secret={secret?.kind === 'code' ? secret : null}
         onReveal={() => setAsking('code')}
         onHide={() => setSecret(null)}
@@ -88,13 +89,13 @@ export default function Security() {
               type="button"
               className="inline-flex min-h-10 items-center gap-1.5 text-[13px] text-sq-down"
               onClick={() => {
-                if (!confirm('Supprimer le code de récupération de cet appareil ? Assurez-vous de l’avoir imprimé.')) return;
+                if (!confirm(tr('Delete the recovery code from this device? Make sure you have printed it.', 'Supprimer le code de récupération de cet appareil ? Assurez-vous de l’avoir imprimé.'))) return;
                 const d = getDevice()!;
                 saveDevice({ ...d, paperShareEnc: undefined });
                 setSecret(null);
               }}
             >
-              <Trash2 size={15} strokeWidth={1.75} /> Ne plus conserver ce code sur cet appareil
+              <Trash2 size={15} strokeWidth={1.75} /> {tr('Stop storing this code on this device', 'Ne plus conserver ce code sur cet appareil')}
             </button>
           ) : null
         }
@@ -114,7 +115,7 @@ function SectionHead({ icon, title, tag }: { icon: ReactNode; title: string; tag
     <div className="flex items-center gap-2">
       <span className="text-sq-ink-2">{icon}</span>
       <h2 className="flex-1 text-[16px] font-semibold">{title}</h2>
-      <span className={cx('rounded-[4px] px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide', tag === 'Publique' ? 'bg-sq-ok-50 text-sq-up' : 'bg-sq-bad-50 text-sq-down')}>{tag}</span>
+      <span className={cx('rounded-[4px] px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide', tag === tr('Public', 'Publique') ? 'bg-sq-ok-50 text-sq-up' : 'bg-sq-bad-50 text-sq-down')}>{tag}</span>
     </div>
   );
 }
@@ -140,26 +141,26 @@ function SecretCard({ icon, title, tag, desc, extra, secret, onReveal, onHide, u
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="num text-[13px] text-sq-muted" aria-live="polite">
-              Masquage automatique dans {left} s
+              {tr(`Hidden automatically in ${left} s`, `Masquage automatique dans ${left} s`)}
             </span>
             <div className="flex-1" />
             <CopyButton value={secret.value} sensitive />
             <Button variant="secondary" className="min-h-10 w-auto px-3 text-[14px]" onClick={onHide}>
-              <EyeOff size={16} strokeWidth={1.75} /> Masquer maintenant
+              <EyeOff size={16} strokeWidth={1.75} /> {tr('Hide now', 'Masquer maintenant')}
             </Button>
           </div>
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-3">
-          <code className="flex-1 rounded-[10px] bg-sq-bg p-3 font-mono text-[14px] tracking-widest text-sq-muted" aria-label="Masqué">
+          <code className="flex-1 rounded-[10px] bg-sq-bg p-3 font-mono text-[14px] tracking-widest text-sq-muted" aria-label={tr('Hidden', 'Masqué')}>
             •••• •••• •••• •••• ••••
           </code>
           <Button variant="secondary" className="w-auto px-4" onClick={onReveal} disabled={unavailable}>
-            <Eye size={18} strokeWidth={1.75} /> Afficher temporairement
+            <Eye size={18} strokeWidth={1.75} /> {tr('Show temporarily', 'Afficher temporairement')}
           </Button>
         </div>
       )}
-      {unavailable && <p className="text-[12px] text-sq-muted">Ce code n'est plus conservé sur cet appareil (seul votre kit papier le contient).</p>}
+      {unavailable && <p className="text-[12px] text-sq-muted">{tr('This code is no longer stored on this device (only your paper kit has it).', "Ce code n'est plus conservé sur cet appareil (seul votre kit papier le contient).")}</p>}
       {extra}
     </Card>
   );
@@ -176,7 +177,7 @@ function Reauth({ clientId, onCancel, onDone }: { clientId: string; onCancel: ()
       const w = await reauthenticate(pw, clientId);
       await onDone(w, pw);
     } catch (e: any) {
-      setErr(e?.name === 'NotAllowedError' ? 'Touch ID annulé.' : e.message);
+      setErr(e?.name === 'NotAllowedError' ? tr('Touch ID cancelled.', 'Touch ID annulé.') : e.message);
     } finally {
       setBusy(false);
       setPw('');
@@ -192,20 +193,20 @@ function Reauth({ clientId, onCancel, onDone }: { clientId: string; onCancel: ()
         }}
       >
         <h2 id="reauth-title" className="text-[18px] font-semibold">
-          Confirmez que c'est bien vous
+          {tr('Confirm it’s really you', "Confirmez que c'est bien vous")}
         </h2>
-        <Why>Pour afficher un secret, nous redemandons votre mot de passe puis Touch ID. Il restera visible 30 secondes.</Why>
-        <Field label="Mot de passe du wallet" error={err || undefined}>
+        <Why>{tr('To show a secret, we ask for your password again, then Touch ID. It stays visible for 30 seconds.', 'Pour afficher un secret, nous redemandons votre mot de passe puis Touch ID. Il restera visible 30 secondes.')}</Why>
+        <Field label={tr('Wallet password', 'Mot de passe du wallet')} error={err || undefined}>
           <SecretInput autoFocus value={pw} onChange={setPw} autoComplete="current-password" />
         </Field>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={onCancel}>
-            Annuler
+            {tr('Cancel', 'Annuler')}
           </Button>
           <Button type="submit" disabled={!pw || busy}>
             {busy ? <Spinner /> : (
               <>
-                <Fingerprint size={18} strokeWidth={1.75} /> Confirmer
+                <Fingerprint size={18} strokeWidth={1.75} /> {tr('Confirm', 'Confirmer')}
               </>
             )}
           </Button>
@@ -255,7 +256,7 @@ function BackupCard() {
       a.download = `my-wall-device-key-backup-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      setExportMsg({ tone: 'ok', text: 'Sauvegarde chiffrée téléchargée. Aucun secret en clair dans le fichier.' });
+      setExportMsg({ tone: 'ok', text: tr('Encrypted backup downloaded. No secret in plain text in the file.', 'Sauvegarde chiffrée téléchargée. Aucun secret en clair dans le fichier.') });
       setPw('');
       setPw2('');
     } catch (e: any) {
@@ -274,20 +275,20 @@ function BackupCard() {
       try {
         b = JSON.parse(await file.text());
       } catch {
-        throw new Error("Fichier illisible : ce n'est pas une sauvegarde My Wall.");
+        throw new Error(tr('Unreadable file: this is not a My Wall backup.', "Fichier illisible : ce n'est pas une sauvegarde My Wall."));
       }
-      if (b.format !== 'my-wall-device-key-backup' || typeof b.keystore !== 'string') throw new Error("Ce fichier n'est pas une sauvegarde My Wall.");
-      if (sha256(toUtf8Bytes(b.keystore)) !== b.sha256) throw new Error('Fichier altéré ou corrompu : son contenu a été modifié. Utilisez une autre copie de la sauvegarde.');
+      if (b.format !== 'my-wall-device-key-backup' || typeof b.keystore !== 'string') throw new Error(tr('This file is not a My Wall backup.', "Ce fichier n'est pas une sauvegarde My Wall."));
+      if (sha256(toUtf8Bytes(b.keystore)) !== b.sha256) throw new Error(tr('File altered or corrupted: its content has been modified. Use another copy of the backup.', 'Fichier altéré ou corrompu : son contenu a été modifié. Utilisez une autre copie de la sauvegarde.'));
       let w: Wallet | import('ethers').HDNodeWallet;
       try {
         w = await Wallet.fromEncryptedJson(b.keystore, ipw, (p) => setProgress(p));
       } catch {
-        throw new Error('Mot de passe de sauvegarde incorrect.');
+        throw new Error(tr('Incorrect backup password.', 'Mot de passe de sauvegarde incorrect.'));
       }
       const d = getDevice()!;
       if (getAddress(w.address) !== getAddress(d.deviceAddress) || getAddress(b.safeAddress) !== getAddress(d.safeAddress!))
-        throw new Error(`Sauvegarde valide, mais d'un autre wallet ou d'un autre appareil (adresse ${w.address.slice(0, 6)}…${w.address.slice(-4)}).`);
-      setImportMsg({ tone: 'ok', text: `Sauvegarde valide : elle correspond à la clé de cet appareil (adresse ${w.address.slice(0, 6)}…${w.address.slice(-4)}).` });
+        throw new Error(tr(`Valid backup, but from another wallet or another device (address ${w.address.slice(0, 6)}…${w.address.slice(-4)}).`, `Sauvegarde valide, mais d'un autre wallet ou d'un autre appareil (adresse ${w.address.slice(0, 6)}…${w.address.slice(-4)}).`));
+      setImportMsg({ tone: 'ok', text: tr(`Valid backup: it matches this device’s key (address ${w.address.slice(0, 6)}…${w.address.slice(-4)}).`, `Sauvegarde valide : elle correspond à la clé de cet appareil (adresse ${w.address.slice(0, 6)}…${w.address.slice(-4)}).`) });
     } catch (e: any) {
       setImportMsg({ tone: 'bad', text: e.message });
     } finally {
@@ -298,21 +299,21 @@ function BackupCard() {
 
   return (
     <Card className="space-y-4">
-      <SectionHead icon={<Download size={20} strokeWidth={1.75} />} title="Sauvegarde chiffrée de la clé de l'appareil" tag="Chiffrée" />
+      <SectionHead icon={<Download size={20} strokeWidth={1.75} />} title={tr('Encrypted backup of the device key', "Sauvegarde chiffrée de la clé de l'appareil")} tag={tr('Encrypted', 'Chiffrée')} />
       <p className="text-[13px] text-sq-muted">
-        Format keystore JSON v3 (ethers : scrypt + AES-128-CTR + MAC). Utile pour la porte de sortie si Swissquote disparaissait. Les sauvegardes restent ici, jamais dans Swaplet.
+        {tr('JSON keystore v3 format (ethers: scrypt + AES-128-CTR + MAC). Useful for the exit door if Swissquote ever disappeared. Backups stay here, never in Swaplet.', 'Format keystore JSON v3 (ethers : scrypt + AES-128-CTR + MAC). Utile pour la porte de sortie si Swissquote disparaissait. Les sauvegardes restent ici, jamais dans Swaplet.')}
       </p>
-      <Notice tone="warn">Si vous perdez ce mot de passe, la sauvegarde ne pourra pas être déchiffrée.</Notice>
-      <Field label="Mot de passe de sauvegarde" error={pw && !check.ok ? check.message : undefined}>
+      <Notice tone="warn">{tr('If you lose this password, the backup cannot be decrypted.', 'Si vous perdez ce mot de passe, la sauvegarde ne pourra pas être déchiffrée.')}</Notice>
+      <Field label={tr('Backup password', 'Mot de passe de sauvegarde')} error={pw && !check.ok ? check.message : undefined}>
         <SecretInput value={pw} onChange={setPw} />
       </Field>
       <PasswordChecklist rules={check.rules} />
-      <Field label="Confirmer le mot de passe" error={pw2 && pw2 !== pw ? 'Les mots de passe ne correspondent pas.' : undefined}>
+      <Field label={tr('Confirm the password', 'Confirmer le mot de passe')} error={pw2 && pw2 !== pw ? tr('The passwords don’t match.', 'Les mots de passe ne correspondent pas.') : undefined}>
         <SecretInput value={pw2} onChange={setPw2} />
       </Field>
-      {busy === 'export' && <p className="num text-[13px] text-sq-muted">Chiffrement… {Math.round(progress * 100)} %</p>}
+      {busy === 'export' && <p className="num text-[13px] text-sq-muted">{tr('Encrypting…', 'Chiffrement…')} {Math.round(progress * 100)} %</p>}
       <Button onClick={() => setNeedReauth(true)} disabled={!check.ok || pw !== pw2 || !!busy}>
-        <Download size={18} strokeWidth={1.75} /> Télécharger une sauvegarde chiffrée
+        <Download size={18} strokeWidth={1.75} /> {tr('Download an encrypted backup', 'Télécharger une sauvegarde chiffrée')}
       </Button>
       {exportMsg && <Notice tone={exportMsg.tone}>{exportMsg.text}</Notice>}
       {needReauth && (
@@ -328,26 +329,26 @@ function BackupCard() {
 
       <div className="border-t border-sq-line pt-4">
         <h3 className="mb-2 flex items-center gap-2 text-[15px] font-semibold">
-          <Upload size={18} strokeWidth={1.75} /> Vérifier une sauvegarde
+          <Upload size={18} strokeWidth={1.75} /> {tr('Verify a backup', 'Vérifier une sauvegarde')}
         </h3>
         <div className="space-y-3">
           <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-[10px] border border-dashed border-sq-line px-4 text-[14px] hover:bg-sq-bg/60">
             <Upload size={18} strokeWidth={1.75} className="text-sq-ink-2" />
-            <span className="min-w-0 flex-1 truncate">{file ? file.name : 'Choisir un fichier de sauvegarde (.json)'}</span>
+            <span className="min-w-0 flex-1 truncate">{file ? file.name : tr('Choose a backup file (.json)', 'Choisir un fichier de sauvegarde (.json)')}</span>
             <input type="file" accept="application/json,.json" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </label>
-          <Field label="Mot de passe de la sauvegarde">
+          <Field label={tr('Backup password', 'Mot de passe de la sauvegarde')}>
             <SecretInput value={ipw} onChange={setIpw} autoComplete="off" />
           </Field>
-          {busy === 'import' && <p className="num text-[13px] text-sq-muted">Déchiffrement… {Math.round(progress * 100)} %</p>}
+          {busy === 'import' && <p className="num text-[13px] text-sq-muted">{tr('Decrypting…', 'Déchiffrement…')} {Math.round(progress * 100)} %</p>}
           <Button variant="secondary" onClick={doImport} disabled={!file || !ipw || !!busy}>
-            Déchiffrer et vérifier
+            {tr('Decrypt and verify', 'Déchiffrer et vérifier')}
           </Button>
           {importMsg && <Notice tone={importMsg.tone}>{importMsg.text}</Notice>}
         </div>
       </div>
       <p className="text-[12px] text-sq-muted">
-        Démo : la clé est une vraie clé du réseau de test Sepolia <MockBadge label="Testnet" />
+        {tr('Demo: the key is a real Sepolia testnet key', 'Démo : la clé est une vraie clé du réseau de test Sepolia')} <MockBadge label="Testnet" />
       </p>
     </Card>
   );

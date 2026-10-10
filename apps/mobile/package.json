@@ -1,0 +1,28 @@
+{
+  "name": "@sq/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "My Wall (demo) — Capacitor shell (iOS/Android) around the SAME apps/web screens, built in app mode",
+  "scripts": {
+    "build:web": "npm run build:app -w @sq/web",
+    "app:build": "npm run build:web && cap copy",
+    "app:sync": "npm run build:web && cap sync",
+    "app:ios": "cap open ios",
+    "app:android": "cap open android",
+    "app:run:ios": "cap run ios",
+    "app:run:android": "cap run android",
+    "app:preview": "vite preview --outDir www --port 5174 --strictPort",
+    "app:doctor": "cap doctor"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/ios": "^8.5.3",
+    "@capacitor/keyboard": "^8.0.6"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.3"
+  }
+}

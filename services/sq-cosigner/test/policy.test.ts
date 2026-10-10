@@ -80,3 +80,38 @@ test('daily limit and gas quota are enforced', () => {
   assert.equal(run(usdc(BOB, '10'), { spentTodayUsdc: 995 }).decision, 'reject');
   assert.equal(run(usdc(BOB, '10'), { sponsoredToday: 20 }).decision, 'reject');
 });
+
+// ── Real market rates (no fixed constant): a missing rate is never read as 0 ──
+const ethTx = (to: string, eth: string) => buildSafeTx({ to, value: parseEther(eth), nonce: 0 });
+
+test('ETH transfer with no market rate fails safe: treated as above threshold (step-up), never as 0', () => {
+  const r = run(ethTx(BOB, '0.001'), { rates: {} });
+  assert.equal(r.decision, 'step-up');
+  assert.equal(r.checks.find((c) => c.id === 'threshold')?.status, 'step-up');
+  assert.equal(r.checks.find((c) => c.id === 'daily')?.status, 'step-up');
+});
+
+test('ETH transfer valued with the real rate: small amount passes, large amount needs step-up', async () => {
+  const { usdcEquivalent } = await import('../src/policy');
+  const rates = { ETH: 2000, USDC: 0.8 }; // test fixture
+  const small = ethTx(BOB, '0.001'); // 2 CHF = 2.5 USDC
+  assert.equal(usdcEquivalent(decodeSafeTx(small, SAFE), small, rates), 2.5);
+  assert.equal(run(small, { rates }).decision, 'approve');
+  assert.equal(run(ethTx(BOB, '0.1'), { rates }).checks.find((c) => c.id === 'threshold')?.status, 'step-up');
+  assert.equal(usdcEquivalent(decodeSafeTx(small, SAFE), small, {}), null);
+});
+
+test('unknown spend earlier today (unvalued ETH) makes the daily limit unverifiable → step-up', () => {
+  const r = run(usdc(BOB, '10'), { spentTodayUsdc: null });
+  assert.equal(r.checks.find((c) => c.id === 'daily')?.status, 'step-up');
+  assert.notEqual(r.decision, 'approve');
+});
+
+test('policy rates ignore old values (fail safe) and fee CHF is null without an ETH rate', async () => {
+  const { policyRates, feeChf } = await import('../src/rates');
+  const now = Date.now();
+  const r = (ageMin: number) => ({ chf: 2000, asOf: new Date(now - ageMin * 60e3).toISOString(), fetchedAt: '', stale: false, provider: 'test' });
+  assert.deepEqual(policyRates({ ETH: r(5), USDC: r(500) }, now), { ETH: 2000 });
+  assert.deepEqual(feeChf('0.001', undefined), { chf: null, rate: null });
+  assert.equal(feeChf('0.001', r(1)).chf, 2);
+});

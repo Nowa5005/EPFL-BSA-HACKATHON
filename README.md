@@ -103,7 +103,16 @@ Each service is a **separate process with its own `data/` directory** (JSON file
 | Identity-document check at activation (images processed locally, never sent) | **MOCK** (outcome only stored in `sq-bank`) |
 | Transaction receipts (PDF, jsPDF, client-side) and receipts index (idempotent `docId`) | **REAL** logic |
 | "Simuler une réception" (250 USDC, no blockchain tx) | **MOCK**, flagged "simulée" everywhere |
-| Reconstructed Swissquote screens, market data, crypto news | **MOCK** (fictitious) |
+| Reconstructed Swissquote screens and the demo trading account (portfolio values, cash, orders) | **MOCK** (fictitious, labelled) |
+| Market quotes, history, search (Trade, Watchlist, instrument pages, alerts, wallet CHF valuations) | **REAL** data — Yahoo Finance public endpoints + CoinGecko, via `services/market-data` |
+| News | **REAL** articles from publishers' RSS feeds (headline, summary, image credit, link — no full text) |
+| Inspiration articles | Editorial prototype content, sourced (not market data, not advice) |
+| Price / % / reminder alerts | **REAL** evaluation by the demo server every minute while it runs; in-app notifications only |
+| Order ticket (Buy / Sell) | **MOCK** — never sends an order |
+| Travel Rule beneficiary data | **REAL** collection + server checks; **no** transmission integration → third-party transfers allowed only in labelled demo mode |
+| External wallet proof (SIWE / EIP-4361, EIP-1271) | **REAL** signature verification (free, no transaction) |
+| Annual statement / CSV | **REAL** chain reconstruction at 31.12 Europe/Zurich; valuation = CoinGecko estimate (official ESTV rates not integrated) |
+| Native iOS / Android app (Capacitor) | Projects generated and synced; **not compiled** here (no Xcode / Android SDK) |
 | Recovery code (paper share ①) as checksummed base32 text — no QR code | **REAL** encoding |
 | K2 / relayer keys encrypted at rest (keystore + `SERVICE_MASTER_KEY`) | **REAL** (HSM in production) |
 | Subscriptions & payment | **MOCK** payment (demo mode, nothing charged); prices, entitlements and commission maths are real server-side logic |
@@ -178,7 +187,46 @@ What this repository implements at the wallet level (the security of Swissquote'
 - **Backup code** (passkey alternative) — 12 characters from a CSPRNG, shown once, confirmed, revocable; stored only as a salted scrypt hash; 5 attempts then a 15-minute lock; each use bound to a single-use challenge or preview. It can unlock and confirm operations, never freeze/unfreeze, reveal amounts or reveal secrets.
 - Tests: `services/sq-cosigner/test/security.test.ts` (encrypted key keeps its exact address · modified calldata refused · frozen wallet gets no co-signature) and `npm run e2e` (a transaction modified after its preview is refused on the live co-signer).
 
-## New in this iteration
+### Service authentication, CORS & CSRF
+All four services install the same shared middleware (`packages/shared/src/serverAuth.ts`, `@sq/shared/server`) **before any route**:
+
+- **Session tokens** — sq-bank `/login` issues a compact token `{sub: clientId, role: client|compliance, iat, exp, jti, fresh?}` signed with HMAC-SHA256 (`node:crypto`) and `SESSION_SIGNING_KEY`; every service verifies it (12 h for a client, 8 h for the console, 5 min when `fresh`). The web app sends it as `Authorization: Bearer …` (`apps/web/src/lib/api.ts`); a refused token clears the session and returns to the login screen.
+- **Default-deny authorisation** — only the routes a service lists as public are reachable without a token. Everything else needs a session and a client token may only act on **its own** client: `/clients/:id/…`, any `clientId` in the body or query (non-string values are refused), and the owner of resources addressed by id (`/tx/:id`, `/recovery/:id`, `/wallet-txs/:id`, `/scheduled/:id`, partner `/sessions/:id`). Routes added later under `/clients/:id/…` are covered automatically. `/admin/*` (compliance console) needs the `compliance` role (DEMO user `compliance`, any password).
+- **Public routes** — cosigner `GET /health`, `GET /config`, `GET /pricing`; partner `GET /health`; bank `GET /health`, `POST /login`; market-data every `GET` (public read-only data).
+- **Service-to-service** — bank → cosigner (receipt tracking), cosigner → partner (attestations), partner → cosigner (recovery alerts), cosigner → bank (verified wallets) and the dev scripts use `x-internal-token: INTERNAL_API_TOKEN`. A request carrying an `Origin` header cannot use it, and the Origin is never taken as an identity.
+- **CORS** — explicit allow-list `ALLOWED_ORIGINS` (default dev: `http://localhost:5173`, `http://127.0.0.1:5173` and the Capacitor app origins `capacitor://localhost`, `http://localhost`, `https://localhost`); the exact origin is echoed, never `*`, no credentials; methods `GET, POST, OPTIONS`; headers `content-type, authorization, x-lang`. A request with any other Origin is refused (403) before any handler runs, preflight included.
+- **CSRF** — the token is not a cookie, so the browser never attaches it to a cross-site request: classic CSRF does not apply. Defence in depth: every `POST` must be `application/json` (an HTML form cannot send that → 415) and hostile origins are refused first.
+- **Resets** — `POST` only (`GET` → 405) and absent when `NODE_ENV=production` (404). Global `/admin/reset`: internal token (`npm run reset-demo`) or a compliance session. Per-client `/admin/clients/:id/reset` ("Demo: restart activation"): that client's session **plus** a fresh re-authentication (bank `POST /reauth`, password re-entered, 5-minute token). `npm run e2e` obtains a session for its headless client from bank `POST /admin/test-session` (internal token, non-production).
+- **Secrets** — `SESSION_SIGNING_KEY` and `INTERNAL_API_TOKEN` are generated once into the git-ignored `.env` (mode 600, never logged) in development; in production the services refuse to start without them and without `ALLOWED_ORIGINS`.
+- Tests: `services/sq-cosigner/test/auth.test.ts` (allowed / hostile origin, preflight, no token, other client's token, form-encoded POST, GET reset, reset without / with token, fresh re-authentication, production, expired / tampered / escalated tokens) — every refusal is checked to leave the state unchanged.
+
+## Iteration 4 — markets, content, privacy, compliance, app ([spec](docs/SPEC_ITERATION4.md))
+
+**Market data** — `services/market-data` (:4004) is the single source for every screen (Trade, Watchlist, instrument pages, alerts, wallet widgets, CHF conversions in the co-signer), so values never contradict each other.
+- Providers: **Yahoo Finance** chart/search endpoints (equities, ETFs, indices; free public endpoints *without an official API contract* — fine for a prototype, replace with a licensed feed such as SIX in production) and **CoinGecko** public API (crypto, priced in CHF; attribution required). No key needed; optional `COINGECKO_API_KEY` (server-side only) raises the limits.
+- Identifiers are the providers' exact ones (`yf:NESN.SW` = Nestlé on SIX, `cg:ethereum`). Each quote carries exchange, currency, time of the price in the exchange timezone, and status: *delayed* (exchange data, usually ~15–20 min), *last close* (market closed, weekends/holidays from the exchange's trading periods), or *24h* rolling for crypto.
+- Cache: quotes 60 s, history 2 min–6 h depending on the period, news 10 min. On a provider error the last good value is served **flagged stale with its fetch time**; with no previous value the UI shows "unavailable" — nothing is invented. Period changes on charts are computed from that period's real history.
+- Wallet CHF values use `/wallet-rates` (timestamped, indicative — not an executable quote). The former fixed rates (1 ETH = 2 900 CHF…) are gone: a missing rate is shown as unavailable, and the policy engine treats an unvalued ETH transfer as *above* the step-up threshold. Receipts use the rate captured at confirmation.
+
+**News & Inspiration** — real articles from CNBC, MarketWatch, CoinDesk, Cointelegraph and Decrypt RSS (title, summary, credited image, original link; full text not reproduced, paywalls untouched). Seven sourced, bilingual editorial articles. Shared reader view (full screen on mobile, scroll position and focus restored on return).
+
+**Watchlist & alerts** — stored per client in `sq-bank`. Alerts (price above/below, % change over 1D/1W, dated reminder in Europe/Zurich) are evaluated **every 60 s by the demo server while it runs** (`ALERT_EVAL_MS`), with hysteresis (no repeated notification for the same crossing); notifications are in-app only — no push/e-mail/SMS.
+
+**Wallet privacy & widgets** — amounts are **masked on every wallet entry**; revealing requires a passkey user verification (Touch ID / Face ID / device PIN — the platform doesn't tell which), the revealed state lives in memory only and resets on lock, reload or leaving the wallet. Masked charts render a neutral placeholder (no line/axes/tooltips). Crypto list with quantity, value, unit price and 24h change (arrow + sign). Portfolio chart built **only from recorded snapshots** (on-chain quantities + the rate in force at that time, every 15 min while the co-signer runs): no back-filling with current quantities; when history is short, a separately titled *market price* chart is shown instead; deposits/withdrawals are marked and the chart is labelled valuation, not return.
+
+**Receive QR** — encodes the plain checksummed Safe address only (no key, code or session data), with the network shown explicitly (Ethereum Sepolia testnet, ETH/USDC only); decoding verified in tests.
+
+**Compliance** — send flow distinguishes *my own wallet* (verified wallets only) from *someone else's wallet* (beneficiary name always; enhanced data from a configurable CHF 1'000 threshold incl. 30-day linked transfers; missing rate ⇒ treated as above). Checked server-side at prepare and again before co-signing. No Travel Rule transmission integration exists, so third-party transfers are blocked outside a labelled demo mode. External wallets proven with **SIWE (EIP-4361)** / EIP-1271. Annual statement (31.12 23:59:59 Europe/Zurich, balances read from the chain at that block) + CSV export (UTF-8, formula-injection safe). Sources and limits: [docs/COMPLIANCE.md](docs/COMPLIANCE.md).
+
+**Language** — English by default (also on first visit, whatever the browser locale); French on explicit choice (login page switch or Settings → Language), persisted on the device; server messages follow the `x-lang` header.
+
+**Security** — services require signed sessions, CORS allow-list, CSRF defences, protected resets: see *Service authentication, CORS & CSRF* below.
+
+**Web and App** — see *Web and App versions* below and [docs/MOBILE.md](docs/MOBILE.md).
+
+New environment variables (all optional in development): `COINGECKO_API_KEY`, `MARKET_URL`, `ALERT_EVAL_MS`, `TRAVEL_RULE_DEMO_MODE`, `SESSION_SIGNING_KEY`, `INTERNAL_API_TOKEN`, `ALLOWED_ORIGINS`, `VITE_API_HOST`.
+
+## Iteration 3
 Simulation before signing (debited / estimated received / network fee / service commission / balances before → after / approvals with cap), unlimited-approval warning with cap limiting, preview expiry and re-confirmation, recipient verification (full address, look-alike characters highlighted), authorised-apps centre with on-chain revocation, scheduled payments & reminders (never auto-signed), subscriptions & fees page, demo exchange quote, display personalisation (background, accent, highlight, hidden wallets), amount masking (reveal with passkey), message composer (local draft + your own email client; nothing is sent by the app), biometrics alternatives.
 
 ## My Wall UX highlights
@@ -197,9 +245,23 @@ Simulation before signing (debited / estimated received / network fee / service 
 - Password rules are a UX policy, not a guarantee: the key is also protected by the passkey and Swissquote's co-signature; production needs server-side attempt limiting and session protection.
 - Network confirmation = 1 block on Sepolia. Swissquote home screen is **extrapolated** from the reference; market data and crypto news are fictitious.
 
+## Web and App versions
+One codebase, two targets (details: **[docs/MOBILE.md](docs/MOBILE.md)**):
+- **Web** — `npm run dev` → http://localhost:5173 (responsive: desktop, tablet, mobile browser).
+- **App preview** — in dev, the discreet **Web | App** switch (bottom-left) opens `/preview/app`: a phone frame
+  (*“App preview — not the native build”*) running the **same app, same origin, same services and session** in app
+  mode, with device presets. Elsewhere enable it with `?preview=1`. Customers never see it.
+- **Native app** — `apps/mobile` (Capacitor 8, appId `ch.mywall.demo`, “My Wall (demo)”): `npm run app:build`
+  (app-mode bundle → `apps/mobile/www`), `npm run app:sync`, `npm run app:ios` / `npm run app:android` (Xcode /
+  Android Studio), `npm run app:preview` (app bundle in a browser, :5174). Device builds: `VITE_API_HOST=http://<Mac LAN IP>`.
+- Limits: passkeys need an HTTPS RP-ID domain + associated domains (AASA / assetlinks) in the native shell — the app
+  says so explicitly; no `window.ethereum` in a WebView (WalletConnect / deep link needed); no native compile was run
+  on the dev machine (no Xcode / Android SDK); nothing is published to a store.
+
 ## Repository layout
 ```
 apps/web                  Vite + React + Tailwind client app, /admin, /attacker
+apps/mobile               Capacitor shell (iOS / Android projects) around the apps/web screens in app mode
 services/sq-cosigner      K2, policy engine, WebAuthn, relayer, recovery delay, audit log, mock inbox
 services/recovery-partner Share ③ + identity checks + risk score (MOCK trustee)
 services/sq-bank          MOCK core banking/KYC, EIP-1271 wallet registry, treasury USDC

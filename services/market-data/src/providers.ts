@@ -7,7 +7,9 @@
 //  - CoinGecko public API (crypto, CHF): free tier, ~30 calls/min, attribution "Data provided by CoinGecko" required.
 //    Optional key: COINGECKO_API_KEY (demo key header) raises the limits. Server-side only.
 
-import { known, remember, type Instrument, type Kind } from './catalog';
+import { known, LISTS, remember, type Instrument, type Kind } from './catalog';
+
+const LISTED = new Set(Object.values(LISTS).flatMap((l) => l.map((i) => i.id)));
 
 const UA = 'Mozilla/5.0 (MyWall prototype; market data proxy)';
 const CG_BASE = 'https://api.coingecko.com/api/v3';
@@ -306,6 +308,11 @@ export async function search(q: string): Promise<{ results: SearchHit[]; stale: 
       remember({ ...hit, currency: 'CHF' });
       results.push(hit);
     }
-    return { results, stale: false, fetchedAt: new Date().toISOString() };
+    return { results: rankSearch(results), stale: false, fetchedAt: new Date().toISOString() };
   });
+}
+
+/** Stable ranking: instruments of our default lists (e.g. NESN on SIX) before other listings (ADRs, OTC lines…). */
+export function rankSearch<T extends { id: string }>(hits: T[], isKnown: (id: string) => boolean = (id) => !!known(id) && LISTED.has(id)): T[] {
+  return hits.map((h, i) => ({ h, i, k: isKnown(h.id) ? 0 : 1 })).sort((a, b) => a.k - b.k || a.i - b.i).map((x) => x.h);
 }

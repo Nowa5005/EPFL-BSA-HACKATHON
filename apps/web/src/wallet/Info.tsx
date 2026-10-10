@@ -8,12 +8,13 @@ import { cosigner } from '../lib/api';
 import { useLocal, usePoll, useReadState, useWalletTxs } from '../lib/hooks';
 import { Card, cx, dateTime, MockBadge, Pill, Tabs, useMedia } from '../components/ui';
 import { MARKET_NEWS, RELEASES } from './mockNews';
+import { getLang, tr } from '../lib/i18n';
 
 type Cat = 'tx' | 'market' | 'updates';
 const CATS: { id: Cat; label: string; short: string }[] = [
-  { id: 'tx', label: 'Mes transactions', short: 'Transactions' },
-  { id: 'market', label: 'Marché crypto', short: 'Marché' },
-  { id: 'updates', label: 'Mises à jour de My Wall', short: 'Mises à jour' },
+  { id: 'tx', label: tr('My transactions', 'Mes transactions'), short: 'Transactions' },
+  { id: 'market', label: tr('Crypto market', 'Marché crypto'), short: tr('Market', 'Marché') },
+  { id: 'updates', label: tr('My Wall updates', 'Mises à jour de My Wall'), short: tr('Updates', 'Mises à jour') },
 ];
 
 const TX_TYPES = /^(wallet-tx\.|tx\.executed|tx\.failed|tx\.rejected|tx\.step-up|recovery\.(completed|requested|refused)|wallet\.deployed)/;
@@ -44,10 +45,10 @@ function useItems(): Record<Cat, Item[]> {
       .filter((e) => TX_TYPES.test(e.type))
       .map((e) => ({
         id: `a:${e.id}`,
-        title: e.message,
+        title: getLang() === 'fr' ? e.messageFr ?? e.message : e.message,
         date: e.ts,
         to: linkFor(e),
-        group: /receive|Réception/i.test(e.message) ? 'in' : /failed|rejected|refused/.test(e.type) ? 'alert' : 'out',
+        group: /receiv|receipt|incoming|Réception/i.test(e.message) ? 'in' : /failed|rejected|refused/.test(e.type) ? 'alert' : 'out',
       })),
     market: MARKET_NEWS.map((n) => ({ id: `b:${n.id}`, title: n.title, summary: n.summary, body: n.body, date: n.publishedAt, badges: n.assets, source: n.source })),
     updates: RELEASES.map((r) => ({ id: `c:${r.id}`, title: r.title, summary: r.body, body: r.body, date: r.date, action: r.action, group: r.action ? 'action' : 'news' })),
@@ -56,20 +57,20 @@ function useItems(): Record<Cat, Item[]> {
 
 const FILTERS: Record<Cat, { id: string; label: string; test: (i: Item) => boolean }[]> = {
   tx: [
-    { id: 'all', label: 'Tout', test: () => true },
-    { id: 'in', label: 'Réceptions', test: (i) => i.group === 'in' },
-    { id: 'out', label: 'Envois', test: (i) => i.group === 'out' },
-    { id: 'alert', label: 'Échecs', test: (i) => i.group === 'alert' },
+    { id: 'all', label: tr('All', 'Tout'), test: () => true },
+    { id: 'in', label: tr('Received', 'Réceptions'), test: (i) => i.group === 'in' },
+    { id: 'out', label: tr('Sent', 'Envois'), test: (i) => i.group === 'out' },
+    { id: 'alert', label: tr('Failed', 'Échecs'), test: (i) => i.group === 'alert' },
   ],
   market: [
-    { id: 'all', label: 'Tout', test: () => true },
+    { id: 'all', label: tr('All', 'Tout'), test: () => true },
     { id: 'ETH', label: 'ETH', test: (i) => !!i.badges?.includes('ETH') },
     { id: 'USDC', label: 'USDC', test: (i) => !!i.badges?.includes('USDC') },
   ],
   updates: [
-    { id: 'all', label: 'Tout', test: () => true },
-    { id: 'action', label: 'Action requise', test: (i) => !!i.action },
-    { id: 'news', label: 'Nouveautés', test: (i) => !i.action },
+    { id: 'all', label: tr('All', 'Tout'), test: () => true },
+    { id: 'action', label: tr('Action required', 'Action requise'), test: (i) => !!i.action },
+    { id: 'news', label: tr('What’s new', 'Nouveautés'), test: (i) => !i.action },
   ],
 };
 
@@ -77,9 +78,9 @@ function Row({ it, unread, onOpen }: { it: Item; unread: boolean; onOpen: () => 
   return (
     <li className="border-b border-sq-line last:border-0">
       <button type="button" onClick={onOpen} className="flex min-h-[60px] w-full items-start gap-3 py-3 text-left hover:bg-sq-bg/50">
-        <span className={cx('mt-2 size-2 shrink-0 rounded-full', unread ? 'bg-sq-orange' : 'bg-transparent')} aria-label={unread ? 'Non lu' : undefined} />
+        <span className={cx('mt-2 size-2 shrink-0 rounded-full', unread ? 'bg-sq-orange' : 'bg-transparent')} aria-label={unread ? tr('Unread', 'Non lu') : undefined} />
         <span className="min-w-0 flex-1">
-          {it.action && <span className="mb-1 inline-block rounded-[4px] bg-sq-orange-50 px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide text-sq-orange-600">Action requise</span>}
+          {it.action && <span className="mb-1 inline-block rounded-[4px] bg-sq-orange-50 px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide text-sq-orange-600">{tr('Action required', 'Action requise')}</span>}
           <span className={cx('block text-[14px] leading-snug', unread ? 'font-semibold text-sq-ink' : 'text-sq-ink-2')}>{it.title}</span>
           {it.summary && <span className="mt-0.5 line-clamp-2 block text-[13px] text-sq-muted">{it.summary}</span>}
           <span className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-sq-muted">
@@ -111,7 +112,7 @@ export function InfoPanel({ cat, items, limit, filter, setFilter, open }: { cat:
           </Pill>
         ))}
       </div>
-      {cat === 'market' && <p className="mb-1 text-[12px] text-sq-muted">Contenu de démonstration — pas des actualités réelles.</p>}
+      {cat === 'market' && <p className="mb-1 text-[12px] text-sq-muted">{tr('Demo content — not real news.', 'Contenu de démonstration — pas des actualités réelles.')}</p>}
       {list.length ? (
         <ul>
           {list.map((it) => (
@@ -119,7 +120,7 @@ export function InfoPanel({ cat, items, limit, filter, setFilter, open }: { cat:
           ))}
         </ul>
       ) : (
-        <p className="py-6 text-center text-[14px] text-sq-muted">Rien pour l'instant.</p>
+        <p className="py-6 text-center text-[14px] text-sq-muted">{tr('Nothing yet.', "Rien pour l'instant.")}</p>
       )}
     </div>
   );
@@ -159,9 +160,9 @@ export function InfoBoard({ limit }: { limit?: number }) {
             setParams(p);
           }}
         >
-          <ChevronLeft size={18} strokeWidth={1.75} /> Retour (filtres conservés)
+          <ChevronLeft size={18} strokeWidth={1.75} /> {tr('Back (filters kept)', 'Retour (filtres conservés)')}
         </button>
-        {detail.action && <span className="mb-2 inline-block rounded-[4px] bg-sq-orange-50 px-1.5 py-px text-[11px] font-semibold uppercase text-sq-orange-600">Action requise</span>}
+        {detail.action && <span className="mb-2 inline-block rounded-[4px] bg-sq-orange-50 px-1.5 py-px text-[11px] font-semibold uppercase text-sq-orange-600">{tr('Action required', 'Action requise')}</span>}
         <h2 className="text-[18px] font-semibold leading-snug">{detail.title}</h2>
         <p className="mt-1 text-[12px] text-sq-muted">
           {dateTime(detail.date)}
@@ -169,7 +170,7 @@ export function InfoBoard({ limit }: { limit?: number }) {
           {detail.id.startsWith('b:') && (
             <>
               {' '}
-              · <MockBadge label="Démo" />
+              · <MockBadge label={tr('Demo', 'Démo')} />
             </>
           )}
         </p>
@@ -177,7 +178,7 @@ export function InfoBoard({ limit }: { limit?: number }) {
         <div className="mt-4 flex flex-wrap gap-3">
           {detail.to && (
             <Link to={detail.to} className="inline-flex min-h-11 items-center rounded-[10px] border border-sq-line px-4 text-[14px] font-semibold">
-              Voir la transaction
+              {tr('View transaction', 'Voir la transaction')}
             </Link>
           )}
           {detail.action && (
@@ -214,8 +215,8 @@ export function InfoBoard({ limit }: { limit?: number }) {
 export default function InfoPage() {
   return (
     <div>
-      <h1 className="mb-1 text-[22px] font-semibold tracking-tight">Informations</h1>
-      <p className="mb-4 text-[14px] text-sq-muted">Vos événements, l'actualité crypto et les nouveautés de My Wall — chacun à sa place.</p>
+      <h1 className="mb-1 text-[22px] font-semibold tracking-tight">{tr('Information', 'Informations')}</h1>
+      <p className="mb-4 text-[14px] text-sq-muted">{tr('Your events, crypto news and My Wall updates — each in its own place.', "Vos événements, l'actualité crypto et les nouveautés de My Wall — chacun à sa place.")}</p>
       <InfoBoard />
     </div>
   );

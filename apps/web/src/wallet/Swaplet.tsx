@@ -8,7 +8,10 @@ import { useLocal, usePoll, type WalletTxView } from '../lib/hooks';
 import { buildReceipt, downloadReceiptPdf, ReceiptView } from '../lib/receipt';
 import { Button, Card, cx, dateOnly, fmt, inputCls, Notice, Pill, Skeleton, Tabs, useMedia } from '../components/ui';
 import { kindLabel } from './TxList';
+import { MaskBar, useReveal } from './Reveal';
+import { locale, tr } from '../lib/i18n';
 import Swap from './Swap';
+import { AnnualDocuments } from '../components/AnnualDocuments';
 
 interface Doc {
   docId: string;
@@ -17,11 +20,11 @@ interface Doc {
 }
 
 const PERIODS = [
-  { id: 'all', label: 'Tout' },
-  { id: 'month', label: 'Ce mois' },
-  { id: '3m', label: '3 mois' },
-  { id: 'year', label: 'Année' },
-  { id: 'custom', label: 'Personnalisée' },
+  { id: 'all', label: tr('All', 'Tout') },
+  { id: 'month', label: tr('This month', 'Ce mois') },
+  { id: '3m', label: tr('3 months', '3 mois') },
+  { id: 'year', label: tr('Year', 'Année') },
+  { id: 'custom', label: tr('Custom', 'Personnalisée') },
 ];
 
 export default function Swaplet() {
@@ -29,7 +32,7 @@ export default function Swaplet() {
   return (
     <div>
       <h1 className="mb-1 text-[22px] font-semibold tracking-tight">Swaplet</h1>
-      <p className="mb-3 text-[14px] text-sq-muted">Vos échanges et vos justificatifs de transaction.</p>
+      <p className="mb-3 text-[14px] text-sq-muted">{tr('Your exchanges and transaction receipts.', 'Vos échanges et vos justificatifs de transaction.')}</p>
       <Tabs
         value={tab}
         onChange={setTab}
@@ -39,13 +42,20 @@ export default function Swaplet() {
             id: 'swap',
             label: (
               <span className="inline-flex items-center gap-1.5">
-                Échanger <span className="rounded-[4px] bg-sq-chip px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-sq-muted">Démo</span>
+                {tr('Exchange', 'Échanger')} <span className="rounded-[4px] bg-sq-chip px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-sq-muted">{tr('Demo', 'Démo')}</span>
               </span>
             ),
           },
         ]}
       />
-      <div className="mt-4">{tab === 'docs' ? <Documents /> : <Swap />}</div>
+      <div className="mt-4">{tab === 'docs' ? (
+        <>
+          <AnnualDocuments />
+          <Documents />
+        </>
+      ) : (
+        <Swap />
+      )}</div>
     </div>
   );
 }
@@ -85,15 +95,18 @@ function Documents() {
     const m = new Map<string, Doc[]>();
     for (const d of filtered) {
       const when = new Date(d.tx.confirmedAt ?? d.tx.createdAt);
-      const key = when.toLocaleDateString('fr-CH', { month: 'long', year: 'numeric', timeZone: 'Europe/Zurich' });
+      const key = when.toLocaleDateString(locale(), { month: 'long', year: 'numeric', timeZone: 'Europe/Zurich' });
       m.set(key, [...(m.get(key) ?? []), d]);
     }
     return [...m.entries()];
   }, [filtered]);
 
   const current = filtered.find((d) => d.docId === selected) ?? null;
+  const reveal = useReveal();
   const download = async (d: Doc) => {
     setDlError(null);
+    // the PDF shows the amounts: they must be revealed (passkey) first
+    if (!(await reveal.ensureRevealed())) return;
     try {
       await downloadReceiptPdf(buildReceipt(d.tx, name));
     } catch (e: any) {
@@ -103,10 +116,10 @@ function Documents() {
 
   if (error && !data)
     return (
-      <Notice tone="bad" title="Impossible de charger les documents">
+      <Notice tone="bad" title={tr('Could not load documents', 'Impossible de charger les documents')}>
         {error}
         <Button variant="secondary" className="mt-2 w-auto px-4" onClick={reload}>
-          <RefreshCw size={16} strokeWidth={1.75} /> Réessayer
+          <RefreshCw size={16} strokeWidth={1.75} /> {tr('Try again', 'Réessayer')}
         </Button>
       </Notice>
     );
@@ -114,21 +127,21 @@ function Documents() {
   const filters = (
     <div className="space-y-2">
       <label className="relative block">
-        <span className="sr-only">Rechercher</span>
+        <span className="sr-only">{tr('Search', 'Rechercher')}</span>
         <Search size={18} strokeWidth={1.75} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sq-muted" />
-        <input className={cx(inputCls, 'pl-10')} placeholder="Référence, montant, adresse…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className={cx(inputCls, 'pl-10')} placeholder={tr('Reference, amount, address…', 'Référence, montant, adresse…')} value={q} onChange={(e) => setQ(e.target.value)} />
       </label>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {['all', 'USDC', 'ETH'].map((a) => (
           <Pill key={a} active={asset === a} onClick={() => setAsset(a)}>
-            {a === 'all' ? 'Tous actifs' : a}
+            {a === 'all' ? tr('All assets', 'Tous actifs') : a}
           </Pill>
         ))}
         {[
-          ['all', 'Tous types'],
-          ['receive', 'Réception'],
-          ['send', 'Envoi'],
-          ['swap', 'Échange'],
+          ['all', tr('All types', 'Tous types')],
+          ['receive', tr('Received', 'Réception')],
+          ['send', tr('Sent', 'Envoi')],
+          ['swap', tr('Exchange', 'Échange')],
         ].map(([id, l]) => (
           <Pill key={id} active={type === id} onClick={() => setType(id)}>
             {l}
@@ -144,8 +157,8 @@ function Documents() {
       </div>
       {period === 'custom' && (
         <div className="grid grid-cols-2 gap-2">
-          <input type="date" className={inputCls} value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Du" />
-          <input type="date" className={inputCls} value={to} onChange={(e) => setTo(e.target.value)} aria-label="Au" />
+          <input type="date" className={inputCls} value={from} onChange={(e) => setFrom(e.target.value)} aria-label={tr('From', 'Du')} />
+          <input type="date" className={inputCls} value={to} onChange={(e) => setTo(e.target.value)} aria-label={tr('To', 'Au')} />
         </div>
       )}
     </div>
@@ -158,9 +171,9 @@ function Documents() {
       ))}
     </div>
   ) : !(data ?? []).length ? (
-    <p className="py-10 text-center text-[14px] text-sq-muted">Aucun justificatif pour l'instant. Ils apparaîtront ici après votre première transaction.</p>
+    <p className="py-10 text-center text-[14px] text-sq-muted">{tr('No receipts yet. They will appear here after your first transaction.', "Aucun justificatif pour l'instant. Ils apparaîtront ici après votre première transaction.")}</p>
   ) : !filtered.length ? (
-    <p className="py-10 text-center text-[14px] text-sq-muted">Aucun document ne correspond à ces critères.</p>
+    <p className="py-10 text-center text-[14px] text-sq-muted">{tr('No documents match these filters.', 'Aucun document ne correspond à ces critères.')}</p>
   ) : (
     <div className="space-y-5">
       {groups.map(([month, docs]) => (
@@ -172,18 +185,18 @@ function Documents() {
                 <FileText size={20} strokeWidth={1.75} className="shrink-0 text-sq-ink-2" />
                 <button type="button" onClick={() => setSelected(d.docId)} className="min-w-0 flex-1 text-left">
                   <span className="block text-[14px] font-medium">
-                    {kindLabel(d.tx.kind)} · {fmt(Number(d.tx.amount), d.tx.asset === 'ETH' ? 5 : 2)} {d.tx.asset}
-                    {d.tx.simulated && <span className="ml-1 text-[12px] font-normal text-sq-muted">(simulée)</span>}
+                    {kindLabel(d.tx.kind)} · {reveal.masked ? <span aria-label={tr('Amount hidden', 'Montant masqué')}>••••••</span> : fmt(Number(d.tx.amount), d.tx.asset === 'ETH' ? 5 : 2)} {d.tx.asset}
+                    {d.tx.simulated && <span className="ml-1 text-[12px] font-normal text-sq-muted">{tr('(simulated)', '(simulée)')}</span>}
                   </span>
                   <span className="block text-[12px] text-sq-muted">
                     {dateOnly(d.tx.confirmedAt ?? d.tx.createdAt)} · <span className="font-mono">{d.reference}</span>
                   </span>
-                  {dlError === d.docId && <span className="block text-[12px] text-sq-down">Téléchargement impossible.</span>}
+                  {dlError === d.docId && <span className="block text-[12px] text-sq-down">{tr('Download failed.', 'Téléchargement impossible.')}</span>}
                 </button>
-                <button type="button" onClick={() => setSelected(d.docId)} aria-label={`Aperçu ${d.reference}`} className="flex size-10 items-center justify-center rounded-full hover:bg-sq-chip/60">
+                <button type="button" onClick={() => setSelected(d.docId)} aria-label={tr(`Preview ${d.reference}`, `Aperçu ${d.reference}`)} className="flex size-10 items-center justify-center rounded-full hover:bg-sq-chip/60">
                   <Eye size={18} strokeWidth={1.75} />
                 </button>
-                <button type="button" onClick={() => download(d)} aria-label={dlError === d.docId ? `Réessayer ${d.reference}` : `Télécharger ${d.reference}`} className="flex size-10 items-center justify-center rounded-full hover:bg-sq-chip/60">
+                <button type="button" onClick={() => download(d)} aria-label={dlError === d.docId ? tr(`Retry ${d.reference}`, `Réessayer ${d.reference}`) : tr(`Download ${d.reference}`, `Télécharger ${d.reference}`)} className="flex size-10 items-center justify-center rounded-full hover:bg-sq-chip/60">
                   {dlError === d.docId ? <RefreshCw size={18} strokeWidth={1.75} /> : <Download size={18} strokeWidth={1.75} />}
                 </button>
               </li>
@@ -198,6 +211,8 @@ function Documents() {
     return (
       <div className="grid grid-cols-12 gap-5">
         <Card className="col-span-7 space-y-4">
+          <MaskBar />
+          {reveal.error && <p className="text-[12px] text-sq-down" role="alert">{reveal.error}</p>}
           {filters}
           {list}
         </Card>
@@ -206,11 +221,11 @@ function Documents() {
             <div className="sticky top-24 space-y-3">
               <ReceiptView r={buildReceipt(current.tx, name)} />
               <Button onClick={() => download(current)}>
-                <Download size={18} strokeWidth={1.75} /> Télécharger le PDF
+                <Download size={18} strokeWidth={1.75} /> {tr('Download PDF', 'Télécharger le PDF')}
               </Button>
             </div>
           ) : (
-            <Card className="text-[14px] text-sq-muted">Sélectionnez un document pour l'aperçu.</Card>
+            <Card className="text-[14px] text-sq-muted">{tr('Select a document to preview it.', "Sélectionnez un document pour l'aperçu.")}</Card>
           )}
         </div>
       </div>
@@ -222,15 +237,19 @@ function Documents() {
         <button type="button" onClick={() => setSelected(null)} className="-ml-2 inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-[14px] font-medium text-sq-ink-2">
           <ChevronLeft size={18} strokeWidth={1.75} /> Documents
         </button>
+        <MaskBar />
+          {reveal.error && <p className="text-[12px] text-sq-down" role="alert">{reveal.error}</p>}
         <ReceiptView r={buildReceipt(current.tx, name)} />
         <Button onClick={() => download(current)}>
-          <Download size={18} strokeWidth={1.75} /> Télécharger
+          <Download size={18} strokeWidth={1.75} /> {tr('Download', 'Télécharger')}
         </Button>
       </div>
     );
 
   return (
     <Card className="space-y-4">
+      <MaskBar />
+          {reveal.error && <p className="text-[12px] text-sq-down" role="alert">{reveal.error}</p>}
       {filters}
       {list}
     </Card>

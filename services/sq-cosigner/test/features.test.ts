@@ -47,8 +47,8 @@ test('plan entitlements are computed server-side from the subscription state', a
   const ended = { subscription: { ...buildSubscription('pro', 'monthly', new Date(Date.now() - 40 * 864e5)), status: 'cancel-at-period-end' } } as any;
   assert.equal(effectiveTier(ended), 'free');
   // the quote applies the tier's rate: Pro pays a quarter of the free commission
-  const qFree = quoteSwap({ from: 'USDC', amount: '500', slippageBps: 50, tier: 'free', now: 0 });
-  const qPro = quoteSwap({ from: 'USDC', amount: '500', slippageBps: 50, tier: 'pro', now: 0 });
+  const qFree = quoteSwap({ from: 'USDC', amount: '500', slippageBps: 50, tier: 'free', ethPriceUsdc: 2500, now: 0 }); // test fixture price
+  const qPro = quoteSwap({ from: 'USDC', amount: '500', slippageBps: 50, tier: 'pro', ethPriceUsdc: 2500, now: 0 });
   assert.equal(qFree.commission, '4.0');
   assert.equal(qPro.commission, '1.0');
   assert.ok(Number(qPro.minOut) < Number(qPro.expectedOut));

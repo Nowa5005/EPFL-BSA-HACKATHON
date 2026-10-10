@@ -18,7 +18,8 @@ export type Level = 'standard' | 'step-up';
 
 export interface DecodedAction {
   kind: 'eth-transfer' | 'erc20-transfer' | 'erc20-approve' | 'swap-owner' | 'contract-call';
-  summary: string; // plain-language
+  summary: string; // plain-language (English, or the request language when returned immediately)
+  summaryFr?: string; // French twin when the action is stored (see localizeDeep)
   token?: string;
   amount?: string; // human units
   amountRaw?: string;
@@ -26,13 +27,17 @@ export interface DecodedAction {
   spender?: string;
   unlimited?: boolean;
   warnings: string[];
+  warningsFr?: string[];
 }
 
+// Stored texts carry an optional French twin (`xFr`); services localise them on read (localizeDeep).
 export interface PolicyCheck {
   id: string;
   label: string;
+  labelFr?: string;
   status: 'pass' | 'fail' | 'step-up';
   detail?: string;
+  detailFr?: string;
 }
 
 export interface PolicyResult {
@@ -40,6 +45,7 @@ export interface PolicyResult {
   level: Level;
   checks: PolicyCheck[];
   reasons: string[];
+  reasonsFr?: string[];
 }
 
 export interface ActivityEvent {
@@ -49,6 +55,7 @@ export interface ActivityEvent {
   actor: 'client' | 'swissquote' | 'compliance' | 'partner' | 'system' | 'attacker';
   type: string;
   message: string;
+  messageFr?: string;
   txHash?: string;
   data?: Record<string, unknown>;
 }

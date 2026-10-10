@@ -2,16 +2,23 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, CircleCheck, CircleX, Cloud, FileKey2, Fingerprint, ShieldAlert, Smile, X } from 'lucide-react';
 import { Wallet, sha256 } from 'ethers';
-import { buildSafeTx, combineShares, decodeRecoveryCode, decryptCloudShare, encryptCloudShare, signSafeTx, swapOwnerData, type CloudBackup } from '@sq/shared';
+import { buildSafeTx, combineShares, decodeRecoveryCode, decryptCloudShare, encryptCloudShare, questionLabel, signSafeTx, swapOwnerData, type CloudBackup } from '@sq/shared';
 import { bank, cosigner, partner } from '../lib/api';
 import { encryptKey, guessDeviceType, lock, registerPasskey, saveDevice, saveSession, setUnlocked } from '../lib/device';
 import { checkPassword } from '../lib/passwordPolicy';
 import { useLocal, usePoll } from '../lib/hooks';
+import { getLang, tr } from '../lib/i18n';
 import { Addr, Button, Card, cx, DemoFooter, Field, inputCls, Logo, mmss, MockBadge, Notice, ProgressList, SecretInput, Spinner, Steps, Tabs, TxLink, useCountdown, Why, type ProgState } from '../components/ui';
 import { PasswordChecklist } from '../components/PasswordChecklist';
 import { CheckDisc } from '../components/Confirm';
 
-const STEPS = ['Connexion', 'Identité', 'Partie de votre clé de secours', 'Nouvel appareil', 'Délai de sécurité'];
+const STEPS = [
+  tr('Sign in', 'Connexion'),
+  tr('Identity', 'Identité'),
+  tr('Part of your backup key', 'Partie de votre clé de secours'),
+  tr('New device', 'Nouvel appareil'),
+  tr('Security delay', 'Délai de sécurité'),
+];
 const PENDING_KEY = 'mw:pending-recovery';
 
 interface Pending {
@@ -169,13 +176,13 @@ export default function Recover() {
         try {
           backup = JSON.parse(await cloudFile!.text());
         } catch {
-          throw new Error("Ce fichier n'est pas une sauvegarde cloud My Wall.");
+          throw new Error(tr('This file is not a My Wall cloud backup.', "Ce fichier n'est pas une sauvegarde cloud My Wall."));
         }
-        if (backup.kind !== 'sqwallet-cloud-backup') throw new Error("Ce fichier n'est pas une sauvegarde cloud My Wall.");
+        if (backup.kind !== 'sqwallet-cloud-backup') throw new Error(tr('This file is not a My Wall cloud backup.', "Ce fichier n'est pas une sauvegarde cloud My Wall."));
         try {
           ownShare = await decryptCloudShare(backup, cloudPw);
         } catch {
-          throw new Error('Mot de passe incorrect pour cette sauvegarde (celui choisi à la création du wallet).');
+          throw new Error(tr('Wrong password for this backup (use the one chosen when the wallet was created).', 'Mot de passe incorrect pour cette sauvegarde (celui choisi à la création du wallet).'));
         }
         await partner.post(`/sessions/${sessionId}/paper-proof`, { commitment: sha256(ownShare), kind: 'cloud' });
       }
@@ -184,10 +191,10 @@ export default function Recover() {
         setRefusal(r);
         return;
       }
-      if (!ownShare) throw new Error('Une partie de votre clé de secours (code papier ou sauvegarde cloud) est nécessaire.');
+      if (!ownShare) throw new Error(tr('One part of your backup key (paper code or cloud backup) is required.', 'Une partie de votre clé de secours (code papier ou sauvegarde cloud) est nécessaire.'));
       const w = new Wallet(await combineShares([ownShare, r.share]));
       const client = await cosigner.get(`/clients/${session!.clientId}`);
-      if (w.address.toLowerCase() !== client.owners?.recovery?.toLowerCase()) throw new Error('Ce code ou cette sauvegarde n’appartient pas à ce wallet.');
+      if (w.address.toLowerCase() !== client.owners?.recovery?.toLowerCase()) throw new Error(tr('This code or backup does not belong to this wallet.', 'Ce code ou cette sauvegarde n’appartient pas à ce wallet.'));
       setK3(w);
       setPaperShare(mode === 'paper' ? ownShare : null);
       setAttestationId(r.attestationId);
@@ -202,7 +209,12 @@ export default function Recover() {
 
   const setupDevice = async () => {
     setErr('');
-    const labels = ['Création d’une passkey sur ce nouvel appareil', 'Nouvelle clé d’appareil, chiffrée avec votre mot de passe', 'Signature du remplacement avec votre clé de secours', 'Envoi de la demande à Swissquote (début du délai de sécurité)'];
+    const labels = [
+      tr('Creating a passkey on this new device', 'Création d’une passkey sur ce nouvel appareil'),
+      tr('New device key, encrypted with your password', 'Nouvelle clé d’appareil, chiffrée avec votre mot de passe'),
+      tr('Signing the replacement with your backup key', 'Signature du remplacement avec votre clé de secours'),
+      tr('Sending the request to Swissquote (security delay starts)', 'Envoi de la demande à Swissquote (début du délai de sécurité)'),
+    ];
     const p = labels.map((label) => ({ label, state: 'todo' as ProgState, detail: undefined as any }));
     const set = (i: number, state: ProgState, detail?: any) => {
       p[i] = { ...p[i], state, detail };
@@ -214,7 +226,7 @@ export default function Recover() {
       set(i, 'doing');
       const deviceType = guessDeviceType();
       const reg = await registerPasskey(session!.clientId, deviceType, attestationId);
-      set(i, 'done', 'Active dès la fin de la récupération');
+      set(i, 'done', tr('Active as soon as recovery completes', 'Active dès la fin de la récupération'));
       set(++i, 'doing');
       const k1 = Wallet.createRandom();
       const keystore = await encryptKey(k1, pw);
@@ -226,7 +238,7 @@ export default function Recover() {
       const tx = buildSafeTx({ to: safeAddress, data: swapOwnerData(on.owners, client.owners.device, k1.address), nonce: on.nonce });
       const signatureK3 = await signSafeTx(k3!, safeAddress, tx);
       setK3(null); // the recovery key leaves memory
-      set(i, 'done', 'Ancienne clé → nouvelle clé');
+      set(i, 'done', tr('Old key → new key', 'Ancienne clé → nouvelle clé'));
       set(++i, 'doing');
       const r = await cosigner.post('/recovery/request', { clientId: session!.clientId, safeTx: tx, signatureK3, partnerAttestationId: attestationId, newCredentialId: reg.credentialId });
       set(i, 'done');
@@ -236,7 +248,7 @@ export default function Recover() {
       setPending(pend);
     } catch (e: any) {
       set(i, 'error');
-      setErr(e?.name === 'NotAllowedError' ? 'Touch ID a été annulé. Réessayez.' : e.message);
+      setErr(e?.name === 'NotAllowedError' ? tr('Touch ID was cancelled. Please try again.', 'Touch ID a été annulé. Réessayez.') : e.message);
     }
   };
 
@@ -256,53 +268,58 @@ export default function Recover() {
       <Frame step={2}>
         <RefusalCard refusal={refusal} />
         <Link to="/sq">
-          <Button variant="secondary">Retour à Swissquote</Button>
+          <Button variant="secondary">{tr('Back to Swissquote', 'Retour à Swissquote')}</Button>
         </Link>
       </Frame>
     );
 
   return (
     <Frame step={step}>
-      <h1 className="text-[26px] font-semibold tracking-tight">J'ai perdu mon appareil</h1>
+      <h1 className="text-[26px] font-semibold tracking-tight">{tr('I lost my device', "J'ai perdu mon appareil")}</h1>
       {step === 0 && (
         <>
-          <Why>Connectez-vous d’abord à votre compte Swissquote. Il est protégé par ses propres identifiants, distincts de votre wallet.</Why>
+          <Why>{tr('First sign in to your Swissquote account. It is protected by its own credentials, separate from your wallet.', 'Connectez-vous d’abord à votre compte Swissquote. Il est protégé par ses propres identifiants, distincts de votre wallet.')}</Why>
           <Card className="space-y-4">
-            <Field label="Identifiant Swissquote" hint="Démo : alice ou bruno">
+            <Field label={tr('Swissquote username', 'Identifiant Swissquote')} hint={tr('Demo: alice or bruno', 'Démo : alice ou bruno')}>
               <input className={inputCls} value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
             </Field>
             {err && <Notice tone="bad">{err}</Notice>}
-            <Button onClick={login}>Se connecter</Button>
+            <Button onClick={login}>{tr('Sign in', 'Se connecter')}</Button>
           </Card>
         </>
       )}
 
       {step === 1 && (
         <>
-          <Why>Un partenaire suisse indépendant vérifie que c’est bien vous. Il détient une partie de votre clé de secours — inutile seule — et ne la libère qu’après ces contrôles.</Why>
+          <Why>
+            {tr(
+              'An independent Swiss partner checks that it is really you. It holds one part of your backup key — useless on its own — and only releases it after these checks.',
+              'Un partenaire suisse indépendant vérifie que c’est bien vous. Il détient une partie de votre clé de secours — inutile seule — et ne la libère qu’après ces contrôles.',
+            )}
+          </Why>
           <Card className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="font-semibold">1. Selfie vidéo</h2>
-              <MockBadge label="Vérification simulée" />
+              <h2 className="font-semibold">1. {tr('Video selfie', 'Selfie vidéo')}</h2>
+              <MockBadge label={tr('Simulated verification', 'Vérification simulée')} />
             </div>
             <div className="flex aspect-video items-center justify-center rounded-[10px] bg-sq-dark text-white/80">
               <Smile size={56} strokeWidth={1.25} />
             </div>
-            <p className="text-[12px] text-sq-muted">En production, un prestataire certifié compare un selfie vidéo à votre photo KYC.</p>
+            <p className="text-[12px] text-sq-muted">{tr('In production, a certified provider compares a video selfie with your KYC photo.', 'En production, un prestataire certifié compare un selfie vidéo à votre photo KYC.')}</p>
             <div className="grid grid-cols-2 gap-2">
               <Button variant={liveness === 'match' ? 'primary' : 'secondary'} onClick={() => setLiveness('match')}>
-                <CircleCheck size={18} strokeWidth={1.75} /> Visage conforme
+                <CircleCheck size={18} strokeWidth={1.75} /> {tr('Face matches', 'Visage conforme')}
               </Button>
               <Button variant={liveness === 'no-match' ? 'danger' : 'secondary'} onClick={() => setLiveness('no-match')}>
-                <CircleX size={18} strokeWidth={1.75} /> Non conforme
+                <CircleX size={18} strokeWidth={1.75} /> {tr('No match', 'Non conforme')}
               </Button>
             </div>
           </Card>
           <Card className="space-y-3">
-            <h2 className="font-semibold">2. Vos questions de récupération</h2>
-            <p className="text-[12px] text-sq-muted">Elles aident à vous reconnaître mais ne suffisent jamais seules.</p>
+            <h2 className="font-semibold">2. {tr('Your recovery questions', 'Vos questions de récupération')}</h2>
+            <p className="text-[12px] text-sq-muted">{tr('They help recognise you but are never enough on their own.', 'Elles aident à vous reconnaître mais ne suffisent jamais seules.')}</p>
             {questions.map((q, j) => (
-              <Field key={q} label={q}>
+              <Field key={q} label={questionLabel(q, getLang())}>
                 <SecretInput value={answers[j]} onChange={(v) => setAnswers(answers.map((a, k) => (k === j ? v : a)))} autoComplete="off" />
               </Field>
             ))}
@@ -310,25 +327,30 @@ export default function Recover() {
           </Card>
           {err && <Notice tone="bad">{err}</Notice>}
           <Button onClick={submitIdentity} disabled={!liveness || busy || !sessionId}>
-            Continuer
+            {tr('Continue', 'Continuer')}
           </Button>
         </>
       )}
 
       {step === 2 && (
         <>
-          <Why>Il faut 2 parties sur 3 de votre clé de secours. Le partenaire fournit la partie ③ ; apportez la vôtre : votre code papier (①) ou votre sauvegarde cloud chiffrée (②).</Why>
+          <Why>
+            {tr(
+              'You need 2 of the 3 parts of your backup key. The partner provides part ③; bring yours: your paper code (①) or your encrypted cloud backup (②).',
+              'Il faut 2 parties sur 3 de votre clé de secours. Le partenaire fournit la partie ③ ; apportez la vôtre : votre code papier (①) ou votre sauvegarde cloud chiffrée (②).',
+            )}
+          </Why>
           <Tabs
             value={mode}
             onChange={setMode}
             tabs={[
-              { id: 'paper', label: 'Code papier' },
-              { id: 'cloud', label: 'Sauvegarde cloud' },
+              { id: 'paper', label: tr('Paper code', 'Code papier') },
+              { id: 'cloud', label: tr('Cloud backup', 'Sauvegarde cloud') },
             ]}
           />
           {mode === 'paper' ? (
             <Card className="space-y-3">
-              <Field label="Code de récupération" error={codeErr || undefined} hint="19 groupes de 4 caractères. Le collage est accepté.">
+              <Field label={tr('Recovery code', 'Code de récupération')} error={codeErr || undefined} hint={tr('19 groups of 4 characters. Pasting is allowed.', '19 groupes de 4 caractères. Le collage est accepté.')}>
                 <textarea
                   className={cx(inputCls, 'h-28 resize-none font-mono text-[15px] uppercase leading-relaxed tracking-wider')}
                   value={code}
@@ -340,7 +362,7 @@ export default function Recover() {
                   autoCapitalize="characters"
                   autoComplete="off"
                   placeholder="XXXX XXXX XXXX …"
-                  aria-label="Code de récupération"
+                  aria-label={tr('Recovery code', 'Code de récupération')}
                 />
               </Field>
             </Card>
@@ -348,28 +370,28 @@ export default function Recover() {
             <Card className="space-y-3">
               <label className="flex min-h-[88px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[10px] border-2 border-dashed border-sq-line text-center text-[14px] text-sq-ink-2 hover:bg-sq-bg/60">
                 <Cloud size={24} strokeWidth={1.5} />
-                {cloudFile ? cloudFile.name : 'Choisir le fichier de sauvegarde (my-wall-cloud-backup-….json)'}
+                {cloudFile ? cloudFile.name : tr('Choose the backup file (my-wall-cloud-backup-….json)', 'Choisir le fichier de sauvegarde (my-wall-cloud-backup-….json)')}
                 <input type="file" accept="application/json,.json" className="sr-only" onChange={(e) => setCloudFile(e.target.files?.[0] ?? null)} />
               </label>
-              <Field label="Mot de passe choisi à la création du wallet">
+              <Field label={tr('Password chosen when the wallet was created', 'Mot de passe choisi à la création du wallet')}>
                 <SecretInput value={cloudPw} onChange={setCloudPw} autoComplete="off" />
               </Field>
             </Card>
           )}
           {err && <Notice tone="bad">{err}</Notice>}
           <Button onClick={() => decide(true)} disabled={busy || (mode === 'paper' ? code.replace(/ /g, '').length < 4 : !cloudFile || !cloudPw)}>
-            {busy ? <Spinner /> : 'Vérifier et continuer'}
+            {busy ? <Spinner /> : tr('Verify and continue', 'Vérifier et continuer')}
           </Button>
           <Button variant="ghost" onClick={() => decide(false)} disabled={busy}>
-            Je n'ai ni le code ni la sauvegarde
+            {tr('I have neither the code nor the backup', "Je n'ai ni le code ni la sauvegarde")}
           </Button>
         </>
       )}
 
       {step === 3 && (
         <>
-          <Notice tone="ok" title="Identité confirmée — clé de secours reconstituée sur cet appareil">
-            Le partenaire a libéré sa partie. Configurez maintenant ce nouvel appareil.
+          <Notice tone="ok" title={tr('Identity confirmed — backup key rebuilt on this device', 'Identité confirmée — clé de secours reconstituée sur cet appareil')}>
+            {tr('The partner released its part. Now set up this new device.', 'Le partenaire a libéré sa partie. Configurez maintenant ce nouvel appareil.')}
           </Notice>
           {!prog.length ? (
             <form
@@ -380,16 +402,16 @@ export default function Recover() {
               }}
             >
               <Card className="space-y-4">
-                <Field label="Nouveau mot de passe du wallet" error={pw && !pwCheck.ok ? pwCheck.message : undefined}>
+                <Field label={tr('New wallet password', 'Nouveau mot de passe du wallet')} error={pw && !pwCheck.ok ? pwCheck.message : undefined}>
                   <SecretInput value={pw} onChange={setPw} />
                 </Field>
                 <PasswordChecklist rules={pwCheck.rules} />
-                <Field label="Confirmez le mot de passe" error={pw2 && pw2 !== pw ? 'Les deux mots de passe ne correspondent pas.' : undefined}>
+                <Field label={tr('Confirm the password', 'Confirmez le mot de passe')} error={pw2 && pw2 !== pw ? tr('The two passwords do not match.', 'Les deux mots de passe ne correspondent pas.') : undefined}>
                   <SecretInput value={pw2} onChange={setPw2} />
                 </Field>
               </Card>
               <Button type="submit" disabled={!pwCheck.ok || pw !== pw2}>
-                <Fingerprint size={18} strokeWidth={1.75} /> Lier cet appareil avec Touch ID
+                <Fingerprint size={18} strokeWidth={1.75} /> {tr('Link this device with Touch ID', 'Lier cet appareil avec Touch ID')}
               </Button>
             </form>
           ) : (
@@ -412,27 +434,35 @@ export function RefusalCard({ refusal }: { refusal: any }) {
           <ShieldAlert size={24} strokeWidth={1.75} />
         </span>
         <div>
-          <div className="text-[18px] font-semibold">Récupération refusée</div>
+          <div className="text-[18px] font-semibold">{tr('Recovery refused', 'Récupération refusée')}</div>
           <div className="text-[14px] text-sq-muted">
-            Score de risque {refusal.riskScore} (limite {refusal.threshold}). Rien n’a été libéré.
+            {tr(
+              `Risk score ${refusal.riskScore} (limit ${refusal.threshold}). Nothing was released.`,
+              `Score de risque ${refusal.riskScore} (limite ${refusal.threshold}). Rien n’a été libéré.`,
+            )}
           </div>
         </div>
       </div>
       <ul className="space-y-2 text-[14px]">
         {refusal.factors.map((f: any) => (
           <li key={f.factor} className="flex items-start gap-2">
-            <span className={cx('mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-white', f.ok ? 'bg-sq-up' : 'bg-sq-down')} aria-label={f.ok ? 'Réussi' : 'Échec'}>
+            <span className={cx('mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-white', f.ok ? 'bg-sq-up' : 'bg-sq-down')} aria-label={f.ok ? tr('Passed', 'Réussi') : tr('Failed', 'Échec')}>
               {f.ok ? <Check size={12} strokeWidth={3} /> : <X size={12} strokeWidth={3} />}
             </span>
             <span>
               {f.factor}
-              {f.hard && !f.ok && <b className="text-sq-down"> — obligatoire</b>}
-              {!f.hard && f.points > 0 && <span className="text-sq-muted"> (+{f.points} risque)</span>}
+              {f.hard && !f.ok && <b className="text-sq-down"> — {tr('required', 'obligatoire')}</b>}
+              {!f.hard && f.points > 0 && <span className="text-sq-muted"> ({tr(`+${f.points} risk`, `+${f.points} risque`)})</span>}
             </span>
           </li>
         ))}
       </ul>
-      <Why>Le vrai titulaire a été alerté dans son compte Swissquote. Si vous êtes le titulaire, contactez Swissquote : une récupération assistée par un conseiller est possible avec une identification vidéo.</Why>
+      <Why>
+        {tr(
+          'The real account holder has been alerted in their Swissquote account. If you are the holder, contact Swissquote: an adviser-assisted recovery is possible with video identification.',
+          'Le vrai titulaire a été alerté dans son compte Swissquote. Si vous êtes le titulaire, contactez Swissquote : une récupération assistée par un conseiller est possible avec une identification vidéo.',
+        )}
+      </Why>
     </Card>
   );
 }
@@ -460,20 +490,25 @@ function Waiting({ pending, onReset }: { pending: Pending; onReset: () => void }
 
   return (
     <Frame step={r?.status === 'completed' ? 5 : 4}>
-      <h1 className="text-[26px] font-semibold tracking-tight">Délai de sécurité</h1>
+      <h1 className="text-[26px] font-semibold tracking-tight">{tr('Security delay', 'Délai de sécurité')}</h1>
       {!r ? (
         <Spinner />
       ) : r.status === 'pending-delay' || r.status === 'executing' ? (
         <>
           <Card className="flex flex-col items-center gap-2 py-10 text-center">
             <div className="num text-[48px] font-semibold">{mmss(left)}</div>
-            <div className="text-[14px] text-sq-muted">{r.status === 'executing' ? 'Remplacement des clés sur Ethereum…' : 'avant l’activation de votre nouvel appareil'}</div>
-            <div className="text-[12px] text-sq-muted">2 minutes dans cette démo · 48 heures en production</div>
+            <div className="text-[14px] text-sq-muted">{r.status === 'executing' ? tr('Replacing the keys on Ethereum…', 'Remplacement des clés sur Ethereum…') : tr('before your new device is activated', 'avant l’activation de votre nouvel appareil')}</div>
+            <div className="text-[12px] text-sq-muted">{tr('2 minutes in this demo · 48 hours in production', '2 minutes dans cette démo · 48 heures en production')}</div>
           </Card>
-          <Why>Nous vous avons prévenu par email, SMS et dans votre compte Swissquote. Si quelqu’un d’autre a lancé cette récupération, le vrai titulaire peut l’annuler d’un geste pendant le délai.</Why>
+          <Why>
+            {tr(
+              'We have notified you by email, SMS and in your Swissquote account. If someone else started this recovery, the real holder can cancel it in one tap during the delay.',
+              'Nous vous avons prévenu par email, SMS et dans votre compte Swissquote. Si quelqu’un d’autre a lancé cette récupération, le vrai titulaire peut l’annuler d’un geste pendant le délai.',
+            )}
+          </Why>
           <Link to="/inbox" target="_blank" className="block">
             <Button variant="secondary">
-              <FileKey2 size={18} strokeWidth={1.75} /> Ouvrir la boîte de réception (bouton d’annulation)
+              <FileKey2 size={18} strokeWidth={1.75} /> {tr('Open the inbox (cancel button)', 'Ouvrir la boîte de réception (bouton d’annulation)')}
             </Button>
           </Link>
         </>
@@ -481,19 +516,19 @@ function Waiting({ pending, onReset }: { pending: Pending; onReset: () => void }
         <>
           <Card className="flex flex-col items-center gap-3 py-10 text-center">
             <CheckDisc />
-            <div className="text-[20px] font-semibold">Accès récupéré</div>
-            <div className="text-[14px] text-sq-muted">Votre ancien appareil ne peut plus signer : il a été révoqué sur la blockchain.</div>
+            <div className="text-[20px] font-semibold">{tr('Access recovered', 'Accès récupéré')}</div>
+            <div className="text-[14px] text-sq-muted">{tr('Your old device can no longer sign: it has been revoked on the blockchain.', 'Votre ancien appareil ne peut plus signer : il a été révoqué sur la blockchain.')}</div>
             <TxLink hash={r.txHash} />
           </Card>
-          <Button onClick={() => nav('/wallet')}>Ouvrir My Wall</Button>
+          <Button onClick={() => nav('/wallet')}>{tr('Open My Wall', 'Ouvrir My Wall')}</Button>
         </>
       ) : (
         <>
-          <Notice tone={r.status === 'cancelled' ? 'warn' : 'bad'} title={r.status === 'cancelled' ? 'Récupération annulée' : 'Récupération échouée'}>
-            {r.status === 'cancelled' ? 'La récupération a été annulée depuis le compte Swissquote. Rien n’a changé sur la blockchain.' : r.error}
+          <Notice tone={r.status === 'cancelled' ? 'warn' : 'bad'} title={r.status === 'cancelled' ? tr('Recovery cancelled', 'Récupération annulée') : tr('Recovery failed', 'Récupération échouée')}>
+            {r.status === 'cancelled' ? tr('The recovery was cancelled from the Swissquote account. Nothing changed on the blockchain.', 'La récupération a été annulée depuis le compte Swissquote. Rien n’a changé sur la blockchain.') : r.error}
           </Notice>
           <Button variant="secondary" onClick={onReset}>
-            Recommencer
+            {tr('Start over', 'Recommencer')}
           </Button>
         </>
       )}

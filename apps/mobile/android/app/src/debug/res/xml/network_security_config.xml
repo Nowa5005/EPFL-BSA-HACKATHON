@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- DEBUG ONLY: cleartext (http) allowed so the app can reach the local demo services during development.
+     Never ship this in a release build: production services must use HTTPS. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

@@ -3,6 +3,7 @@ import { Lock } from 'lucide-react';
 import { getDevice, getSession, isUnlocked, subscribe, unlock, UnlockError } from './device';
 import { cosigner } from './api';
 import { Button, Field, SecretInput, Spinner, Why } from '../components/ui';
+import { tr } from './i18n';
 
 let snapshot = { device: getDevice(), session: getSession(), unlocked: isUnlocked() };
 subscribe(() => {
@@ -78,6 +79,8 @@ export interface WalletTxView {
   reference: string;
   explorer?: string;
   error?: string;
+  /** Indicative CHF price captured at confirmation (absent → "CHF value unavailable" on receipts). */
+  valuation?: { chf: number; asOf: string; provider: string };
 }
 
 export function useWalletTxs(ms = 4000) {
@@ -175,24 +178,29 @@ export function UnlockProvider({ children }: { children: ReactNode }) {
             }}
           >
             <h2 id="unlock-title" className="flex items-center gap-2 text-lg font-semibold">
-              <Lock size={20} strokeWidth={1.75} /> Déverrouiller My Wall
+              <Lock size={20} strokeWidth={1.75} /> {tr('Unlock My Wall', 'Déverrouiller My Wall')}
             </h2>
-            <Why>Votre clé d'appareil est chiffrée sur cet appareil. Votre mot de passe la déverrouille pour cette session ; il ne quitte jamais l'appareil.</Why>
-            <Field label="Mot de passe du wallet" error={err || undefined}>
+            <Why>
+              {tr(
+                'Your device key is encrypted on this device. Your password unlocks it for this session; it never leaves the device.',
+                "Votre clé d'appareil est chiffrée sur cet appareil. Votre mot de passe la déverrouille pour cette session ; il ne quitte jamais l'appareil.",
+              )}
+            </Why>
+            <Field label={tr('Wallet password', 'Mot de passe du wallet')} error={err || undefined}>
               <SecretInput autoFocus value={pw} onChange={setPw} autoComplete="current-password" />
             </Field>
             <div className="flex gap-2">
               <Button
                 variant="secondary"
                 onClick={() => {
-                  pending.reject(new Error('Déverrouillage annulé'));
+                  pending.reject(new Error(tr('Unlock cancelled', 'Déverrouillage annulé')));
                   setPending(null);
                 }}
               >
-                Annuler
+                {tr('Cancel', 'Annuler')}
               </Button>
               <Button type="submit" disabled={!pw || busy}>
-                {busy ? <Spinner /> : 'Déverrouiller'}
+                {busy ? <Spinner /> : tr('Unlock', 'Déverrouiller')}
               </Button>
             </div>
           </form>

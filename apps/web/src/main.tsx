@@ -7,8 +7,9 @@ import { getDevice, getSession, saveDevice, saveSession } from './lib/device';
 import { cosigner, ApiError } from './lib/api';
 
 // After `npm run reset-demo` the services forget the client: forget the local wallet too.
+// (Only with the matching Swissquote session: the services require the client's own session token.)
 const d = getDevice();
-if (d) {
+if (d && getSession()?.clientId === d.clientId) {
   cosigner.get(`/clients/${d.clientId}`).catch((e) => {
     if (e instanceof ApiError && e.status === 404) {
       saveDevice(null);

@@ -5,6 +5,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { SERVICE_URLS } from '@sq/shared';
+import { internalHeaders, loadDotenv } from '@sq/shared/server';
+
+// The reset routes are POST-only, need the service-to-service token (INTERNAL_API_TOKEN, root .env) and do not
+// exist when NODE_ENV=production.
+loadDotenv();
 
 const root = path.resolve(import.meta.dirname, '..');
 const targets = [
@@ -14,8 +19,9 @@ const targets = [
 ];
 
 for (const t of targets) {
-  const res = await fetch(`${t.url}/admin/reset`, { method: 'POST' }).catch(() => null);
+  const res = await fetch(`${t.url}/admin/reset`, { method: 'POST', headers: internalHeaders(), body: '{}' }).catch(() => null);
   if (res?.ok) console.log(`✔ ${t.name}: reset (running service)`);
+  else if (res) console.log(`✖ ${t.name}: reset refused (HTTP ${res.status}) — nothing deleted. Check INTERNAL_API_TOKEN in .env (restart npm run dev after changing it).`);
   else if (t.file && fs.existsSync(path.join(root, t.file))) {
     fs.rmSync(path.join(root, t.file));
     console.log(`✔ ${t.name}: data file removed (service not running)`);

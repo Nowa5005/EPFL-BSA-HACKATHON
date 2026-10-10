@@ -50,5 +50,5 @@ export const POLICY = {
 /** Mock referent address for the messaging demo — not a validated Swissquote integration. */
 export const SWISSQUOTE_REFERENT_EMAIL = 'moncontact@swissquote.ch';
 
-export const MOCK_USDC_CHF = 0.88; // indicative mock rate
-export const MOCK_ETH_CHF = 2900; // indicative mock rate
+// CHF valuation rates are no longer constants: use useWalletRates() (web) / fetchWalletRates() (server),
+// real timestamped indicative prices from the market-data service. Test fixtures define their own values.

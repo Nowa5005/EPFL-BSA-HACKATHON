@@ -10,7 +10,7 @@ test('a strong password passes', () => {
 test('too short is refused', () => {
   const r = checkPassword('Ab12!xyzw', alice);
   assert.equal(r.ok, false);
-  assert.match(r.message!, /15 caractères/);
+  assert.match(r.message!, /15 characters/); // English by default (French on explicit choice)
 });
 test('needs 5 letters, upper and lower case', () => {
   assert.equal(checkPassword('1234567890123!Ab', alice).ok, false); // 2 letters
@@ -24,7 +24,7 @@ test('needs 2 digits and a special character', () => {
 test('must not contain the name (accents and case ignored)', () => {
   const r = checkPassword('Montagne-ÁLICE-42!', alice);
   assert.equal(r.ok, false);
-  assert.equal(r.message, 'Votre mot de passe ne doit pas contenir votre nom ou votre date de naissance.');
+  assert.equal(r.message, 'Your password must not contain your name or your date of birth.');
   assert.ok(!r.message!.includes('Alice'));
   assert.equal(checkPassword('Montagne-muster-42!', alice).ok, false);
 });

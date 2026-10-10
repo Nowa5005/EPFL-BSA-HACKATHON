@@ -7,7 +7,7 @@
 import { hexlify, randomBytes, scryptSync, toUtf8Bytes } from 'ethers';
 import { timingSafeEqual } from 'node:crypto';
 import { POLICY } from '@sq/shared';
-import { nowIso } from '@sq/shared/server';
+import { nowIso, t } from '@sq/shared/server';
 import { db, getClient, HttpError } from './db';
 
 const SCRYPT = { N: 1 << 15, r: 8, p: 1 };
@@ -18,7 +18,7 @@ const hashCode = (code: string, salt: string) => hexlify(scryptSync(toUtf8Bytes(
 
 export function setBackupCode(clientId: string, code: string) {
   const c = normalize(code);
-  if (!BACKUP_CODE_RE.test(c)) throw new HttpError(400, 'Le code de secours doit compter 12 caractères (lettres et chiffres).');
+  if (!BACKUP_CODE_RE.test(c)) throw new HttpError(400, t('The backup code must have 12 characters (letters and digits).', 'Le code de secours doit compter 12 caractères (lettres et chiffres).'));
   const salt = hexlify(randomBytes(16));
   db.update((d) => (d.clients[clientId].backupCode = { salt, hash: hashCode(c, salt), createdAt: nowIso(), failed: 0 }));
 }
@@ -30,8 +30,8 @@ export function revokeBackupCode(clientId: string) {
 /** Verifies the code with attempt limiting. Throws on failure. */
 export function verifyBackupCode(clientId: string, code: string) {
   const bc = getClient(clientId).backupCode;
-  if (!bc) throw new HttpError(400, 'Aucun code de secours n’est configuré.');
-  if (bc.lockedUntil && new Date(bc.lockedUntil).getTime() > Date.now()) throw new HttpError(429, 'Trop de tentatives : le code de secours est bloqué temporairement.');
+  if (!bc) throw new HttpError(400, t('No backup code is configured.', 'Aucun code de secours n’est configuré.'));
+  if (bc.lockedUntil && new Date(bc.lockedUntil).getTime() > Date.now()) throw new HttpError(429, t('Too many attempts: the backup code is temporarily locked.', 'Trop de tentatives : le code de secours est bloqué temporairement.'));
   const ok = timingSafeEqual(Buffer.from(hashCode(code ?? '', bc.salt).slice(2), 'hex'), Buffer.from(bc.hash.slice(2), 'hex'));
   if (!ok) {
     const failed = bc.failed + 1;
@@ -41,7 +41,12 @@ export function verifyBackupCode(clientId: string, code: string) {
       b.failed = lock ? 0 : failed;
       b.lockedUntil = lock ? new Date(Date.now() + POLICY.backupCodeLockMinutes * 60_000).toISOString() : undefined;
     });
-    throw new HttpError(401, lock ? `Code incorrect. Trop de tentatives : réessayez dans ${POLICY.backupCodeLockMinutes} minutes.` : `Code de secours incorrect. Il vous reste ${POLICY.backupCodeMaxAttempts - failed} essai(s).`);
+    throw new HttpError(
+      401,
+      lock
+        ? t(`Incorrect code. Too many attempts: try again in ${POLICY.backupCodeLockMinutes} minutes.`, `Code incorrect. Trop de tentatives : réessayez dans ${POLICY.backupCodeLockMinutes} minutes.`)
+        : t(`Incorrect backup code. ${POLICY.backupCodeMaxAttempts - failed} attempt(s) left.`, `Code de secours incorrect. Il vous reste ${POLICY.backupCodeMaxAttempts - failed} essai(s).`),
+    );
   }
   db.update((d) => {
     const b = d.clients[clientId].backupCode!;

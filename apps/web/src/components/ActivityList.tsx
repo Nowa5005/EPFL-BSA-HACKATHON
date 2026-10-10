@@ -1,18 +1,19 @@
 import { Bot, Building2, ScaleIcon, ShieldAlert, Handshake, UserRound } from 'lucide-react';
 import type { ActivityEvent } from '@sq/shared';
 import { Card, cx, dateTime, TxLink } from './ui';
+import { tr } from '../lib/i18n';
 
 const ACTOR: Record<string, { icon: any; label: string }> = {
-  client: { icon: UserRound, label: 'Client' },
+  client: { icon: UserRound, label: tr('Client', 'Client') },
   swissquote: { icon: Building2, label: 'Swissquote' },
-  compliance: { icon: ScaleIcon, label: 'Conformité' },
-  partner: { icon: Handshake, label: 'Partenaire de récupération' },
-  system: { icon: Bot, label: 'Système' },
-  attacker: { icon: ShieldAlert, label: 'Attaquant' },
+  compliance: { icon: ScaleIcon, label: tr('Compliance', 'Conformité') },
+  partner: { icon: Handshake, label: tr('Recovery partner', 'Partenaire de récupération') },
+  system: { icon: Bot, label: tr('System', 'Système') },
+  attacker: { icon: ShieldAlert, label: tr('Attacker', 'Attaquant') },
 };
 
 export function ActivityList({ items, showClient }: { items: ActivityEvent[]; showClient?: boolean }) {
-  if (!items.length) return <Card className="text-[14px] text-sq-muted">Rien pour l’instant.</Card>;
+  if (!items.length) return <Card className="text-[14px] text-sq-muted">{tr('Nothing yet.', 'Rien pour l’instant.')}</Card>;
   return (
     <Card className="divide-y divide-sq-line p-0">
       {items.map((e) => {

@@ -8,6 +8,7 @@ import { buildReceipt, downloadReceiptPdf } from '../lib/receipt';
 import { useLocal, useWalletTxs, type WalletTxView } from '../lib/hooks';
 import { cx, fmt, Spinner } from './ui';
 import { useMasked } from '../lib/prefs';
+import { tr } from '../lib/i18n';
 
 export function CheckDisc({ size = 64 }: { size?: number }) {
   return (
@@ -18,7 +19,7 @@ export function CheckDisc({ size = 64 }: { size?: number }) {
   );
 }
 
-export function PendingIndicator({ text = 'En attente de confirmation sur Ethereum…' }: { text?: string }) {
+export function PendingIndicator({ text = tr('Waiting for confirmation on Ethereum…', 'En attente de confirmation sur Ethereum…') }: { text?: string }) {
   return (
     <span className="inline-flex items-center gap-2 text-[14px] text-sq-muted" aria-live="polite">
       <Spinner className="text-sq-muted" />
@@ -47,26 +48,26 @@ export function useCountUp(to: number, from: number, ms = 600) {
 
 export function ConfirmedCard({ tx, clientName, onClose, title }: { tx: WalletTxView; clientName: string; onClose?: () => void; title?: string }) {
   const masked = useMasked();
-  const label = title ?? `${tx.kind === 'receive' ? 'Réception confirmée' : 'Envoi confirmé'} — ${masked ? '••••••' : fmt(Number(tx.amount), tx.asset === 'ETH' ? 5 : 2)} ${tx.asset}`;
+  const label = title ?? `${tx.kind === 'receive' ? tr('Payment received', 'Réception confirmée') : tr('Payment sent', 'Envoi confirmé')} — ${masked ? '••••••' : fmt(Number(tx.amount), tx.asset === 'ETH' ? 5 : 2)} ${tx.asset}`;
   return (
     <div className="flex items-start gap-4">
       <CheckDisc />
       <div className="min-w-0 flex-1">
         <div className="text-[16px] font-semibold" role="status">
           {label}
-          {tx.simulated && <span className="ml-1 text-[13px] font-normal text-sq-muted">(simulée)</span>}
+          {tx.simulated && <span className="ml-1 text-[13px] font-normal text-sq-muted">({tr('simulated', 'simulée')})</span>}
         </div>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
           <Link to={`/wallet/tx/${tx.id}`} onClick={onClose} className="inline-flex min-h-10 items-center gap-1.5 text-[14px] font-medium text-sq-ink underline decoration-sq-line underline-offset-4">
-            <FileText size={16} strokeWidth={1.75} /> Voir le justificatif
+            <FileText size={16} strokeWidth={1.75} /> {tr('View receipt', 'Voir le justificatif')}
           </Link>
           <button type="button" onClick={() => downloadReceiptPdf(buildReceipt(tx, clientName))} className="inline-flex min-h-10 items-center gap-1.5 text-[14px] font-medium text-sq-ink underline decoration-sq-line underline-offset-4">
-            <Download size={16} strokeWidth={1.75} /> Télécharger
+            <Download size={16} strokeWidth={1.75} /> {tr('Download', 'Télécharger')}
           </button>
         </div>
       </div>
       {onClose && (
-        <button type="button" onClick={onClose} aria-label="Fermer" className="-mr-2 -mt-2 flex size-10 items-center justify-center rounded-full text-sq-muted hover:bg-sq-chip/60">
+        <button type="button" onClick={onClose} aria-label={tr('Close', 'Fermer')} className="-mr-2 -mt-2 flex size-10 items-center justify-center rounded-full text-sq-muted hover:bg-sq-chip/60">
           <X size={18} strokeWidth={1.75} />
         </button>
       )}
@@ -110,7 +111,7 @@ export function ConfirmationLayer() {
     <div className="pointer-events-none fixed inset-x-0 top-[max(8px,env(safe-area-inset-top))] z-40 flex flex-col items-center gap-2 px-4">
       {pending.length > 0 && !shown && (
         <div className="mw-toast pointer-events-auto rounded-full border border-sq-line bg-white px-4 py-2 shadow-sm">
-          <PendingIndicator text="Réception en attente de confirmation…" />
+          <PendingIndicator text={tr('Incoming payment awaiting confirmation…', 'Réception en attente de confirmation…')} />
         </div>
       )}
       {shown && (

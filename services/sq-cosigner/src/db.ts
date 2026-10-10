@@ -1,5 +1,5 @@
-import { JsonStore, newId, nowIso } from '@sq/shared/server';
-import type { ActivityEvent, PolicyResult, SafeTx } from '@sq/shared';
+import { JsonStore, newId, nowIso, t } from '@sq/shared/server';
+import { splitText, type ActivityEvent, type Bilingual, type PolicyResult, type SafeTx } from '@sq/shared';
 import { DATA_DIR } from './paths';
 
 export interface Device {
@@ -23,7 +23,8 @@ export interface Client {
   owners?: { device: string; cosigner: string; recovery: string };
   devices: Device[];
   contacts: { name: string; address: string; addedAt: string; verifiedOwnership?: boolean; email?: string }[];
-  usage: { day: string; spentUsdc: number; sponsoredTx: number };
+  /** unvaluedEth: ETH sent today while no market rate was available (valued later, never counted as 0). */
+  usage: { day: string; spentUsdc: number; sponsoredTx: number; unvaluedEth?: number };
   privacy: 'full' | 'balance-only' | 'none';
   frozen?: boolean;
   frozenBy?: 'client' | 'compliance';
@@ -33,6 +34,8 @@ export interface Client {
   backupCode?: { salt: string; hash: string; createdAt: string; failed: number; lockedUntil?: string };
   /** Demo-only override of the network-fee estimate (CHF), to show a fee change during confirmation. */
   demoFeeChf?: number;
+  /** Travel Rule beneficiary records (personal data: this client + compliance only; never in logs/activity/chain). */
+  travelRule?: { records: import('./travelRule').TravelRuleRecord[] };
 }
 
 export interface Preferences {
@@ -63,7 +66,8 @@ export interface Preview {
   safeTxHash: string;
   intent: unknown;
   challenge: string; // bytes32 hex used as WebAuthn challenge
-  fee: { available: boolean; chf: number; eth: string; gasUnits: string; demo: boolean };
+  /** chf: null when no ETH market rate was available (fee shown in ETH, "CHF value unavailable"). */
+  fee: { available: boolean; chf: number | null; eth: string; gasUnits: string; demo: boolean; rate?: { chf: number; asOf: string; provider: string; stale: boolean } | null };
   createdAt: string;
   expiresAt: string;
   used: boolean;
@@ -93,8 +97,10 @@ export interface TxRequest {
   safeAddress: string;
   safeTx: SafeTx;
   safeTxHash: string;
-  summary: string;
+  summary: string; // English (legacy records: French)
+  summaryFr?: string;
   warnings: string[];
+  warningsFr?: string[];
   policy: PolicyResult;
   signatureK1: string;
   deviceAddress: string;
@@ -136,8 +142,10 @@ export interface InboxMessage {
   clientId: string;
   channel: 'email' | 'sms' | 'app';
   subject: string;
+  subjectFr?: string; // French twin (new records); legacy records only have a French subject/body
   body: string;
-  action?: { label: string; kind: 'cancel-recovery' | 'cancel-tx'; id: string };
+  bodyFr?: string;
+  action?: { label: string; labelFr?: string; kind: 'cancel-recovery' | 'cancel-tx'; id: string };
 }
 
 export interface Db {
@@ -152,6 +160,10 @@ export interface Db {
   scheduled?: Record<string, Scheduled>;
   swapQuotes?: Record<string, any>;
   documents?: Record<string, import('./walletTx').DocumentEntry>;
+  /** Travel Rule decisions (rule version, threshold, rate, decision) — no personal data. */
+  travelRuleAudit?: import('./travelRule').TravelRuleAudit[];
+  /** Recorded portfolio snapshots per client (see snapshots.ts). */
+  snapshots?: Record<string, import('./snapshots').Snapshot[]>;
 }
 
 export const db = new JsonStore<Db>(DATA_DIR, 'db', () => ({
@@ -163,19 +175,31 @@ export const db = new JsonStore<Db>(DATA_DIR, 'db', () => ({
   inbox: [],
 }));
 
-export function logActivity(e: Omit<ActivityEvent, 'id' | 'ts'>) {
-  const ev: ActivityEvent = { id: newId(), ts: nowIso(), ...e };
+/** `message` may be a both(en, fr) pair: stored as `message` (English) + `messageFr`, localised on read. */
+export function logActivity(e: Omit<ActivityEvent, 'id' | 'ts' | 'message' | 'messageFr'> & { message: string | Bilingual }) {
+  const m = splitText(e.message);
+  const ev: ActivityEvent = { id: newId(), ts: nowIso(), ...e, message: m.en, ...(m.fr !== m.en ? { messageFr: m.fr } : {}) };
   db.update((d) => {
     d.activity.push(ev);
     if (d.activity.length > 2000) d.activity.splice(0, d.activity.length - 2000);
   });
-  console.log(`[activity] ${e.clientId} ${e.type}: ${e.message}`);
+  console.log(`[activity] ${e.clientId} ${e.type}: ${ev.message}`);
   return ev;
 }
 
 /** MOCK notification service: email/SMS/app messages land in a "Mock Inbox" visible in the UI. */
-export function notify(m: Omit<InboxMessage, 'id' | 'ts'>) {
-  const msg: InboxMessage = { id: newId(), ts: nowIso(), ...m };
+type NotifyInput = Omit<InboxMessage, 'id' | 'ts' | 'subject' | 'subjectFr' | 'body' | 'bodyFr' | 'action'> & {
+  subject: string | Bilingual;
+  body: string | Bilingual;
+  action?: { label: string | Bilingual; kind: 'cancel-recovery' | 'cancel-tx'; id: string };
+};
+/** subject/body/action label may be both(en, fr) pairs (stored with their French twin, localised on read). */
+export function notify(m: NotifyInput) {
+  const sub = splitText(m.subject);
+  const body = splitText(m.body);
+  const { action: a, subject: _s, body: _b, ...rest } = m;
+  const label = a && splitText(a.label);
+  const msg: InboxMessage = { id: newId(), ts: nowIso(), ...rest, subject: sub.en, subjectFr: sub.fr, body: body.en, bodyFr: body.fr, ...(a && label ? { action: { ...a, label: label.en, labelFr: label.fr } } : {}) };
   db.update((d) => {
     d.inbox.push(msg);
   });
@@ -184,7 +208,7 @@ export function notify(m: Omit<InboxMessage, 'id' | 'ts'>) {
 
 export function getClient(clientId: string): Client {
   const c = db.data.clients[clientId];
-  if (!c) throw new HttpError(404, 'Client inconnu');
+  if (!c) throw new HttpError(404, t('Unknown client', 'Client inconnu'));
   return c;
 }
 

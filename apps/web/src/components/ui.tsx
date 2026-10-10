@@ -2,9 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, ChevronLeft, CircleAlert, Copy, ExternalLink, Eye, EyeOff, Info, Loader2, ShieldCheck, TriangleAlert, X } from 'lucide-react';
 import type { PolicyCheck } from '@sq/shared';
-import { MOCK_USDC_CHF } from '@sq/shared';
 import { useMasked } from '../lib/prefs';
-import { locale } from '../lib/i18n';
+import { locale, tr } from '../lib/i18n';
 
 export function cx(...c: (string | false | null | undefined)[]) {
   return c.filter(Boolean).join(' ');
@@ -21,7 +20,10 @@ export function Logo({ size = 28, className }: { size?: number; className?: stri
 export function DemoFooter({ className }: { className?: string }) {
   return (
     <p className={cx('px-4 py-6 text-center text-[11px] leading-relaxed text-sq-muted', className)}>
-      Prototype — Swissquote Wallet Challenge (EPFL). Reconstitution de démonstration, données fictives.
+      {tr(
+        'Prototype — Swissquote Wallet Challenge (EPFL). Swissquote account data is fictitious; market data is real (Yahoo Finance, CoinGecko); the wallet runs on the Ethereum Sepolia testnet.',
+        'Prototype — Swissquote Wallet Challenge (EPFL). Données du compte Swissquote fictives ; données de marché réelles (Yahoo Finance, CoinGecko) ; le wallet fonctionne sur le réseau de test Ethereum Sepolia.',
+      )}
     </p>
   );
 }
@@ -30,7 +32,7 @@ export function DemoFooter({ className }: { className?: string }) {
 export function MockBadge({ label = 'Mock', className }: { label?: string; className?: string }) {
   return (
     <span
-      title="Simulé dans ce prototype — voir le tableau Réel / Mock du README"
+      title={tr('Simulated in this prototype — see the Real / Mock table in the README', 'Simulé dans ce prototype — voir le tableau Réel / Mock du README')}
       className={cx('inline-flex items-center rounded-[4px] border border-dashed border-sq-muted/60 px-1.5 py-px align-middle text-[10px] font-medium uppercase tracking-wider text-sq-muted', className)}
     >
       {label}
@@ -53,7 +55,12 @@ export function ChangeBadge({ value, className }: { value: number; className?: s
 }
 
 export type TxStatus = 'detected' | 'pending' | 'confirmed' | 'failed';
-export const STATUS_LABEL: Record<TxStatus, string> = { detected: 'Détectée', pending: 'En attente', confirmed: 'Confirmée', failed: 'Échouée' };
+export const STATUS_LABEL: Record<TxStatus, string> = {
+  detected: tr('Detected', 'Détectée'),
+  pending: tr('Pending', 'En attente'),
+  confirmed: tr('Confirmed', 'Confirmée'),
+  failed: tr('Failed', 'Échouée'),
+};
 export function StatusPill({ status, className }: { status: TxStatus; className?: string }) {
   const s = {
     detected: { cls: 'bg-sq-chip text-sq-ink-2', icon: <Info size={13} strokeWidth={2} /> },
@@ -201,7 +208,7 @@ export function SecretInput({ value, onChange, autoComplete = 'new-password', pl
       <button
         type="button"
         onClick={() => setShow((s) => !s)}
-        aria-label={show ? 'Masquer' : 'Afficher'}
+        aria-label={show ? tr('Hide', 'Masquer') : tr('Show', 'Afficher')}
         className="absolute inset-y-0 right-1 my-auto flex size-10 items-center justify-center rounded-lg text-sq-muted hover:text-sq-ink"
       >
         {show ? <EyeOff {...ICON} /> : <Eye {...ICON} />}
@@ -287,7 +294,7 @@ export function Checks({ checks }: { checks: PolicyCheck[] }) {
         <li key={c.id} className="flex items-start gap-3 py-2.5 text-[14px]">
           <span
             className={cx('mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-white', c.status === 'pass' ? 'bg-sq-up' : c.status === 'step-up' ? 'bg-sq-warn' : 'bg-sq-down')}
-            aria-label={c.status === 'pass' ? 'Réussi' : c.status === 'step-up' ? 'Contrôle renforcé' : 'Refusé'}
+            aria-label={c.status === 'pass' ? tr('Passed', 'Réussi') : c.status === 'step-up' ? tr('Extra check', 'Contrôle renforcé') : tr('Refused', 'Refusé')}
           >
             {c.status === 'pass' ? <Check size={12} strokeWidth={3} /> : c.status === 'step-up' ? <span className="text-[11px] font-bold">!</span> : <X size={12} strokeWidth={3} />}
           </span>
@@ -304,11 +311,11 @@ export function Checks({ checks }: { checks: PolicyCheck[] }) {
 export function Steps({ total, current, label }: { total: number; current: number; label?: string }) {
   return (
     <div>
-      <div className="h-1 overflow-hidden rounded-full bg-sq-line" role="progressbar" aria-valuemin={1} aria-valuemax={total} aria-valuenow={current + 1} aria-label={label ?? `Étape ${current + 1} sur ${total}`}>
+      <div className="h-1 overflow-hidden rounded-full bg-sq-line" role="progressbar" aria-valuemin={1} aria-valuemax={total} aria-valuenow={current + 1} aria-label={label ?? tr(`Step ${current + 1} of ${total}`, `Étape ${current + 1} sur ${total}`)}>
         <div className="h-full rounded-full bg-sq-orange transition-[width] duration-300 ease-out" style={{ width: `${((current + 1) / total) * 100}%` }} />
       </div>
       <div className="mt-2 text-[12px] text-sq-muted">
-        Étape {current + 1} sur {total}
+        {tr(`Step ${current + 1} of ${total}`, `Étape ${current + 1} sur ${total}`)}
         {label ? ` · ${label}` : ''}
       </div>
     </div>
@@ -351,16 +358,15 @@ export function Skeleton({ className }: { className?: string }) {
 }
 
 // ── Formatting ──
-const nf = (d: number) => new Intl.NumberFormat('de-CH', { minimumFractionDigits: d, maximumFractionDigits: d });
+const nf = (d: number) => new Intl.NumberFormat(locale(), { minimumFractionDigits: d, maximumFractionDigits: d });
 export const fmt = (n: number, d = 2) => nf(d).format(n);
 export const chf = (n: number) => `${fmt(n)} CHF`;
-export const usdcToChf = (n: number) => n * MOCK_USDC_CHF;
 
 /** Big amount + smaller, lighter currency (Swissquote style). */
 export function Amount({ value, currency = 'CHF', decimals = 2, className }: { value: number; currency?: string; decimals?: number; className?: string }) {
   const masked = useMasked();
   return (
-    <span className={cx('num whitespace-nowrap font-semibold tracking-tight', className)} aria-label={masked ? 'Montant masqué' : undefined}>
+    <span className={cx('num whitespace-nowrap font-semibold tracking-tight', className)} aria-label={masked ? tr('Amount hidden', 'Montant masqué') : undefined}>
       {masked ? '••••••' : fmt(value, decimals)}
       <span className="ml-1 text-[0.6em] font-normal">{currency}</span>
     </span>
@@ -380,12 +386,12 @@ export function TxLink({ hash, children }: { hash?: string; children?: ReactNode
   if (!hash) return null;
   return (
     <a className="inline-flex items-center gap-1 font-medium text-sq-ink underline decoration-sq-line underline-offset-2 hover:decoration-sq-ink" href={`https://sepolia.etherscan.io/tx/${hash}`} target="_blank" rel="noreferrer">
-      {children ?? 'Voir sur Etherscan'} <ExternalLink size={14} strokeWidth={1.75} />
+      {children ?? tr('View on Etherscan', 'Voir sur Etherscan')} <ExternalLink size={14} strokeWidth={1.75} />
     </a>
   );
 }
 
-export function CopyButton({ value, label = 'Copier', sensitive }: { value: string; label?: string; sensitive?: boolean }) {
+export function CopyButton({ value, label = tr('Copy', 'Copier'), sensitive }: { value: string; label?: string; sensitive?: boolean }) {
   const [done, setDone] = useState(false);
   const copy = async () => {
     try {
@@ -403,9 +409,9 @@ export function CopyButton({ value, label = 'Copier', sensitive }: { value: stri
     <span className="inline-flex flex-col">
       <button type="button" onClick={copy} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-2 text-[14px] font-medium text-sq-ink hover:bg-sq-chip/60">
         {done ? <Check size={16} strokeWidth={2} /> : <Copy size={16} strokeWidth={1.75} />}
-        {done ? 'Copié' : label}
+        {done ? tr('Copied', 'Copié') : label}
       </button>
-      {done && sensitive && <span className="px-2 text-[12px] text-sq-muted">Copié. Le presse-papiers contient une donnée sensible.</span>}
+      {done && sensitive && <span className="px-2 text-[12px] text-sq-muted">{tr('Copied. The clipboard contains sensitive data.', 'Copié. Le presse-papiers contient une donnée sensible.')}</span>}
     </span>
   );
 }
@@ -415,7 +421,7 @@ export function PageHeader({ title, back, right, subtitle }: { title: ReactNode;
     <div className="mb-5">
       <div className="flex items-center gap-2">
         {back && (
-          <Link to={back} className="-ml-2 flex size-11 items-center justify-center rounded-full text-sq-ink hover:bg-sq-chip/60" aria-label="Retour">
+          <Link to={back} className="-ml-2 flex size-11 items-center justify-center rounded-full text-sq-ink hover:bg-sq-chip/60" aria-label={tr('Back', 'Retour')}>
             <ChevronLeft {...ICON} />
           </Link>
         )}

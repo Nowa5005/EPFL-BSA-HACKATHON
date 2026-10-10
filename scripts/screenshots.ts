@@ -9,6 +9,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { chromium, type Page } from 'playwright';
+import { internalHeaders, loadDotenv } from '@sq/shared/server';
+
+loadDotenv(); // demo resets are POST + x-internal-token (INTERNAL_API_TOKEN from the root .env, dev only)
 
 const BASE = process.env.WEB_URL ?? 'http://localhost:5173';
 const OUT = path.resolve(import.meta.dirname, '..', 'docs', 'design', 'screens');
@@ -41,7 +44,7 @@ async function main() {
   await fetch(`${BASE}`).catch(() => {
     throw new Error('Web app not reachable — start it with `npm run dev`');
   });
-  for (const u of ['http://localhost:4001', 'http://localhost:4002', 'http://localhost:4003']) await fetch(`${u}/admin/reset`, { method: 'POST' });
+  for (const u of ['http://localhost:4001', 'http://localhost:4002', 'http://localhost:4003']) await fetch(`${u}/admin/reset`, { method: 'POST', headers: internalHeaders(), body: '{}' });
 
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: SIZES.mobile, deviceScaleFactor: 2, acceptDownloads: true, reducedMotion: 'reduce' });
@@ -57,7 +60,7 @@ async function main() {
   log('login');
   await page.goto(`${BASE}/login`);
   await shoot(page, '00-login');
-  await page.getByRole('button', { name: 'Se connecter' }).click();
+  await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL('**/sq/markets');
   await page.waitForTimeout(800);
   await shoot(page, '01-sq-markets', false);
@@ -67,19 +70,19 @@ async function main() {
   log('onboarding');
   await go(page, '/onboarding');
   await shoot(page, '10-onboarding-welcome');
-  await page.getByRole('button', { name: 'Activer My Wall' }).click();
-  await page.getByRole('button', { name: 'Utiliser le document de démonstration' }).click();
+  await page.getByRole('button', { name: 'Activate My Wall' }).click();
+  await page.getByRole('button', { name: 'Use the demo document' }).click();
   await shoot(page, '11-onboarding-identity');
-  await page.getByRole('button', { name: 'Envoyer' }).click();
-  await page.getByText('Lier ', { exact: false }).first().waitFor({ timeout: 15000 });
-  await page.getByRole('button', { name: 'Créer la passkey' }).click();
-  await page.getByText('Mot de passe du wallet').first().waitFor();
+  await page.getByRole('button', { name: 'Submit' }).click();
+  await page.getByText('Link ', { exact: false }).first().waitFor({ timeout: 15000 });
+  await page.getByRole('button', { name: 'Create the passkey' }).click();
+  await page.getByText('Wallet password').first().waitFor();
   const pw = page.locator('input[type=password]');
   await pw.nth(0).fill('Alice-trop-court1');
   await shoot(page, '12-onboarding-password-refused');
   await pw.nth(0).fill(PASSWORD);
   await pw.nth(1).fill(PASSWORD);
-  await page.getByRole('button', { name: 'Continuer' }).click();
+  await page.getByRole('button', { name: 'Continue' }).click();
   const selects = page.locator('select');
   await selects.nth(0).selectOption({ index: 2 });
   await selects.nth(1).selectOption({ index: 4 });
@@ -87,13 +90,13 @@ async function main() {
   const answers = page.locator('input[type=password]');
   for (let i = 0; i < 3; i++) await answers.nth(i).fill(['Rex', 'Rue du Lac', 'Mme Dupont'][i]);
   await shoot(page, '13-onboarding-questions');
-  await page.getByRole('button', { name: 'Créer mon wallet' }).click();
-  await page.getByText('Votre kit de récupération').waitFor({ timeout: 120000 });
+  await page.getByRole('button', { name: 'Create my wallet' }).click();
+  await page.getByText('Your recovery kit').waitFor({ timeout: 120000 });
   await shoot(page, '14-onboarding-kit');
   await page.getByRole('button', { name: /Copier/ }).first().click().catch(() => undefined);
   const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Enregistrer dans le cloud/ }).click()]);
   await dl.cancel().catch(() => undefined);
-  await page.getByRole('button', { name: 'Ouvrir My Wall' }).click();
+  await page.getByRole('button', { name: 'Open My Wall' }).click();
   await page.waitForURL('**/wallet');
 
   log('activity: simulated + real reception');
@@ -102,7 +105,7 @@ async function main() {
   if (process.argv.includes('--real')) {
     // optional: a real 1 USDC transfer from the Swissquote account (spends test USDC)
     await page.locator('input[aria-label="Montant en USDC"]').fill('1');
-    await page.getByRole('button', { name: 'Transférer' }).click();
+    await page.getByRole('button', { name: 'Transfer' }).click();
     await page.waitForTimeout(25000);
   }
   await go(page, '/wallet');
@@ -129,7 +132,7 @@ async function main() {
   await shoot(page, '15-unlock');
 
   await browser.close();
-  if (process.argv.includes('--reset')) for (const u of ['http://localhost:4001', 'http://localhost:4002', 'http://localhost:4003']) await fetch(`${u}/admin/reset`, { method: 'POST' });
+  if (process.argv.includes('--reset')) for (const u of ['http://localhost:4001', 'http://localhost:4002', 'http://localhost:4003']) await fetch(`${u}/admin/reset`, { method: 'POST', headers: internalHeaders(), body: '{}' });
   console.log(`✅ screenshots in ${path.relative(process.cwd(), OUT)}`);
 }
 

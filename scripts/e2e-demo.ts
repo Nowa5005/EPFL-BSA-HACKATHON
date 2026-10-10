@@ -23,7 +23,9 @@ import {
   splitRecoveryKey,
   swapOwnerData,
 } from '@sq/shared';
+import { internalHeaders, loadDotenv } from '@sq/shared/server';
 
+loadDotenv(); // INTERNAL_API_TOKEN (dev only) to obtain a session token for the headless client
 const provider = makeProvider();
 const C = SERVICE_URLS.cosigner;
 const P = SERVICE_URLS.partner;
@@ -32,8 +34,12 @@ const step = (n: number | string, t: string) => console.log(`\n\x1b[1m\x1b[34m[$
 const ok = (t: string) => console.log(`  \x1b[32m✔\x1b[0m ${t}`);
 const info = (t: string) => console.log(`  ${t}`);
 
+// Session token of the headless E2E client (bank POST /admin/test-session, dev only, x-internal-token).
+let sessionToken = '';
 async function call<T = any>(method: 'GET' | 'POST', url: string, body?: unknown, expectError = false): Promise<T> {
-  const res = await fetch(url, { method, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const headers: Record<string, string> = { 'content-type': 'application/json' };
+  if (sessionToken) headers.authorization = `Bearer ${sessionToken}`;
+  const res = await fetch(url, { method, headers, body: method === 'POST' ? JSON.stringify(body ?? {}) : undefined });
   const json = await res.json().catch(() => ({}));
   if (!res.ok && !expectError) throw new Error(`${method} ${url} → ${res.status}: ${JSON.stringify(json)}`);
   return { ...json, _status: res.status } as T;
@@ -50,6 +56,9 @@ async function main() {
   if (!health.relayerEth || Number(health.relayerEth) === 0) throw new Error('Relayer has no Sepolia ETH — see POUR_NOA.md');
 
   const clientId = `E2E-${Date.now()}`;
+  const ts = await fetch(`${SERVICE_URLS.bank}/admin/test-session`, { method: 'POST', headers: internalHeaders(), body: JSON.stringify({ clientId }) });
+  if (!ts.ok) throw new Error(`Could not obtain a test session from sq-bank (${ts.status}). Is INTERNAL_API_TOKEN in .env and NODE_ENV not production?`);
+  sessionToken = ((await ts.json()) as { token: string }).token;
   await call('POST', `${C}/clients`, { clientId, name: 'E2E Demo Client', email: 'e2e@example.ch', headless: true });
 
   step(1, 'CREATE — keys generated client-side, recovery key split 2-of-3');
@@ -99,6 +108,13 @@ async function main() {
   const cfg = await call('GET', `${C}/config`);
   const cool = cfg.policy.coolingOffNewRecipientSec;
   info(`contact Bob ${bob} added — waiting the ${cool}s cooling-off for new recipients…`);
+  // Travel Rule: Bob is a third party → his full name is always required. The enhanced fields are also given so the
+  // ping passes even if no CHF rate is available (an unknown counter-value is treated as ≥ the threshold).
+  // The services run in Travel Rule DEMO mode outside production (data collected, not transmitted — not compliant).
+  const transfer = {
+    kind: 'third-party',
+    beneficiary: { name: 'Bob Example', walletType: 'unhosted', street: 'Rue du Test 1', city: 'Lausanne', country: 'CH', relationship: 'friend', purpose: 'E2E test ping (0 ETH)', accuracyConfirmed: true },
+  };
   await sleep((cool + 2) * 1000);
 
   const sendPing = async (signer: BaseWallet, label: string) => {
@@ -106,7 +122,7 @@ async function main() {
     let tx: any;
     for (let attempt = 0; attempt < 6; attempt++) {
       tx = buildSafeTx({ to: bob, value: 0n, nonce: await s.nonce() });
-      prep = await call('POST', `${C}/tx/prepare`, { clientId, safeTx: tx }, true);
+      prep = await call('POST', `${C}/tx/prepare`, { clientId, safeTx: tx, transfer }, true);
       if (prep._status !== 409) break;
       await sleep(4000); // lagging RPC node: stale nonce
     }
@@ -117,7 +133,7 @@ async function main() {
   {
     const nonce = await s.nonce();
     const tx = buildSafeTx({ to: bob, value: 0n, nonce });
-    const prep = await call('POST', `${C}/tx/prepare`, { clientId, safeTx: tx });
+    const prep = await call('POST', `${C}/tx/prepare`, { clientId, safeTx: tx, transfer });
     const tampered = { ...tx, value: '1' };
     const r = await call('POST', `${C}/tx/submit`, { clientId, previewId: prep.previewId, safeTx: tampered, signatureK1: await signSafeTx(k1, safe, tampered) }, true);
     if (r._status !== 409) throw new Error(`Tampered tx not refused: ${JSON.stringify(r)}`);

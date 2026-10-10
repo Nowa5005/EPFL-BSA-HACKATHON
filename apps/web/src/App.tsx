@@ -7,6 +7,8 @@ import ExistingWallet from './wallet/ExistingWallet';
 import { SqShell } from './sq/SqShell';
 import SqHome from './sq/SqHome';
 import SqMarkets from './sq/SqMarkets';
+import Reader from './sq/content/Reader';
+import InstrumentPage from './sq/Instrument';
 import Login from './pages/Login';
 import Onboarding from './pages/Onboarding';
 import Send from './pages/Send';
@@ -28,6 +30,10 @@ import Security from './wallet/Security';
 import Approvals from './wallet/Approvals';
 import Scheduled from './wallet/Scheduled';
 import Plans from './wallet/Plans';
+import PreviewApp from './pages/PreviewApp';
+import PreviewSwitch from './components/PreviewSwitch';
+import AppModeEffects from './components/AppModeEffects';
+import { tr } from './lib/i18n';
 
 /** My Wall pages: Swissquote session + a wallet on this device + unlocked (password + passkey). */
 function WalletRoute({ children }: { children: ReactNode }) {
@@ -91,7 +97,7 @@ function InboxRoute() {
 function Placeholder({ title }: { title: string }) {
   return (
     <Card className="mt-4 text-[14px] text-sq-muted">
-      <b className="text-sq-ink">{title}</b> — section non reconstituée dans cette démo.
+      <b className="text-sq-ink">{title}</b> — {tr('section not reproduced in this demo.', 'section non reconstituée dans cette démo.')}
     </Card>
   );
 }
@@ -104,6 +110,8 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/sq" element={<SqRoute><SqHome /></SqRoute>} />
         <Route path="/sq/markets" element={<SqRoute><SqMarkets /></SqRoute>} />
+        <Route path="/sq/read/:kind/:id" element={<SqRoute><Reader /></SqRoute>} />
+        <Route path="/sq/instrument/:id" element={<SqRoute><InstrumentPage /></SqRoute>} />
         <Route path="/sq/bank" element={<SqRoute><Placeholder title="Bank" /></SqRoute>} />
         <Route path="/sq/plan" element={<SqRoute><Placeholder title="Plan" /></SqRoute>} />
         <Route path="/onboarding" element={<OnboardingRoute />} />
@@ -127,8 +135,12 @@ export default function App() {
         <Route path="/recover" element={<Recover />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/attacker" element={<Attacker />} />
+        <Route path="/preview/app" element={<PreviewApp />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      {/* Owner preview tool (dev or ?preview=1 only) and app-mode behaviour (native shell / preview frame). */}
+      <PreviewSwitch />
+      <AppModeEffects />
     </UnlockProvider>
   );
 }

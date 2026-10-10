@@ -73,3 +73,10 @@ body {
 /* "Mettre en évidence les informations importantes" (display preference) */
 .mw-highlight .mw-important { box-shadow: 0 0 0 2px var(--color-sq-orange); font-weight: 600; }
 .mw-highlight .mw-important-text { color: var(--color-sq-orange-600); font-weight: 600; }
+
+/* App mode (native shell / app preview frame): native-feeling touch behaviour. Web version unaffected. */
+html.mw-app {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: none;
+}

@@ -1,12 +1,17 @@
 // Policy engine: K2 only co-signs if every rule passes. Pure function → unit-tested.
 
 import { formatEther, formatUnits } from 'ethers';
-import { MOCK_ETH_CHF, MOCK_USDC_CHF, POLICY, USDC_DECIMALS, short } from '@sq/shared';
-import type { DecodedAction, PolicyCheck, PolicyResult, SafeTx } from '@sq/shared';
+import { POLICY, USDC_DECIMALS, decodeSafeTx, short } from '@sq/shared';
+import type { DecodedAction, Lang, PolicyCheck, PolicyResult, SafeTx } from '@sq/shared';
 
 // MOCK sanctions list (in production: Chainalysis / Elliptic / SECO+OFAC feeds).
 // The first two entries are real OFAC-listed Ethereum addresses (public SDN list).
 export const SANCTIONED: Record<string, string> = {
+  '0x098b716b8aaf21512996dc57eb0615e2383e2f96': 'OFAC SDN — Lazarus Group (Ronin bridge hack)',
+  '0x7f367cc41522ce07553e823bf3be79a889debe1b': 'OFAC SDN — sanctioned person',
+  '0x00000000000000000000000000000000000bad01': 'SECO, demo entry — “Sanctioned Demo Corp”',
+};
+const SANCTIONED_FR: Record<string, string> = {
   '0x098b716b8aaf21512996dc57eb0615e2383e2f96': 'OFAC SDN — Lazarus Group (piratage du pont Ronin)',
   '0x7f367cc41522ce07553e823bf3be79a889debe1b': 'OFAC SDN — personne sanctionnée',
   '0x00000000000000000000000000000000000bad01': 'SECO, entrée de démo — « Sanctioned Demo Corp »',
@@ -23,20 +28,49 @@ export interface PolicyInput {
   decoded: DecodedAction;
   safeAddress: string;
   contacts: { address: string; addedAt: string }[];
-  spentTodayUsdc: number;
+  /** USDC-equivalent already spent today; null when part of it could not be valued (missing market rate). */
+  spentTodayUsdc: number | null;
   sponsoredToday: number;
+  /** Indicative CHF prices from the market-data service (no fixed fallback). A missing rate is NEVER read as 0. */
+  rates?: PolicyRates;
+  /** Ignored: checks always carry both languages (label/labelFr, detail/detailFr), localised when read. */
+  lang?: Lang;
   balances: { eth: bigint; usdc: bigint };
   now?: Date;
   /** Recovery flow (owner rotation) is handled by its own procedure, not by this engine. */
   allowSelfCall?: boolean;
 }
 
-/** Value of the action expressed in USDC-equivalent (mock rates). */
-export function usdcEquivalent(decoded: DecodedAction, tx: SafeTx): number {
-  if (decoded.kind === 'erc20-transfer' && decoded.token === 'USDC') return Number(formatUnits(BigInt(decoded.amountRaw!), USDC_DECIMALS));
-  const eth = Number(formatEther(BigInt(tx.value)));
-  return (eth * MOCK_ETH_CHF) / MOCK_USDC_CHF;
+export type PolicyRates = { ETH?: number; USDC?: number };
+
+/** ETH amount → USDC-equivalent with the real indicative rates, or null when a rate is missing. */
+export function ethToUsdcEquivalent(eth: number, rates?: PolicyRates): number | null {
+  if (eth === 0) return 0;
+  const e = rates?.ETH;
+  const u = rates?.USDC;
+  if (!(typeof e === 'number' && e > 0 && typeof u === 'number' && u > 0)) return null;
+  return (eth * e) / u;
 }
+
+/**
+ * Value of the action in USDC-equivalent, using real indicative market rates (CHF per ETH / per USDC).
+ * Returns null when ETH moves and no rate is available: callers must FAIL SAFE (treat as above threshold),
+ * never as 0.
+ */
+export function usdcEquivalent(decoded: DecodedAction, tx: SafeTx, rates?: PolicyRates): number | null {
+  if (decoded.kind === 'erc20-transfer' && decoded.token === 'USDC') return Number(formatUnits(BigInt(decoded.amountRaw!), USDC_DECIMALS));
+  return ethToUsdcEquivalent(Number(formatEther(BigInt(tx.value))), rates);
+}
+
+type Txt = [en: string, fr: string];
+/** A check with its English text and French twin (stored with the request, localised on read). */
+const ck = (id: string, status: PolicyCheck['status'], label: Txt, detail?: Txt): PolicyCheck => ({
+  id,
+  status,
+  label: label[0],
+  labelFr: label[1],
+  ...(detail ? { detail: detail[0], detailFr: detail[1] } : {}),
+});
 
 export function evaluatePolicy(input: PolicyInput): PolicyResult {
   const { tx, decoded, safeAddress } = input;
@@ -45,15 +79,12 @@ export function evaluatePolicy(input: PolicyInput): PolicyResult {
   const lc = (a?: string) => (a ?? '').toLowerCase();
 
   // 1. Operation type
-  add(
-    tx.operation === 0
-      ? { id: 'operation', label: 'Opération simple (pas de DELEGATECALL)', status: 'pass' }
-      : { id: 'operation', label: 'Opération simple (pas de DELEGATECALL)', status: 'fail', detail: "DELEGATECALL n'est jamais co-signé" },
-  );
+  const OP: Txt = ['Simple operation (no DELEGATECALL)', 'Opération simple (pas de DELEGATECALL)'];
+  add(tx.operation === 0 ? ck('operation', 'pass', OP) : ck('operation', 'fail', OP, ['DELEGATECALL is never co-signed', "DELEGATECALL n'est jamais co-signé"]));
 
   // 2. Wallet configuration changes only via the recovery procedure
   if (lc(tx.to) === lc(safeAddress) && !input.allowSelfCall) {
-    add({ id: 'self-call', label: 'Configuration du wallet inchangée', status: 'fail', detail: 'Les changements de clés passent par la procédure de récupération (avec délai)' });
+    add(ck('self-call', 'fail', ['Wallet configuration unchanged', 'Configuration du wallet inchangée'], ['Key changes go through the recovery procedure (with a delay)', 'Les changements de clés passent par la procédure de récupération (avec délai)']));
   }
 
   // Revoking an approval (allowance → 0) only reduces risk: always allowed at standard level.
@@ -62,72 +93,87 @@ export function evaluatePolicy(input: PolicyInput): PolicyResult {
   // 3. Sanctions screening on every counterparty (a revocation may target a sanctioned spender: allowed)
   const parties = [tx.to, decoded.recipient, isRevocation ? undefined : decoded.spender].filter(Boolean).map(lc);
   const hit = parties.find((p) => SANCTIONED[p]);
+  const SAN: Txt = ['Sanctions screening', 'Filtrage des sanctions'];
   add(
     hit
-      ? { id: 'sanctions', label: 'Filtrage des sanctions', status: 'fail', detail: `${short(hit)} figure sur une liste de sanctions (${SANCTIONED[hit]})` }
-      : { id: 'sanctions', label: 'Filtrage des sanctions', status: 'pass', detail: 'Aucune correspondance (liste OFAC / SECO simulée)' },
+      ? ck('sanctions', 'fail', SAN, [`${short(hit)} is on a sanctions list (${SANCTIONED[hit]})`, `${short(hit)} figure sur une liste de sanctions (${SANCTIONED_FR[hit] ?? SANCTIONED[hit]})`])
+      : ck('sanctions', 'pass', SAN, ['No match (simulated OFAC / SECO list)', 'Aucune correspondance (liste OFAC / SECO simulée)']),
   );
 
   // 4. Funds available on-chain
   let fundsOk = true;
   if (decoded.kind === 'erc20-transfer' && decoded.token === 'USDC') fundsOk = BigInt(decoded.amountRaw!) <= input.balances.usdc;
   if (BigInt(tx.value) > input.balances.eth) fundsOk = false;
-  add(
-    fundsOk
-      ? { id: 'funds', label: 'Fonds disponibles sur la blockchain', status: 'pass' }
-      : { id: 'funds', label: 'Fonds disponibles sur la blockchain', status: 'fail', detail: 'Solde insuffisant sur le wallet' },
-  );
+  const FUNDS: Txt = ['Funds available on the blockchain', 'Fonds disponibles sur la blockchain'];
+  add(fundsOk ? ck('funds', 'pass', FUNDS) : ck('funds', 'fail', FUNDS, ['Insufficient balance in the wallet', 'Solde insuffisant sur le wallet']));
 
   // 5. dApp interaction: whitelist + step-up
   const isDapp = decoded.kind === 'contract-call' || (decoded.kind === 'erc20-approve' && !isRevocation);
-  if (isRevocation) add({ id: 'revoke', label: 'Révocation d’autorisation', status: 'pass', detail: 'Retirer un accès réduit le risque : toujours permis' });
+  if (isRevocation) add(ck('revoke', 'pass', ['Approval revocation', 'Révocation d’autorisation'], ['Removing access reduces risk: always allowed', 'Retirer un accès réduit le risque : toujours permis']));
   if (isDapp) {
     const target = decoded.kind === 'erc20-approve' ? lc(decoded.spender) : lc(tx.to);
     const dapp = DAPP_WHITELIST[target];
-    if (!dapp) add({ id: 'dapp', label: 'Liste des dApps approuvées', status: 'fail', detail: `${short(target)} n'est pas une dApp approuvée` });
-    else add({ id: 'dapp', label: 'Liste des dApps approuvées', status: 'step-up', detail: `${dapp.name} est approuvée — les dApps demandent des contrôles renforcés` });
-    if (decoded.unlimited) add({ id: 'unlimited-approve', label: 'Autorisation illimitée', status: 'step-up', detail: 'Autorisation de dépense illimitée — contrôles renforcés' });
+    const DAPP: Txt = ['Approved dApps list', 'Liste des dApps approuvées'];
+    if (!dapp) add(ck('dapp', 'fail', DAPP, [`${short(target)} is not an approved dApp`, `${short(target)} n'est pas une dApp approuvée`]));
+    else add(ck('dapp', 'step-up', DAPP, [`${dapp.name} is approved — dApps require enhanced checks`, `${dapp.name} est approuvée — les dApps demandent des contrôles renforcés`]));
+    if (decoded.unlimited) add(ck('unlimited-approve', 'step-up', ['Unlimited approval', 'Autorisation illimitée'], ['Unlimited spending approval — enhanced checks', 'Autorisation de dépense illimitée — contrôles renforcés']));
   }
 
   // 6. Amount threshold
-  const amount = usdcEquivalent(decoded, tx);
+  const amount = usdcEquivalent(decoded, tx, input.rates);
+  const THR: Txt = [`Amount below ${POLICY.stepUpThresholdUsdc} USDC`, `Montant inférieur à ${POLICY.stepUpThresholdUsdc} USDC`];
   add(
-    amount >= POLICY.stepUpThresholdUsdc
-      ? { id: 'threshold', label: `Montant inférieur à ${POLICY.stepUpThresholdUsdc} USDC`, status: 'step-up', detail: `${amount.toFixed(2)} USDC (équivalent) ≥ seuil` }
-      : { id: 'threshold', label: `Montant inférieur à ${POLICY.stepUpThresholdUsdc} USDC`, status: 'pass' },
+    amount === null
+      ? ck('threshold', 'step-up', THR, ['ETH value unavailable (no recent market rate): treated as above the threshold', 'Contre-valeur de l’ETH indisponible (aucun cours récent) : traitée comme supérieure au seuil'])
+      : amount >= POLICY.stepUpThresholdUsdc
+        ? ck('threshold', 'step-up', THR, [`${amount.toFixed(2)} USDC (equivalent) ≥ threshold`, `${amount.toFixed(2)} USDC (équivalent) ≥ seuil`])
+        : ck('threshold', 'pass', THR),
   );
 
   // 7. Known recipient
   if (decoded.kind === 'erc20-transfer' || decoded.kind === 'eth-transfer') {
     const known = input.contacts.some((c) => lc(c.address) === lc(decoded.recipient));
-    add(
-      known
-        ? { id: 'recipient', label: 'Destinataire connu', status: 'pass' }
-        : { id: 'recipient', label: 'Destinataire connu', status: 'step-up', detail: 'Premier paiement vers cette adresse' },
-    );
+    const REC: Txt = ['Known recipient', 'Destinataire connu'];
+    add(known ? ck('recipient', 'pass', REC) : ck('recipient', 'step-up', REC, ['First payment to this address', 'Premier paiement vers cette adresse']));
   }
 
   // 8. Daily limit
-  const dailyOk = input.spentTodayUsdc + amount <= POLICY.dailyLimitUsdc;
+  const dailyUnknown = amount === null || input.spentTodayUsdc === null;
+  const dailyOk = !dailyUnknown && input.spentTodayUsdc! + amount! <= POLICY.dailyLimitUsdc;
+  const DAY: Txt = [`Daily limit (${POLICY.dailyLimitUsdc} USDC)`, `Limite journalière (${POLICY.dailyLimitUsdc} USDC)`];
   add(
-    dailyOk
-      ? { id: 'daily', label: `Limite journalière (${POLICY.dailyLimitUsdc} USDC)`, status: 'pass' }
-      : { id: 'daily', label: `Limite journalière (${POLICY.dailyLimitUsdc} USDC)`, status: 'fail', detail: 'La limite journalière serait dépassée' },
+    dailyUnknown
+      ? ck('daily', 'step-up', DAY, ['Daily limit cannot be verified without a market rate: enhanced checks', 'Limite journalière invérifiable sans cours de marché : contrôles renforcés'])
+      : dailyOk
+        ? ck('daily', 'pass', DAY)
+        : ck('daily', 'fail', DAY, ['The daily limit would be exceeded', 'La limite journalière serait dépassée']),
   );
 
   // 9. Gas sponsoring quota (anti-abuse)
   const quotaOk = input.sponsoredToday < POLICY.sponsoredTxPerDay;
+  const GAS: Txt = ['Sponsored fees quota', 'Quota de frais offerts'];
   add(
     quotaOk
-      ? { id: 'gas-quota', label: 'Quota de frais offerts', status: 'pass', detail: `${input.sponsoredToday}/${POLICY.sponsoredTxPerDay} aujourd'hui` }
-      : { id: 'gas-quota', label: 'Quota de frais offerts', status: 'fail', detail: 'Quota journalier de transactions offertes atteint' },
+      ? ck('gas-quota', 'pass', GAS, [`${input.sponsoredToday}/${POLICY.sponsoredTxPerDay} today`, `${input.sponsoredToday}/${POLICY.sponsoredTxPerDay} aujourd'hui`])
+      : ck('gas-quota', 'fail', GAS, ['Daily quota of sponsored transactions reached', 'Quota journalier de transactions offertes atteint']),
   );
 
+  return decide(checks);
+}
+
+/** Decision from the checks; reasons in English with their French twin (reasonsFr). */
+export function decide(checks: PolicyCheck[]): PolicyResult {
   const failed = checks.filter((c) => c.status === 'fail');
   const stepUp = checks.filter((c) => c.status === 'step-up');
-  if (failed.length) {
-    return { decision: 'reject', level: stepUp.length ? 'step-up' : 'standard', checks, reasons: failed.map((c) => c.detail ?? c.label) };
-  }
-  if (stepUp.length) return { decision: 'step-up', level: 'step-up', checks, reasons: stepUp.map((c) => c.detail ?? c.label) };
-  return { decision: 'approve', level: 'standard', checks, reasons: [] };
+  const why = (cs: PolicyCheck[]) => ({ reasons: cs.map((c) => c.detail ?? c.label), reasonsFr: cs.map((c) => c.detailFr ?? c.detail ?? c.labelFr ?? c.label) });
+  if (failed.length) return { decision: 'reject', level: stepUp.length ? 'step-up' : 'standard', checks, ...why(failed) };
+  if (stepUp.length) return { decision: 'step-up', level: 'step-up', checks, ...why(stepUp) };
+  return { decision: 'approve', level: 'standard', checks, reasons: [], reasonsFr: [] };
+}
+
+/** decodeSafeTx in English with the French twins (summaryFr, warningsFr): stored texts are localised when read. */
+export function decodeBilingual(tx: SafeTx, safeAddress?: string, contactName?: (a: string) => string | undefined): DecodedAction {
+  const en = decodeSafeTx(tx, safeAddress, contactName, 'en');
+  const fr = decodeSafeTx(tx, safeAddress, contactName, 'fr');
+  return { ...en, summaryFr: fr.summary, warningsFr: fr.warnings };
 }

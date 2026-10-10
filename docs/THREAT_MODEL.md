@@ -58,6 +58,22 @@ Swissquote can **block** (refuse to co-sign, e.g. sanctions) but can **never mov
 - **Backup code**: helps users without working biometrics without weakening passkey-only actions (freeze, reveal amounts/secrets, device registration). Hash only, rate-limited, single-use challenges. Residual risk: a phished backup code + unlocked device + wallet password could confirm a standard operation — still subject to policy, limits, step-up and the co-signer.
 - **Address poisoning** (look-alike recipient) flagged with the differing characters; unlimited approvals flagged with a cap option; authorised apps can be revoked.
 
+## 5b. Service authentication, CORS & CSRF
+Implementation: `packages/shared/src/serverAuth.ts`, installed in front of every route of the four services. Tests: `services/sq-cosigner/test/auth.test.ts`.
+
+| # | Threat | Control |
+|---|--------|---------|
+| T15 | **Anyone on the network calls a client's routes** (read another client's data, act for them) | Signed session token (HMAC-SHA256, `SESSION_SIGNING_KEY`) required on every non-public route; a client token may only act on its own client id (path, body/query `clientId`, owner of the addressed resource). Default deny: unknown owner → 403; new routes under `/clients/:id/…` covered automatically. |
+| T16 | **Hostile web page drives the victim's browser** (CSRF) | The token is a `Bearer` header stored by the app, not a cookie: the browser never sends it on its own, so a cross-site request arrives unauthenticated (401). In addition: `POST` must be `application/json` (forms → 415), and requests with an Origin outside the allow-list are refused (403) before any handler. |
+| T17 | **Hostile origin reads responses** (CORS) | Explicit allow-list (`ALLOWED_ORIGINS`), exact echo, no wildcard, no credentials, only `GET/POST/OPTIONS` and `content-type, authorization, x-lang`. |
+| T18 | **Demo reset abused** (wipe a client, or the whole demo) | `POST` only, absent in production; global reset needs the internal token or a compliance session; per-client reset needs the client's token **and** a fresh re-authentication (password re-entered, token valid 5 min). |
+| T19 | **Spoofed service call** (fake recovery alert, fake receipt, attestation probing) | Service-to-service routes need `x-internal-token` (`INTERNAL_API_TOKEN`); a request carrying an `Origin` header cannot use it; the Origin header is never an identity. |
+| T20 | **Recovery "Swissquote login" factor declared by the caller** | The partner now derives it from the verified bank session token of that very client, instead of trusting the request body. |
+
+**Token storage trade-off (XSS).** The session token lives in `localStorage` (the device record and encrypted K1 already do). A successful XSS on the app origin could read it and act as the client **within the session's limits** — it still cannot sign: transactions need K1 (encrypted with the wallet password) and a passkey assertion bound to the exact SafeTx, and sensitive actions need the passkey. An HttpOnly cookie would hide the token from scripts but brings back CSRF (SameSite + anti-CSRF token) and does not work cleanly for the Capacitor app across origins; the prototype keeps Bearer tokens and relies on a strict CSP / no `dangerouslySetInnerHTML` in production. Tokens are stateless: logout clears them locally; server-side revocation (deny-list of `jti`, or rotating `SESSION_SIGNING_KEY` which logs everyone out) is the production path. One key is shared by the three services (single trust domain in this prototype; production: asymmetric signatures, per-service audience).
+
+**Residual demo shortcuts (labelled DEMO):** bank `/login` accepts any password and `/reauth` any non-empty password, the `compliance` user is a demo account, and `/admin/test-session` (internal token, non-production) lets scripts get a client session for headless E2E clients. No rate limiting on login in the prototype.
+
 ## 6. Known limitations (prototype)
 
 - K2 and the relayer key are JSON files (MOCK HSM). Liveness, SMS/email, sanctions feed, KYC and the recovery partner are mocks (clearly labeled in the UI).

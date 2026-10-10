@@ -2,17 +2,19 @@ import { useSearchParams } from 'react-router-dom';
 import { useLocal, useWalletTxs } from '../lib/hooks';
 import { Card, Pill, useMedia } from '../components/ui';
 import { TxListCompact, TxTable } from './TxList';
+import { MaskBar } from './Reveal';
+import { tr } from '../lib/i18n';
 
 const STATUS = [
-  { id: 'all', label: 'Tout' },
-  { id: 'pending', label: 'En attente' },
-  { id: 'confirmed', label: 'Confirmées' },
-  { id: 'failed', label: 'Échouées' },
+  { id: 'all', label: tr('All', 'Tout') },
+  { id: 'pending', label: tr('Pending', 'En attente') },
+  { id: 'confirmed', label: tr('Confirmed', 'Confirmées') },
+  { id: 'failed', label: tr('Failed', 'Échouées') },
 ];
 const KIND = [
-  { id: 'all', label: 'Tous types' },
-  { id: 'receive', label: 'Réceptions' },
-  { id: 'send', label: 'Envois' },
+  { id: 'all', label: tr('All types', 'Tous types') },
+  { id: 'receive', label: tr('Received', 'Réceptions') },
+  { id: 'send', label: tr('Sent', 'Envois') },
 ];
 
 export default function Transactions() {
@@ -32,7 +34,8 @@ export default function Transactions() {
   return (
     <div>
       <h1 className="mb-1 text-[22px] font-semibold tracking-tight">Transactions</h1>
-      <p className="mb-4 text-[14px] text-sq-muted">Statuts : détectée → en attente → confirmée (ou échouée). Confirmée = incluse dans un bloc Ethereum.</p>
+      <p className="mb-4 text-[14px] text-sq-muted">{tr('Status: detected → pending → confirmed (or failed). Confirmed = included in an Ethereum block.', 'Statuts : détectée → en attente → confirmée (ou échouée). Confirmée = incluse dans un bloc Ethereum.')}</p>
+      <MaskBar />
       <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
         {STATUS.map((s) => (
           <Pill key={s.id} active={status === s.id} onClick={() => set('status', s.id)}>

@@ -153,3 +153,28 @@ Si un wallet existe déjà pour ton client mais pas sur ton navigateur, My Wall 
 
 ## ✅ « Client inconnu » à la création de la passkey corrigé — 20:10
 Cause : la remise à zéro de la démo avait effacé ton client côté serveur, alors que ton navigateur te gardait connectée. My Wall ré-enregistre maintenant ton client automatiquement (au chargement de la page et juste avant de créer la passkey). Rien à faire : recharge la page et clique « Créer la passkey », Touch ID doit s’afficher.
+
+---
+
+## ✅ Serveurs protégés (connexion obligatoire, CORS, CSRF) — 22:50
+Les 4 services n’acceptent plus n’importe quel appel : il faut être connecté, et un client ne peut agir que sur son propre compte. Rien à faire pour toi, la démo marche comme avant (connecte-toi avec `alice`).
+- **Console Swissquote** (`/admin`) : elle demande maintenant une connexion. Identifiant `compliance`, n’importe quel mot de passe (compte de démonstration).
+- **« Démo : recommencer l’activation à zéro »** : on te redemande ton mot de passe Swissquote (n’importe lequel en démo) avant d’effacer.
+- `npm run reset-demo` marche toujours. Deux nouveaux secrets ont été ajoutés automatiquement dans le fichier caché `.env` : ne le supprime pas, ne le colle jamais dans un chat.
+
+---
+
+## ✅ Marchés réels, contenus, wallet masqué, conformité, version App — 23:40
+Tout ce que tu as demandé dans le prompt « Accueil, marchés et wallet » est en place. L'interface est maintenant **en anglais par défaut** (bouton « English | Français » sur la page de connexion, et dans Settings → Language).
+- **Trade / Watchlist / fiches / alertes** : vrais cours (Yahoo Finance, CoinGecko), avec l'heure et la mention « différé » ou « clôture ». Le compte de trading d'Alice reste une **démo fictive** (c'est indiqué).
+- **News** : vrais articles (CNBC, MarketWatch, CoinDesk…). **Inspiration** : 7 articles pédagogiques sourcés.
+- **Wallet** : les montants sont **masqués à chaque entrée** ; clique sur l'œil et valide avec Touch ID pour les voir.
+- **Envoi** : choix « My own wallet » / « Someone else's wallet » (nom du bénéficiaire demandé ; plus d'infos dès 1 000 CHF). Mode démo Travel Rule clairement affiché.
+- **Documents** : relevé fiscal annuel (PDF) et export CSV.
+
+## [NON BLOQUANT] Voir la version « App » — 23:40
+1. Lance la démo comme d'habitude (`npm run dev`).
+2. Dans Chrome, va sur **http://localhost:5173/sq** : en bas à gauche, un petit bouton **« Web | App »** apparaît (il n'est visible que pour toi, en développement).
+3. Clique **App** : tu vois l'application dans un cadre de téléphone (tu peux changer la taille). Clique **Web** pour revenir.
+**Limite :** la vraie application iPhone / Android est préparée mais n'a pas pu être compilée sur ce Mac (il faudrait installer Xcode, gratuit mais ~15 Go, ou Android Studio). Dis-moi si tu veux le faire.
+**Comment me répondre :** rien à faire, sauf si tu veux compiler l'app native.

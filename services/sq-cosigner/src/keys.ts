@@ -6,6 +6,7 @@ import path from 'node:path';
 import { Wallet } from 'ethers';
 import { DATA_DIR, ENV_FILE } from './paths';
 import { decryptKey, encryptKey, isEncrypted, migrateKeyFile, readEncryptedFile, resolveMasterKey, writeEncryptedFile, KEYFILE_FORMAT, type EncKeyFile } from './keyvault';
+import { t } from '@sq/shared/server';
 import { db, HttpError } from './db';
 
 export { DATA_DIR };
@@ -52,7 +53,7 @@ export function getOrCreateCosigner(clientId: string): string {
  */
 export function cosignerWallet(clientId: string): Wallet {
   const c = db.data.clients[clientId];
-  if (c?.frozen) throw new HttpError(423, 'Co-signature gelée pour ce wallet : Swissquote ne signe plus rien tant que le gel est actif.');
+  if (c?.frozen) throw new HttpError(423, t('Co-signing is frozen for this wallet: Swissquote signs nothing while the freeze is active.', 'Co-signature gelée pour ce wallet : Swissquote ne signe plus rien tant que le gel est actif.'));
   const k = file.cosigners[clientId];
   if (!k) throw new Error('No co-signer key for this client');
   let w = cache.get(`k2:${clientId}`);

@@ -29,7 +29,7 @@ export const SMI_COMPONENTS: Instrument[] = [
   yf('NESN.SW', 'NESN', 'Nestlé S.A.', 'equity', SIX, 'CHF'),
   yf('NOVN.SW', 'NOVN', 'Novartis AG', 'equity', SIX, 'CHF'),
   yf('PGHN.SW', 'PGHN', 'Partners Group Holding', 'equity', SIX, 'CHF'),
-  yf('ROG.SW', 'ROG', 'Roche Holding AG (GS)', 'equity', SIX, 'CHF'),
+  yf('ROP.SW', 'ROP', 'Roche Holding AG (participation cert.)', 'equity', SIX, 'CHF'), // Yahoo lists the former ROG.SW line as ROP.SW (ROG.SW returns 'No data found')
   yf('SCMN.SW', 'SCMN', 'Swisscom AG', 'equity', SIX, 'CHF'),
   yf('SIKA.SW', 'SIKA', 'Sika AG', 'equity', SIX, 'CHF'),
   yf('SLHN.SW', 'SLHN', 'Swiss Life Holding AG', 'equity', SIX, 'CHF'),

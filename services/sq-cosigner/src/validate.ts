@@ -4,6 +4,7 @@
 
 import { ZeroAddress, getAddress, isAddress } from 'ethers';
 import { USDC_ADDRESS, erc20Iface, safeIface, type SafeTx } from '@sq/shared';
+import { t } from '@sq/shared/server';
 import { HttpError } from './db';
 
 export type Intent =
@@ -15,15 +16,15 @@ export type Intent =
 /** Tokens the co-signer accepts to move or approve. */
 export const SUPPORTED_TOKENS: Record<string, string> = { [USDC_ADDRESS.toLowerCase()]: 'USDC' };
 
-const bad = (msg: string) => new HttpError(400, `Transaction refusée par le co-signataire : ${msg}`);
+const bad = (en: string, fr: string) => new HttpError(400, t(`Transaction refused by the co-signer: ${en}`, `Transaction refusée par le co-signataire : ${fr}`));
 const isUint = (s: unknown) => typeof s === 'string' && /^\d{1,78}$/.test(s);
 
 /** Canonical form used to compare two SafeTx byte-for-byte. */
 export function canonicalSafeTx(tx: SafeTx): SafeTx {
-  if (!tx || typeof tx !== 'object') throw bad('format invalide');
-  for (const k of ['value', 'safeTxGas', 'baseGas', 'gasPrice', 'nonce'] as const) if (!isUint(tx[k])) throw bad(`champ ${k} invalide`);
-  if (!isAddress(tx.to) || !isAddress(tx.gasToken) || !isAddress(tx.refundReceiver)) throw bad('adresse invalide');
-  if (typeof tx.data !== 'string' || !/^0x([0-9a-fA-F]{2})*$/.test(tx.data)) throw bad('données invalides');
+  if (!tx || typeof tx !== 'object') throw bad('invalid format', 'format invalide');
+  for (const k of ['value', 'safeTxGas', 'baseGas', 'gasPrice', 'nonce'] as const) if (!isUint(tx[k])) throw bad(`invalid field ${k}`, `champ ${k} invalide`);
+  if (!isAddress(tx.to) || !isAddress(tx.gasToken) || !isAddress(tx.refundReceiver)) throw bad('invalid address', 'adresse invalide');
+  if (typeof tx.data !== 'string' || !/^0x([0-9a-fA-F]{2})*$/.test(tx.data)) throw bad('invalid data', 'données invalides');
   return {
     to: getAddress(tx.to),
     value: BigInt(tx.value).toString(),
@@ -50,45 +51,45 @@ export function sameSafeTx(a: SafeTx, b: SafeTx) {
 export function validateSafeTx(raw: SafeTx, safeAddress: string, opts: { allowOwnerChange?: boolean } = {}): Intent {
   const tx = canonicalSafeTx(raw);
   // Sensitive parameters: a plain CALL, no gas refund that could pay someone out of the wallet.
-  if (tx.operation !== 0) throw bad('DELEGATECALL interdit');
+  if (tx.operation !== 0) throw bad('DELEGATECALL forbidden', 'DELEGATECALL interdit');
   if (tx.safeTxGas !== '0' || tx.baseGas !== '0' || tx.gasPrice !== '0' || tx.gasToken !== ZeroAddress || tx.refundReceiver !== ZeroAddress)
-    throw bad('paramètres de remboursement de gas non autorisés');
+    throw bad('gas refund parameters not allowed', 'paramètres de remboursement de gas non autorisés');
 
   if (tx.data === '0x') {
-    if (getAddress(tx.to) === getAddress(safeAddress)) throw bad('transfert vers le wallet lui-même');
+    if (getAddress(tx.to) === getAddress(safeAddress)) throw bad('transfer to the wallet itself', 'transfert vers le wallet lui-même');
     return { kind: 'eth-transfer', to: tx.to, value: tx.value };
   }
 
   const selector = tx.data.slice(0, 10);
   const token = SUPPORTED_TOKENS[tx.to.toLowerCase()];
   if (token) {
-    if (tx.value !== '0') throw bad('ETH joint à un appel de jeton');
+    if (tx.value !== '0') throw bad('ETH attached to a token call', 'ETH joint à un appel de jeton');
     const fn = erc20Iface.getFunction(selector);
     if (fn?.name === 'transfer' || fn?.name === 'approve') {
       const args = erc20Iface.decodeFunctionData(fn, tx.data);
       // re-encode: refuses any extra or malformed bytes in the calldata
-      if (erc20Iface.encodeFunctionData(fn, [args[0], args[1]]).toLowerCase() !== tx.data) throw bad('calldata non canonique');
+      if (erc20Iface.encodeFunctionData(fn, [args[0], args[1]]).toLowerCase() !== tx.data) throw bad('non-canonical calldata', 'calldata non canonique');
       const who = getAddress(args[0]);
       const amountRaw = (args[1] as bigint).toString();
       if (fn.name === 'transfer') {
-        if (who === ZeroAddress) throw bad('destinataire nul');
+        if (who === ZeroAddress) throw bad('zero recipient', 'destinataire nul');
         return { kind: 'erc20-transfer', token: tx.to, to: who, amountRaw };
       }
-      if (who === ZeroAddress) throw bad('bénéficiaire d’autorisation nul');
+      if (who === ZeroAddress) throw bad('zero approval spender', 'bénéficiaire d’autorisation nul');
       return { kind: 'erc20-approve', token: tx.to, spender: who, amountRaw };
     }
-    throw bad(`fonction de jeton non prise en charge (${selector})`);
+    throw bad(`unsupported token function (${selector})`, `fonction de jeton non prise en charge (${selector})`);
   }
 
   if (getAddress(tx.to) === getAddress(safeAddress)) {
-    if (!opts.allowOwnerChange) throw bad('les changements de clés passent uniquement par la procédure de récupération');
-    if (tx.value !== '0') throw bad('ETH joint à un changement de clé');
+    if (!opts.allowOwnerChange) throw bad('key changes only go through the recovery procedure', 'les changements de clés passent uniquement par la procédure de récupération');
+    if (tx.value !== '0') throw bad('ETH attached to a key change', 'ETH joint à un changement de clé');
     const fn = safeIface.getFunction(selector);
-    if (fn?.name !== 'swapOwner') throw bad('seul le remplacement de clé (swapOwner) est accepté');
+    if (fn?.name !== 'swapOwner') throw bad('only a key replacement (swapOwner) is accepted', 'seul le remplacement de clé (swapOwner) est accepté');
     const args = safeIface.decodeFunctionData(fn, tx.data);
-    if (safeIface.encodeFunctionData(fn, [args[0], args[1], args[2]]).toLowerCase() !== tx.data) throw bad('calldata non canonique');
+    if (safeIface.encodeFunctionData(fn, [args[0], args[1], args[2]]).toLowerCase() !== tx.data) throw bad('non-canonical calldata', 'calldata non canonique');
     return { kind: 'swap-owner', prevOwner: getAddress(args[0]), oldOwner: getAddress(args[1]), newOwner: getAddress(args[2]) };
   }
 
-  throw bad('opération non reconnue (contrat ou fonction non pris en charge)');
+  throw bad('unrecognised operation (unsupported contract or function)', 'opération non reconnue (contrat ou fonction non pris en charge)');
 }

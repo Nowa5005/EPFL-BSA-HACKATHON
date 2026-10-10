@@ -1,6 +1,8 @@
 // Wallet password rules (UX policy, not a security guarantee: the password encrypts the device key
 // locally with scrypt; production also needs attempt limiting and session protection).
 
+import { tr } from './i18n';
+
 export interface PasswordContext {
   firstName?: string;
   lastName?: string;
@@ -46,15 +48,15 @@ export function checkPassword(password: string, ctx: PasswordContext = {}): { ok
   const chars = [...password];
   const letters = chars.filter(isLetter);
   const rules: PasswordRule[] = [
-    { id: 'length', label: `Au moins ${MIN_LENGTH} caractères`, ok: chars.length >= MIN_LENGTH },
-    { id: 'letters', label: 'Au moins 5 lettres', ok: letters.length >= 5 },
-    { id: 'upper', label: 'Une majuscule', ok: letters.some((c) => c !== c.toLowerCase()) },
-    { id: 'lower', label: 'Une minuscule', ok: letters.some((c) => c !== c.toUpperCase()) },
-    { id: 'digits', label: 'Au moins 2 chiffres', ok: chars.filter(isDigit).length >= 2 },
-    { id: 'special', label: 'Un caractère spécial (ex. ! ? # -)', ok: chars.some((c) => !isLetter(c) && !isDigit(c)) },
-    { id: 'personal', label: 'Ni votre nom, ni votre date de naissance', ok: password.length > 0 && !personalHits(password, ctx) },
+    { id: 'length', label: tr(`At least ${MIN_LENGTH} characters`, `Au moins ${MIN_LENGTH} caractères`), ok: chars.length >= MIN_LENGTH },
+    { id: 'letters', label: tr('At least 5 letters', 'Au moins 5 lettres'), ok: letters.length >= 5 },
+    { id: 'upper', label: tr('One upper-case letter', 'Une majuscule'), ok: letters.some((c) => c !== c.toLowerCase()) },
+    { id: 'lower', label: tr('One lower-case letter', 'Une minuscule'), ok: letters.some((c) => c !== c.toUpperCase()) },
+    { id: 'digits', label: tr('At least 2 digits', 'Au moins 2 chiffres'), ok: chars.filter(isDigit).length >= 2 },
+    { id: 'special', label: tr('One special character (e.g. ! ? # -)', 'Un caractère spécial (ex. ! ? # -)'), ok: chars.some((c) => !isLetter(c) && !isDigit(c)) },
+    { id: 'personal', label: tr('Neither your name nor your date of birth', 'Ni votre nom, ni votre date de naissance'), ok: password.length > 0 && !personalHits(password, ctx) },
   ];
-  if (chars.length > MAX_LENGTH) rules.push({ id: 'max', label: `Au plus ${MAX_LENGTH} caractères`, ok: false });
+  if (chars.length > MAX_LENGTH) rules.push({ id: 'max', label: tr(`At most ${MAX_LENGTH} characters`, `Au plus ${MAX_LENGTH} caractères`), ok: false });
   const ok = rules.every((r) => r.ok);
   let message: string | undefined;
   if (!ok) {
@@ -62,10 +64,13 @@ export function checkPassword(password: string, ctx: PasswordContext = {}): { ok
     const bad = rules.find((r) => r.id === 'personal' && !r.ok && password.length > 0) ?? rules.find((r) => !r.ok)!;
     message =
       bad.id === 'personal'
-        ? 'Votre mot de passe ne doit pas contenir votre nom ou votre date de naissance.'
+        ? tr('Your password must not contain your name or your date of birth.', 'Votre mot de passe ne doit pas contenir votre nom ou votre date de naissance.')
         : bad.id === 'max'
-          ? `Utilisez au plus ${MAX_LENGTH} caractères.`
-          : `Utilisez au moins ${MIN_LENGTH} caractères, dont 5 lettres (une majuscule et une minuscule), 2 chiffres et 1 caractère spécial.`;
+          ? tr(`Use at most ${MAX_LENGTH} characters.`, `Utilisez au plus ${MAX_LENGTH} caractères.`)
+          : tr(
+            `Use at least ${MIN_LENGTH} characters, including 5 letters (one upper-case and one lower-case), 2 digits and 1 special character.`,
+            `Utilisez au moins ${MIN_LENGTH} caractères, dont 5 lettres (une majuscule et une minuscule), 2 chiffres et 1 caractère spécial.`,
+          );
   }
   return { ok, rules, message };
 }

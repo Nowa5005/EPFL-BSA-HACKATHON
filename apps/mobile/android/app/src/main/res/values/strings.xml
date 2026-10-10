@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">My Wall (demo)</string>
+    <string name="title_activity_main">My Wall (demo)</string>
+    <string name="package_name">ch.mywall.demo</string>
+    <string name="custom_url_scheme">ch.mywall.demo</string>
+</resources>

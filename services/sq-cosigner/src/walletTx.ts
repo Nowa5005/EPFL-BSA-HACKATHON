@@ -4,7 +4,8 @@
 
 import { getAddress, formatUnits, Interface } from 'ethers';
 import { ERC20_ABI, USDC_ADDRESS, USDC_DECIMALS } from '@sq/shared';
-import { newId, nowIso } from '@sq/shared/server';
+import { fetchWalletRates, newId, nowIso } from '@sq/shared/server';
+import { both } from '@sq/shared';
 import { db, logActivity, notify } from './db';
 import { CONFIRMATIONS, provider } from './chain';
 
@@ -21,16 +22,21 @@ export interface WalletTx {
   from: string;
   to: string;
   counterpartyName?: string; // only when known (address book, own Swissquote account) — never inferred
+  counterpartyNameFr?: string; // French twin of a generic name ("Compte Swissquote"), localised on read
   txHash?: string;
   simulated?: boolean;
   source: 'wallet' | 'swissquote-account' | 'simulation' | 'external';
   note?: string;
+  noteFr?: string;
   feesSponsored: boolean;
   requestId?: string;
   createdAt: string;
   updatedAt: string;
   confirmedAt?: string;
   error?: string;
+  /** Indicative CHF price captured when the tx was confirmed (market-data service). Absent = not captured:
+   *  receipts then say "CHF value unavailable" instead of applying today's price to an old transaction. */
+  valuation?: { chf: number; asOf: string; provider: string };
 }
 
 export interface DocumentEntry {
@@ -60,8 +66,26 @@ export function upsertWalletTx(t: Partial<WalletTx> & { id?: string; clientId: s
     if (merged.status === 'confirmed' && !merged.confirmedAt) merged.confirmedAt = now;
     d.walletTxs[merged.id] = merged;
     if (merged.status === 'confirmed') upsertDocument(d, merged);
+    if (merged.status === 'confirmed' && !merged.valuation && !merged.simulated) void captureValuation(merged.id);
     return merged;
   });
+}
+
+/** Records the indicative CHF price at confirmation time (only a price at most 1 h away from the confirmation). */
+async function captureValuation(id: string) {
+  try {
+    const t = db.data.walletTxs?.[id];
+    if (!t) return;
+    const r = (await fetchWalletRates())[t.asset];
+    const at = new Date(t.confirmedAt ?? t.updatedAt).getTime();
+    if (!r || Math.abs(new Date(r.asOf).getTime() - at) > 3600e3) return;
+    db.update((d) => {
+      const x = d.walletTxs?.[id];
+      if (x && !x.valuation) x.valuation = { chf: r.chf, asOf: r.asOf, provider: r.provider };
+    });
+  } catch {
+    /* no valuation: the receipt states it explicitly */
+  }
 }
 
 function upsertDocument(d: any, t: WalletTx) {
@@ -74,11 +98,15 @@ function stripUndefined<T extends object>(o: T): Partial<T> {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
 }
 
-const label = (t: WalletTx) => `${t.kind === 'receive' ? 'Réception' : 'Envoi'} de ${t.amount} ${t.asset}`;
+const labelEn = (t: WalletTx) => `${t.kind === 'receive' ? 'Receipt' : 'Payment'} of ${t.amount} ${t.asset}`;
+const labelFr = (t: WalletTx) => `${t.kind === 'receive' ? 'Réception' : 'Envoi'} de ${t.amount} ${t.asset}`;
 
 export function confirmWalletTx(id: string) {
   const t = upsertWalletTx({ id, clientId: db.data.walletTxs![id].clientId, status: 'confirmed' });
-  logActivity({ clientId: t.clientId, actor: 'system', type: 'wallet-tx.confirmed', message: `${label(t)} ${t.kind === 'receive' ? 'confirmée' : 'confirmé'}${t.simulated ? ' (simulée)' : ''} — justificatif disponible`, txHash: t.txHash, data: { walletTxId: t.id } });
+  logActivity({ clientId: t.clientId, actor: 'system', type: 'wallet-tx.confirmed', message: both(
+      `${labelEn(t)} confirmed${t.simulated ? ' (simulated)' : ''} — receipt available`,
+      `${labelFr(t)} ${t.kind === 'receive' ? 'confirmée' : 'confirmé'}${t.simulated ? ' (simulée)' : ''} — justificatif disponible`,
+    ), txHash: t.txHash, data: { walletTxId: t.id } });
   return t;
 }
 
@@ -95,9 +123,10 @@ export function simulateReceive(clientId: string, safeAddress: string, amount = 
     simulated: true,
     source: 'simulation',
     feesSponsored: false,
-    note: 'Réception simulée (démo)',
+    note: 'Simulated receipt (demo)',
+    noteFr: 'Réception simulée (démo)',
   });
-  logActivity({ clientId, actor: 'system', type: 'wallet-tx.pending', message: `Réception simulée de ${amount} USDC détectée — en attente de confirmation`, data: { walletTxId: t.id } });
+  logActivity({ clientId, actor: 'system', type: 'wallet-tx.pending', message: both(`Simulated receipt of ${amount} USDC detected — awaiting confirmation`, `Réception simulée de ${amount} USDC détectée — en attente de confirmation`), data: { walletTxId: t.id } });
   setTimeout(() => confirmWalletTx(t.id), 3000);
   return t;
 }
@@ -105,8 +134,8 @@ export function simulateReceive(clientId: string, safeAddress: string, amount = 
 const erc20 = new Interface(ERC20_ABI);
 
 /** Tracks an incoming on-chain USDC transfer to the client's Safe (e.g. from the Swissquote account). */
-export function trackIncoming(clientId: string, safeAddress: string, txHash: string, source: WalletTx['source'], fromName?: string, amountHint?: string) {
-  const t = upsertWalletTx({ clientId, kind: 'receive', status: 'pending', asset: 'USDC', amount: amountHint ?? '?', from: '', to: safeAddress, txHash, source, counterpartyName: fromName, feesSponsored: source === 'swissquote-account' });
+export function trackIncoming(clientId: string, safeAddress: string, txHash: string, source: WalletTx['source'], fromName?: string, amountHint?: string, fromNameFr?: string) {
+  const t = upsertWalletTx({ clientId, kind: 'receive', status: 'pending', asset: 'USDC', amount: amountHint ?? '?', from: '', to: safeAddress, txHash, source, counterpartyName: fromName, counterpartyNameFr: fromName ? fromNameFr : undefined, feesSponsored: source === 'swissquote-account' });
   void (async () => {
     try {
       const rc = await provider.waitForTransaction(txHash, CONFIRMATIONS, 180_000);
@@ -124,10 +153,16 @@ export function trackIncoming(clientId: string, safeAddress: string, txHash: str
       if (amount === 0n) throw new Error('No USDC transfer to this wallet in that transaction');
       upsertWalletTx({ id: t.id, clientId, amount: formatUnits(amount, USDC_DECIMALS), from });
       confirmWalletTx(t.id);
-      notify({ clientId, channel: 'app', subject: 'Réception confirmée', body: `${formatUnits(amount, USDC_DECIMALS)} USDC reçus${fromName ? ` depuis ${fromName}` : ''}.` });
+      const amt = formatUnits(amount, USDC_DECIMALS);
+      notify({
+        clientId,
+        channel: 'app',
+        subject: both('Receipt confirmed', 'Réception confirmée'),
+        body: both(`${amt} USDC received${fromName ? ` from ${fromName}` : ''}.`, `${amt} USDC reçus${fromName ? ` depuis ${fromNameFr || fromName}` : ''}.`),
+      });
     } catch (e) {
       upsertWalletTx({ id: t.id, clientId, status: 'failed', error: (e as Error).message });
-      logActivity({ clientId, actor: 'system', type: 'wallet-tx.failed', message: `Réception échouée : ${(e as Error).message}`, txHash, data: { walletTxId: t.id } });
+      logActivity({ clientId, actor: 'system', type: 'wallet-tx.failed', message: both(`Receipt failed: ${(e as Error).message}`, `Réception échouée : ${(e as Error).message}`), txHash, data: { walletTxId: t.id } });
     }
   })();
   return t;

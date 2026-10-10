@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- DEBUG BUILDS ONLY (merged over src/main/AndroidManifest.xml): allows plain-http calls to the demo services
+     running on the developer's Mac (http://<LAN-IP>:4001…4004) and to the Vite dev server for live reload.
+     Release builds do not include this file and stay HTTPS-only. See docs/MOBILE.md. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:networkSecurityConfig="@xml/network_security_config" />
+</manifest>

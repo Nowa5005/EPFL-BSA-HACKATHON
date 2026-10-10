@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { BiometricsOptions } from '../components/BiometricsOptions';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Fingerprint } from 'lucide-react';
-import { startAuthentication } from '@simplewebauthn/browser';
+import { startAuthentication } from '../lib/passkeyGuard'; // guarded for the native app
 import { cosigner } from '../lib/api';
 import { setUnlocked, unlock, unlockState, UnlockError } from '../lib/device';
 import type { HDNodeWallet, Wallet } from 'ethers';
 import { useLocal } from '../lib/hooks';
 import { Button, cx, DemoFooter, Field, inputCls, Logo, SecretInput, Spinner, useCountdown } from '../components/ui';
+import { tr } from '../lib/i18n';
 
 /** Password (decrypts the device key locally) then passkey (Touch ID). Never asks for a private key or recovery code. */
 export function UnlockForm({ onDone }: { onDone: () => void }) {
@@ -60,7 +61,7 @@ export function UnlockForm({ onDone }: { onDone: () => void }) {
       onDone();
     } catch (e: any) {
       setPhase('idle');
-      setErr(e?.name === 'NotAllowedError' ? 'Vérification annulée ou expirée. Réessayez, ou découvrez les autres options ci-dessous.' : e.message);
+      setErr(e?.name === 'NotAllowedError' ? tr('Verification cancelled or expired. Try again, or see the other options below.', 'Vérification annulée ou expirée. Réessayez, ou découvrez les autres options ci-dessous.') : e.message);
     }
   };
 
@@ -72,7 +73,7 @@ export function UnlockForm({ onDone }: { onDone: () => void }) {
         if (pw && !locked) void submit();
       }}
     >
-      <Field label="Mot de passe du wallet" error={err || undefined}>
+      <Field label={tr('Wallet password', 'Mot de passe du wallet')} error={err || undefined}>
         <SecretInput autoFocus value={pw} onChange={setPw} autoComplete="current-password" />
       </Field>
       {phase === 'decrypt' && (
@@ -80,34 +81,34 @@ export function UnlockForm({ onDone }: { onDone: () => void }) {
           <div className="h-1 overflow-hidden rounded-full bg-sq-line">
             <div className="h-full bg-sq-orange transition-[width] duration-150" style={{ width: `${Math.round(progress * 100)}%` }} />
           </div>
-          <p className="mt-1.5 text-[13px] text-sq-muted">Déchiffrement de votre clé sur cet appareil…</p>
+          <p className="mt-1.5 text-[13px] text-sq-muted">{tr('Decrypting your key on this device…', 'Déchiffrement de votre clé sur cet appareil…')}</p>
         </div>
       )}
       {phase === 'passkey' && (
         <p className="flex items-center gap-2 text-[14px] text-sq-ink-2" aria-live="polite">
-          <Fingerprint size={20} strokeWidth={1.75} className="text-sq-orange" /> {mode === 'code' ? 'Vérification du code de secours…' : 'Confirmez avec Touch ID, Face ID ou le code de votre appareil.'}
+          <Fingerprint size={20} strokeWidth={1.75} className="text-sq-orange" /> {mode === 'code' ? tr('Checking the backup code…', 'Vérification du code de secours…') : tr('Confirm with Touch ID, Face ID or your device PIN.', 'Confirmez avec Touch ID, Face ID ou le code de votre appareil.')}
         </p>
       )}
       {mode === 'code' && (
-        <Field label="Code de secours (12 caractères)">
+        <Field label={tr('Backup code (12 characters)', 'Code de secours (12 caractères)')}>
           <input className={cx(inputCls, 'font-mono uppercase tracking-widest')} value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 12))} autoComplete="off" spellCheck={false} />
         </Field>
       )}
-      {locked && <p className="num text-[14px] text-sq-down">Nouvel essai possible dans {left} s.</p>}
+      {locked && <p className="num text-[14px] text-sq-down">{tr(`You can try again in ${left} s.`, `Nouvel essai possible dans ${left} s.`)}</p>}
       <Button type="submit" disabled={!pw || locked || phase !== 'idle' || (mode === 'code' && code.length !== 12)}>
-        {phase === 'idle' ? (mode === 'code' ? 'Déverrouiller avec le code de secours' : 'Déverrouiller') : <Spinner />}
+        {phase === 'idle' ? (mode === 'code' ? tr('Unlock with the backup code', 'Déverrouiller avec le code de secours') : tr('Unlock', 'Déverrouiller')) : <Spinner />}
       </Button>
       <BiometricsOptions>
         {hasCode ? (
           <button type="button" className="min-h-10 font-medium underline underline-offset-4" onClick={() => setMode(mode === 'code' ? 'passkey' : 'code')}>
-            {mode === 'code' ? 'Revenir à la passkey' : 'Déverrouiller avec mon code de secours'}
+            {mode === 'code' ? tr('Back to the passkey', 'Revenir à la passkey') : tr('Unlock with my backup code', 'Déverrouiller avec mon code de secours')}
           </button>
         ) : (
-          <p className="text-sq-muted">Aucun code de secours n’est configuré pour ce wallet.</p>
+          <p className="text-sq-muted">{tr('No backup code is set up for this wallet.', 'Aucun code de secours n’est configuré pour ce wallet.')}</p>
         )}
       </BiometricsOptions>
       <Link to="/recover" className="flex min-h-11 items-center justify-center text-[14px] font-medium text-sq-ink underline decoration-sq-line underline-offset-4">
-        J'ai perdu mon appareil / Restaurer mon wallet
+        {tr('I lost my device / Restore my wallet', "J'ai perdu mon appareil / Restaurer mon wallet")}
       </Link>
     </form>
   );
@@ -125,11 +126,11 @@ export default function UnlockPage() {
     <div className="mw-page flex min-h-screen flex-col bg-sq-bg">
       <div className="mx-auto w-full max-w-[440px] flex-1 px-5 pt-4">
         <Link to="/sq" className="inline-flex min-h-11 items-center gap-1.5 text-[14px] font-medium text-sq-ink-2">
-          <ArrowLeft size={18} strokeWidth={1.75} /> Retour à Swissquote
+          <ArrowLeft size={18} strokeWidth={1.75} /> {tr('Back to Swissquote', 'Retour à Swissquote')}
         </Link>
         <div className="flex flex-col items-center pb-8 pt-8 text-center">
           <Logo size={56} />
-          <h1 className="mt-4 text-[24px] font-semibold tracking-tight">Déverrouiller My Wall</h1>
+          <h1 className="mt-4 text-[24px] font-semibold tracking-tight">{tr('Unlock My Wall', 'Déverrouiller My Wall')}</h1>
           <p className="mt-1 text-[14px] text-sq-muted">{session.profile?.name}</p>
         </div>
         <UnlockForm onDone={() => nav(target, { replace: true })} />

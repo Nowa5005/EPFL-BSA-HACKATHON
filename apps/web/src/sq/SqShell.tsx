@@ -3,13 +3,16 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowUp, Box, ChartColumn, CircleUser, CreditCard, House, LogOut, Search, Wallet, X } from 'lucide-react';
+import { ArrowUp, Box, ChartColumn, CircleUser, CreditCard, House, LogOut, Wallet, X } from 'lucide-react';
 import { cosigner } from '../lib/api';
 import { isUnlocked, lock, saveSession } from '../lib/device';
 import { useLocal } from '../lib/hooks';
 import { Button, cx, DemoFooter, ICON, IconButton, Logo, Spinner, useMedia } from '../components/ui';
 import { ExistingWalletActions } from '../wallet/ExistingWallet';
 import { UnlockForm } from '../wallet/Unlock';
+import { tr } from '../lib/i18n';
+import { SearchButton } from './MarketSearch';
+import { useIsDesktopLayout } from '../lib/platform';
 
 const NAV = [
   { to: '/sq', label: 'Home', icon: House, end: true },
@@ -24,12 +27,12 @@ export function AccountButton() {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
-      <IconButton label="Compte" onClick={() => setOpen((o) => !o)}>
+      <IconButton label={tr('Account', 'Compte')} onClick={() => setOpen((o) => !o)}>
         <CircleUser {...ICON} size={22} />
       </IconButton>
       {open && (
         <div className="mw-toast absolute right-0 top-12 z-40 w-60 rounded-[12px] border border-sq-line bg-white p-3 text-[14px] shadow-lg">
-          <div className="px-2 py-1 font-semibold">{session?.profile?.name ?? 'Client'}</div>
+          <div className="px-2 py-1 font-semibold">{session?.profile?.name ?? tr('Client', 'Client')}</div>
           <div className="px-2 pb-2 text-[12px] text-sq-muted">{session?.clientId}</div>
           <button
             className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 text-left hover:bg-sq-chip/60"
@@ -39,7 +42,7 @@ export function AccountButton() {
               nav('/login');
             }}
           >
-            <LogOut size={18} strokeWidth={1.75} /> Se déconnecter
+            <LogOut size={18} strokeWidth={1.75} /> {tr('Log out', 'Se déconnecter')}
           </button>
         </div>
       )}
@@ -58,13 +61,13 @@ function WalletButton() {
       className="inline-flex min-h-11 items-center gap-2 rounded-[10px] bg-sq-orange px-4 text-[15px] font-semibold text-white hover:bg-sq-orange-600"
     >
       <Wallet size={18} strokeWidth={1.75} />
-      Mon wallet
+      {tr('My wallet', 'Mon wallet')}
     </button>
   );
 }
 
 export function SqShell({ children }: { children: ReactNode }) {
-  const isDesktop = useMedia('(min-width: 1024px)');
+  const isDesktop = useIsDesktopLayout(); // always false in app mode (native app / app preview)
   const coarse = useMedia('(pointer: coarse)');
   const loc = useLocation();
   const showTab = !isDesktop || coarse;
@@ -74,7 +77,7 @@ export function SqShell({ children }: { children: ReactNode }) {
       {isDesktop && (
         <header className="sticky top-0 z-30 border-b border-sq-line bg-white">
           <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-8 px-6">
-            <Link to="/sq" className="flex items-center gap-2.5" aria-label="Accueil Swissquote">
+            <Link to="/sq" className="flex items-center gap-2.5" aria-label={tr('Swissquote home', 'Accueil Swissquote')}>
               <Logo size={28} />
               <span className="text-[16px] font-semibold tracking-tight">Swissquote</span>
             </Link>
@@ -96,9 +99,7 @@ export function SqShell({ children }: { children: ReactNode }) {
               ))}
             </nav>
             <div className="flex-1" />
-            <IconButton label="Rechercher" className="shadow-none">
-              <Search {...ICON} />
-            </IconButton>
+            <SearchButton flat />
             <WalletButton />
             <AccountButton />
           </div>
@@ -111,7 +112,7 @@ export function SqShell({ children }: { children: ReactNode }) {
       </main>
 
       {!isDesktop && (
-        <nav className="fixed inset-x-0 bottom-0 z-30 rounded-t-[16px] bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_0_rgba(0,0,0,0.04)]" aria-label="Navigation Swissquote">
+        <nav className="fixed inset-x-0 bottom-0 z-30 rounded-t-[16px] bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_0_rgba(0,0,0,0.04)]" aria-label={tr('Swissquote navigation', 'Navigation Swissquote')}>
           <div className="mx-auto grid max-w-[720px] grid-cols-4">
             {NAV.map((n) => (
               <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => cx('flex min-h-[60px] flex-col items-center justify-center gap-1 text-[12px]', isActive ? 'font-medium text-sq-orange' : 'text-sq-ink-2')}>
@@ -129,14 +130,16 @@ export function SqShell({ children }: { children: ReactNode }) {
 
 /** Mobile header with the round search & account buttons (top right), like the references. */
 export function SqMobileTop({ children }: { children?: ReactNode }) {
-  const isDesktop = useMedia('(min-width: 1024px)');
+  const isDesktop = useIsDesktopLayout(); // always false in app mode (native app / app preview)
   if (isDesktop) return children ? <>{children}</> : null;
   return (
-    <div className="flex items-start gap-2 pb-2 pt-2">
+    <div className="flex items-center gap-2 pb-2 pt-2">
+      {/* Provided logo, as-is: 44 px high, proportions kept, never cropped. */}
+      <Link to="/sq" aria-label={tr('Swissquote home', 'Accueil Swissquote')} className="-my-0.5 mr-1 shrink-0 rounded-md">
+        <img src="/brand/swissquote-logo.png" alt="Swissquote" className="block h-11 w-auto max-w-none object-contain" />
+      </Link>
       <div className="min-w-0 flex-1">{children}</div>
-      <IconButton label="Rechercher">
-        <Search {...ICON} />
-      </IconButton>
+      <SearchButton className="shrink-0" />
       <AccountButton />
     </div>
   );
@@ -179,7 +182,7 @@ function WalletTab({ aboveNav }: { aboveNav: boolean }) {
         <span className="h-1 w-9 rounded-full bg-sq-line" aria-hidden />
         <span className="flex items-center gap-2 text-[14px] font-semibold text-sq-ink">
           <Logo size={20} />
-          Mon wallet
+          {tr('My wallet', 'Mon wallet')}
           <ArrowUp size={16} strokeWidth={2} className="text-sq-muted" />
         </span>
       </button>
@@ -224,7 +227,7 @@ function WalletPanel({ onClose }: { onClose: () => void }) {
       >
         <span className="w-11" />
         <span className="h-1 w-9 rounded-full bg-sq-line" aria-hidden />
-        <IconButton label="Revenir à Swissquote" onClick={onClose}>
+        <IconButton label={tr('Back to Swissquote', 'Revenir à Swissquote')} onClick={onClose}>
           <X {...ICON} />
         </IconButton>
       </div>
@@ -232,11 +235,11 @@ function WalletPanel({ onClose }: { onClose: () => void }) {
         <div className="flex flex-col items-center pb-6 pt-6 text-center">
           <Logo size={56} />
           <h2 className="mt-4 text-[24px] font-semibold tracking-tight">My Wall</h2>
-          <p className="mt-1 text-[14px] text-sq-muted">Votre wallet en self-custody, relié à votre compte Swissquote.</p>
+          <p className="mt-1 text-[14px] text-sq-muted">{tr('Your self-custody wallet, linked to your Swissquote account.', 'Votre wallet en self-custody, relié à votre compte Swissquote.')}</p>
         </div>
         {device?.safeAddress ? (
           isUnlocked() ? (
-            <div className="flex justify-center py-8 text-sq-muted">Ouverture…</div>
+            <div className="flex justify-center py-8 text-sq-muted">{tr('Opening…', 'Ouverture…')}</div>
           ) : (
             <UnlockForm onDone={() => nav('/wallet')} />
           )
@@ -246,15 +249,25 @@ function WalletPanel({ onClose }: { onClose: () => void }) {
           </div>
         ) : hasRemoteWallet ? (
           <div className="space-y-3">
-            <p className="text-center text-[14px] text-sq-ink-2">Votre wallet existe déjà, mais pas sur cet appareil : restaurez-le ici (ce n’est pas compté comme un appareil supplémentaire).</p>
+            <p className="text-center text-[14px] text-sq-ink-2">
+              {tr(
+                'Your wallet already exists, but not on this device: restore it here (this does not count as an additional device).',
+                'Votre wallet existe déjà, mais pas sur cet appareil : restaurez-le ici (ce n’est pas compté comme un appareil supplémentaire).',
+              )}
+            </p>
             <ExistingWalletActions clientId={session!.clientId} onReset={onClose} />
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-center text-[14px] text-sq-ink-2">Activez My Wall en quelques minutes. Vous gardez le contrôle de vos clés ; Swissquote sécurise sans jamais pouvoir déplacer vos fonds seul.</p>
-            <Button onClick={() => nav('/onboarding')}>Activer My Wall</Button>
+            <p className="text-center text-[14px] text-sq-ink-2">
+              {tr(
+                'Activate My Wall in a few minutes. You keep control of your keys; Swissquote adds security without ever being able to move your funds on its own.',
+                'Activez My Wall en quelques minutes. Vous gardez le contrôle de vos clés ; Swissquote sécurise sans jamais pouvoir déplacer vos fonds seul.',
+              )}
+            </p>
+            <Button onClick={() => nav('/onboarding')}>{tr('Activate My Wall', 'Activer My Wall')}</Button>
             <Button variant="ghost" onClick={() => nav('/recover')}>
-              J'ai déjà un wallet — le restaurer
+              {tr('I already have a wallet — restore it', "J'ai déjà un wallet — le restaurer")}
             </Button>
           </div>
         )}

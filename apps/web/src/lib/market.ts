@@ -3,7 +3,7 @@
 // Data comes from the market-data service (services/market-data), which caches provider responses.
 
 import { useEffect, useState } from 'react';
-import { SERVICE_URLS } from '@sq/shared';
+import { WEB_SERVICE_URLS as SERVICE_URLS } from './services';
 import { ApiError } from './api';
 import { usePoll } from './hooks';
 

@@ -6,6 +6,7 @@ import { PenLine, Send } from 'lucide-react';
 import { SWISSQUOTE_REFERENT_EMAIL } from '@sq/shared';
 import { findSensitive } from '../lib/messageGuard';
 import { Button, Card, cx, Field, inputCls, MockBadge, Notice } from './ui';
+import { tr } from '../lib/i18n';
 
 interface Draft {
   to: string;
@@ -27,7 +28,7 @@ export function Composer({ clientId, contacts }: { clientId: string; contacts: {
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState('');
   const [opened, setOpened] = useState(false);
-  const recipients = [{ label: `Référent Swissquote — ${SWISSQUOTE_REFERENT_EMAIL}`, email: SWISSQUOTE_REFERENT_EMAIL }, ...contacts.filter((c) => c.email).map((c) => ({ label: `${c.name} — ${c.email}`, email: c.email! }))];
+  const recipients = [{ label: `${tr('Swissquote contact', 'Référent Swissquote')} — ${SWISSQUOTE_REFERENT_EMAIL}`, email: SWISSQUOTE_REFERENT_EMAIL }, ...contacts.filter((c) => c.email).map((c) => ({ label: `${c.name} — ${c.email}`, email: c.email! }))];
 
   useEffect(() => {
     if (!open) return;
@@ -44,11 +45,14 @@ export function Composer({ clientId, contacts }: { clientId: string; contacts: {
 
   const sensitive = findSensitive(`${d.subject}\n${d.body}`);
   const validate = () => {
-    if (!recipients.some((r) => r.email === d.to)) return 'Choisissez un destinataire disposant d’une adresse email.';
-    if (!d.subject.trim()) return 'Ajoutez un objet.';
-    if (!d.body.trim()) return 'Écrivez votre message.';
-    if (d.subject.length > 120 || d.body.length > 2000) return 'Message trop long (objet 120 caractères, texte 2 000).';
-    if (sensitive) return `Votre message semble contenir ${sensitive}. Ne transmettez jamais vos clés, codes ou mots de passe — Swissquote ne vous les demandera jamais.`;
+    if (!recipients.some((r) => r.email === d.to)) return tr('Choose a recipient with an email address.', 'Choisissez un destinataire disposant d’une adresse email.');
+    if (!d.subject.trim()) return tr('Add a subject.', 'Ajoutez un objet.');
+    if (!d.body.trim()) return tr('Write your message.', 'Écrivez votre message.');
+    if (d.subject.length > 120 || d.body.length > 2000) return tr('Message too long (subject 120 characters, text 2,000).', 'Message trop long (objet 120 caractères, texte 2 000).');
+    if (sensitive) return tr(
+        `Your message seems to contain ${sensitive}. Never share your keys, codes or passwords — Swissquote will never ask you for them.`,
+        `Votre message semble contenir ${sensitive}. Ne transmettez jamais vos clés, codes ou mots de passe — Swissquote ne vous les demandera jamais.`,
+      );
     return '';
   };
   const openMail = () => {
@@ -62,17 +66,17 @@ export function Composer({ clientId, contacts }: { clientId: string; contacts: {
   if (!open)
     return (
       <Button variant="secondary" className="w-auto px-4" onClick={() => setOpen(true)}>
-        <PenLine size={18} strokeWidth={1.75} /> Nouveau message
+        <PenLine size={18} strokeWidth={1.75} /> {tr('New message', 'Nouveau message')}
       </Button>
     );
 
   return (
     <Card className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-[16px] font-semibold">Nouveau message</h2>
-        <MockBadge label="Ouverture de votre messagerie" />
+        <h2 className="text-[16px] font-semibold">{tr('New message', 'Nouveau message')}</h2>
+        <MockBadge label={tr('Opens your email app', 'Ouverture de votre messagerie')} />
       </div>
-      <Field label="À">
+      <Field label={tr('To', 'À')}>
         <select className={cx(inputCls, 'appearance-auto')} value={d.to} onChange={(e) => setD({ ...d, to: e.target.value })}>
           {recipients.map((r) => (
             <option key={r.email} value={r.email}>
@@ -81,20 +85,22 @@ export function Composer({ clientId, contacts }: { clientId: string; contacts: {
           ))}
         </select>
       </Field>
-      {d.to === SWISSQUOTE_REFERENT_EMAIL && <p className="-mt-1 text-[12px] text-sq-muted">Adresse fournie pour la maquette, pas une intégration Swissquote validée.</p>}
-      <Field label="Objet">
+      {d.to === SWISSQUOTE_REFERENT_EMAIL && <p className="-mt-1 text-[12px] text-sq-muted">{tr('Address provided for the mock-up, not a validated Swissquote integration.', 'Adresse fournie pour la maquette, pas une intégration Swissquote validée.')}</p>}
+      <Field label={tr('Subject', 'Objet')}>
         <input className={inputCls} value={d.subject} maxLength={120} onChange={(e) => setD({ ...d, subject: e.target.value })} />
       </Field>
-      <Field label="Message" hint={`${d.body.length} / 2 000`}>
+      <Field label="Message" hint={`${d.body.length} / ${tr('2,000', '2 000')}`}>
         <textarea className={cx(inputCls, 'h-36 resize-y')} value={d.body} maxLength={2000} onChange={(e) => setD({ ...d, body: e.target.value })} />
       </Field>
-      {sensitive && <Notice tone="bad" title="Information sensible détectée">Retirez {sensitive} : My Wall ne vous laissera pas le joindre à un message.</Notice>}
+      {sensitive && <Notice tone="bad" title={tr('Sensitive information detected', 'Information sensible détectée')}>
+          {tr(`Remove ${sensitive}: My Wall will not let you include it in a message.`, `Retirez ${sensitive} : My Wall ne vous laissera pas le joindre à un message.`)}
+        </Notice>}
       {err && !sensitive && <Notice tone="bad">{err}</Notice>}
-      {saved && <p className="text-[12px] text-sq-muted">Brouillon enregistré sur cet appareil.</p>}
-      {opened && <Notice tone="info">Votre client email s’est ouvert avec ce message. L’envoi se fait depuis votre messagerie : My Wall n’a rien envoyé.</Notice>}
+      {saved && <p className="text-[12px] text-sq-muted">{tr('Draft saved on this device.', 'Brouillon enregistré sur cet appareil.')}</p>}
+      {opened && <Notice tone="info">{tr('Your email app opened with this message. Sending happens from your email app: My Wall has sent nothing.', 'Votre client email s’est ouvert avec ce message. L’envoi se fait depuis votre messagerie : My Wall n’a rien envoyé.')}</Notice>}
       <div className="flex flex-wrap gap-2">
         <Button className="w-auto px-4" onClick={openMail} disabled={!!sensitive}>
-          <Send size={18} strokeWidth={1.75} /> Ouvrir dans ma messagerie
+          <Send size={18} strokeWidth={1.75} /> {tr('Open in my email app', 'Ouvrir dans ma messagerie')}
         </Button>
         <Button
           variant="ghost"
@@ -110,10 +116,10 @@ export function Composer({ clientId, contacts }: { clientId: string; contacts: {
             setOpened(false);
           }}
         >
-          Effacer le brouillon
+          {tr('Delete draft', 'Effacer le brouillon')}
         </Button>
         <Button variant="ghost" className="w-auto px-4" onClick={() => setOpen(false)}>
-          Fermer
+          {tr('Close', 'Fermer')}
         </Button>
       </div>
     </Card>

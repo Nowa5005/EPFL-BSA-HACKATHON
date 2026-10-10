@@ -49,6 +49,8 @@ const decode = (s: string) =>
     .replace(/&#822[01];/g, '"')
     .replace(/&#8211;/g, '–')
     .replace(/&#8212;/g, '—')
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/\s+/g, ' ')

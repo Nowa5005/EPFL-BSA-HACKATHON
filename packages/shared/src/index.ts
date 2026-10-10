@@ -9,3 +9,4 @@ export * from './recoveryCode';
 export * from './pricing';
 export * from './recipient';
 export * from './i18n';
+export * from './travelRule';

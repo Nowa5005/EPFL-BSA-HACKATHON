@@ -76,3 +76,9 @@ export async function fetchWalletRates(marketUrl = process.env.MARKET_URL ?? 'ht
   }
   return ratesCache.rates;
 }
+
+// ───────────── Request language (AsyncLocalStorage; set by the security guard from the x-lang header) ─────────────
+export * from './requestLang';
+
+// ───────────── Service authentication, CORS allow-list, CSRF defences ─────────────
+export * from './serverAuth';
