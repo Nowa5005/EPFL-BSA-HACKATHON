@@ -104,6 +104,9 @@ export async function cosignAndExecute(clientId: string, safeAddress: string, tx
 }
 
 export function shortErr(e: unknown): string {
-  const any = e as { shortMessage?: string; reason?: string; message?: string };
-  return any?.shortMessage ?? any?.reason ?? any?.message ?? String(e);
+  const any = e as { shortMessage?: string; reason?: string; message?: string; code?: string };
+  const msg = any?.shortMessage ?? any?.reason ?? any?.message ?? String(e);
+  if (any?.code === 'INSUFFICIENT_FUNDS' || /insufficient funds/i.test(msg))
+    return `Swissquote's gas relayer (${relayerAddress}) has no Sepolia ETH left — it must be refilled from a faucet.`;
+  return msg;
 }

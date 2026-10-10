@@ -19,7 +19,13 @@ export const HEADLESS_ALLOWED = (process.env.ALLOW_HEADLESS_CLIENTS ?? 'true') =
 
 const key = (clientId: string, purpose: string) => `${clientId}:${purpose}`;
 
-export async function registrationOptions(c: Client, deviceType: 'mobile' | 'desktop', recovery: boolean) {
+export async function registrationOptions(client: Client, deviceType: 'mobile' | 'desktop', recovery: boolean) {
+  let c = client;
+  // Onboarding restarted before the wallet existed: forget the unfinished device binding.
+  if (!recovery && !c.safeAddress && c.devices.length) {
+    db.update((d) => (d.clients[c.clientId].devices = []));
+    c = getClient(c.clientId);
+  }
   const active = c.devices.filter((d) => d.status === 'active');
   if (!recovery) {
     if (active.length >= POLICY.maxDevicesPerClient)

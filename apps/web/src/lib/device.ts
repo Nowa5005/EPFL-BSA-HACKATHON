@@ -1,7 +1,7 @@
 // Everything that lives ON THIS DEVICE: the encrypted device key K1 (ethers keystore / scrypt),
 // the passkey credential id, and the Swissquote session. K1 is only decrypted in memory.
 
-import { Wallet, type HDNodeWallet } from 'ethers';
+import { Wallet, encryptKeystoreJson, type HDNodeWallet } from 'ethers';
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
 import { cosigner } from './api';
 
@@ -82,7 +82,7 @@ export async function unlock(password: string, onProgress?: (p: number) => void)
 
 export async function encryptKey(w: Wallet | HDNodeWallet, password: string, onProgress?: (p: number) => void) {
   // scrypt N=2^16: strong enough for a demo while staying fast on a phone (prod: 2^17+ and Secure Enclave wrapping)
-  return w.encrypt(password, { scrypt: { N: 1 << 16 }, progressCallback: onProgress } as any);
+  return encryptKeystoreJson({ address: w.address, privateKey: w.privateKey }, password, { scrypt: { N: 1 << 16 }, progressCallback: onProgress });
 }
 
 export const guessDeviceType = (): 'mobile' | 'desktop' => (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'mobile' : 'desktop');
