@@ -7,6 +7,7 @@ import {
   USDC_ADDRESS,
   USDC_DECIMALS,
   buildSafeTx,
+  checkRecipient,
   missingBeneficiaryFields,
   usdcTransferData,
   type BeneficiaryInput,
@@ -129,6 +130,9 @@ export default function Send() {
   const review = async () => {
     setErr('');
     if (!isAddress(to)) return setErr(tr('Enter a valid Ethereum address (0x…).', 'Saisissez une adresse Ethereum valide (0x…).'));
+    const look = checkRecipient(to, contacts, getLang()); // #19 address poisoning: refused here and by the co-signer
+    if (look.status === 'lookalike')
+      return setErr(tr(`Refused: this address imitates the one saved for “${look.name}” (look-alike address — possible scam). Pick “${look.name}” from your contacts instead of copying an address.`, `Refusé : cette adresse imite celle enregistrée pour « ${look.name} » (adresse sosie — arnaque possible). Choisissez « ${look.name} » dans vos contacts au lieu de copier une adresse.`));
     if (!(Number(amount) >= 0)) return setErr(tr('Enter an amount.', 'Saisissez un montant.'));
     if (when === 'now') {
       if (!kind) return setErr(tr('Choose whether this is your own wallet or someone else’s wallet.', 'Indiquez s’il s’agit de votre propre wallet ou du wallet de quelqu’un d’autre.'));

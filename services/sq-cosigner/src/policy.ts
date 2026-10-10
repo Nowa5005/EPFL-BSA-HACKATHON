@@ -1,7 +1,7 @@
 // Policy engine: K2 only co-signs if every rule passes. Pure function → unit-tested.
 
 import { formatEther, formatUnits } from 'ethers';
-import { POLICY, USDC_DECIMALS, decodeSafeTx, short } from '@sq/shared';
+import { POLICY, TOKEN_SELECTORS, USDC_DECIMALS, checkRecipient, decodeSafeTx, isKnownToken, short } from '@sq/shared';
 import type { DecodedAction, Lang, PolicyCheck, PolicyResult, SafeTx } from '@sq/shared';
 
 // MOCK sanctions list (in production: Chainalysis / Elliptic / SECO+OFAC feeds).
@@ -39,6 +39,10 @@ export interface PolicyInput {
   now?: Date;
   /** Recovery flow (owner rotation) is handled by its own procedure, not by this engine. */
   allowSelfCall?: boolean;
+  /** #19 — unrecognised token contracts received by this wallet (on-chain indexer): any call to them is refused. */
+  unrecognisedTokens?: string[];
+  /** #19 — every saved contact (cooling-off included), with names: a look-alike of one of them is refused. */
+  lookalikeRefs?: { name: string; address: string }[];
 }
 
 export type PolicyRates = { ETH?: number; USDC?: number };
@@ -99,6 +103,33 @@ export function evaluatePolicy(input: PolicyInput): PolicyResult {
       ? ck('sanctions', 'fail', SAN, [`${short(hit)} is on a sanctions list (${SANCTIONED[hit]})`, `${short(hit)} figure sur une liste de sanctions (${SANCTIONED_FR[hit] ?? SANCTIONED[hit]})`])
       : ck('sanctions', 'pass', SAN, ['No match (simulated OFAC / SECO list)', 'Aucune correspondance (liste OFAC / SECO simulée)']),
   );
+
+  // 3b. #19 — Unrecognised tokens: no transfer, approval or arbitrary call on a contract outside the whitelist.
+  const target = lc(tx.to);
+  const selector = tx.data && tx.data !== '0x' ? tx.data.slice(0, 10).toLowerCase() : '';
+  const unknownTokenCall =
+    target !== lc(safeAddress) &&
+    !isKnownToken(target) &&
+    !DAPP_WHITELIST[target] &&
+    ((input.unrecognisedTokens ?? []).some((a) => lc(a) === target) || (!!selector && !!TOKEN_SELECTORS[selector]));
+  const TOK: Txt = ['Recognised tokens only', 'Jetons reconnus uniquement'];
+  if (unknownTokenCall)
+    add(ck('unknown-token', 'fail', TOK, [
+      `${short(target)} is not a recognised token: Swissquote never co-signs a transfer, approval or any call on it. Unknown tokens are often scams — leave them untouched (use “Ignore”).`,
+      `${short(target)} n’est pas un jeton reconnu : Swissquote ne co-signe jamais de transfert, d’autorisation ni d’appel sur ce contrat. Les jetons inconnus sont souvent des arnaques — n’y touchez pas (utilisez « Ignorer »).`,
+    ]));
+
+  // 3c. #19 — Address poisoning: never send to (or approve) a look-alike of a saved contact.
+  const counterpartyAddr = decoded.recipient ?? (isRevocation ? undefined : decoded.spender);
+  if (counterpartyAddr && input.lookalikeRefs?.length) {
+    const r = checkRecipient(counterpartyAddr, input.lookalikeRefs);
+    const LOOK: Txt = ['Not a look-alike of a contact', 'Pas un sosie d’un contact'];
+    if (r.status === 'lookalike')
+      add(ck('lookalike', 'fail', LOOK, [
+        `${short(counterpartyAddr)} looks like the address saved for “${r.name}” (${short(r.saved)}) but is different — a typical address-poisoning scam. Pick “${r.name}” from your contacts instead of copying an address from your history.`,
+        `${short(counterpartyAddr)} ressemble à l’adresse enregistrée pour « ${r.name} » (${short(r.saved)}) mais elle est différente — une arnaque typique par empoisonnement d’adresse. Choisissez « ${r.name} » dans vos contacts au lieu de copier une adresse depuis l’historique.`,
+      ]));
+  }
 
   // 4. Funds available on-chain
   let fundsOk = true;

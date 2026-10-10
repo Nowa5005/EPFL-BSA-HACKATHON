@@ -50,7 +50,7 @@ import { recordOpportunistic, registerSnapshotRoutes, startSnapshotTimer } from 
 import { applyTravelRule, recordPrepared, recordSubmitted, registerTravelRuleRoutes } from './travelRuleGlue';
 import { registerStatementRoutes } from './statements';
 import { confirmWalletTx, docIdOf, hasReceipt, referenceOf, simulateReceive, trackIncoming, upsertWalletTx, type WalletTx } from './walletTx';
-import { registerIndexerRoutes, startIndexer } from './indexer';
+import { registerIndexerRoutes, startIndexer, unrecognisedTokensOf } from './indexer';
 import {
   authOptionsForAction,
   authOptionsForHash,
@@ -368,6 +368,8 @@ async function analyse(c: Client, safeTx: SafeTx) {
     rates: valuation.rates,
     balances,
   });
+    unrecognisedTokens: unrecognisedTokensOf(c.clientId), // #19
+    lookalikeRefs: c.contacts, // #19 address poisoning
   const simulation = await simulateInner(c.safeAddress, safeTx);
   if (!simulation.success) {
     policy.checks.push({ id: 'simulation', label: 'Simulation on Ethereum', labelFr: 'Simulation sur Ethereum', status: 'fail', detail: simulation.error });

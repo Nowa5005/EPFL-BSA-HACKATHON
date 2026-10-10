@@ -7,6 +7,7 @@ import { Button, Card, dateTime, Notice, PageHeader, Skeleton, StatusPill, TxLin
 import { ConfirmedCard, PendingIndicator } from '../components/Confirm';
 import { counterparty, kindLabel, SignedAmount } from './TxList';
 import { MaskBar, useReveal } from './Reveal';
+import { isSuspicious, ScamExplanation } from './scam';
 import { tr } from '../lib/i18n';
 
 export default function TxDetail() {
@@ -18,7 +19,7 @@ export default function TxDetail() {
 
   if (error) return <Notice tone="bad" title={tr('Transaction not found', 'Transaction introuvable')}>{error}</Notice>;
   if (!t) return <Skeleton className="h-64" />;
-  const receipt = t.status === 'confirmed' ? buildReceipt(t, name) : null;
+  const receipt = t.status === 'confirmed' && !isSuspicious(t) ? buildReceipt(t, name) : null;
 
   return (
     <div className="lg:grid lg:grid-cols-12 lg:gap-6">
@@ -30,7 +31,8 @@ export default function TxDetail() {
             <SignedAmount t={t} className="text-[26px]" />
             <StatusPill status={t.status} />
           </div>
-          {t.status === 'confirmed' ? (
+          <ScamExplanation t={t} />
+          {t.status === 'confirmed' && isSuspicious(t) ? null : t.status === 'confirmed' ? (
             <ConfirmedCard tx={t} clientName={name} />
           ) : t.status === 'failed' ? (
             <Notice tone="bad" title={tr('Transaction failed', 'Transaction échouée')}>{t.error ?? tr('The transaction did not go through. Your funds have not moved.', 'La transaction n’a pas abouti. Vos fonds n’ont pas bougé.')}</Notice>
@@ -70,7 +72,7 @@ export default function TxDetail() {
             <p className="mt-2 text-[12px] text-sq-muted">{tr('The same document is in Swaplet → Documents.', 'Le même document figure dans Swaplet → Documents.')}</p>
           </>
         ) : (
-          <Card className="text-[14px] text-sq-muted">{tr('The receipt will be available as soon as the transaction is confirmed.', 'Le justificatif sera disponible dès la confirmation de la transaction.')}</Card>
+          <Card className="text-[14px] text-sq-muted">{isSuspicious(t) ? tr('No receipt for a suspicious transfer.', 'Pas de justificatif pour un transfert suspect.') : tr('The receipt will be available as soon as the transaction is confirmed.', 'Le justificatif sera disponible dès la confirmation de la transaction.')}</Card>
         )}
       </div>
     </div>

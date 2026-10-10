@@ -5,7 +5,7 @@ import type { WalletTxView } from '../lib/hooks';
 import { cx, dateTime, fmt, Skeleton, StatusPill } from '../components/ui';
 import { useMasked } from '../lib/prefs';
 import { tr } from '../lib/i18n';
-import { useReveal } from './Reveal';
+import { isSuspicious, ScamFlag } from './scam';
 
 export const kindLabel = (k: WalletTxView['kind']) => (k === 'receive' ? tr('Received', 'Réception') : k === 'send' ? tr('Sent', 'Envoi') : tr('Swap', 'Échange'));
 export const short = (a?: string) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '');
@@ -52,6 +52,7 @@ export function TxListCompact({ items, loading }: { items: WalletTxView[]; loadi
   if (!items.length) return <p className="py-6 text-center text-[14px] text-sq-muted">{tr('No transactions yet.', "Aucune transaction pour l'instant.")}</p>;
   return (
     <ul className="divide-y divide-sq-line">
+                <ScamFlag t={t} />
       {items.map((t) => (
         <li key={t.id}>
           <Link to={`/wallet/tx/${t.id}`} className="flex min-h-[64px] items-center gap-3 py-2.5 hover:bg-sq-bg/50">
@@ -103,7 +104,7 @@ export function TxTable({ items, clientName, loading }: { items: WalletTxView[];
               <Link to={`/wallet/tx/${t.id}`} className="font-medium hover:underline">
                 {kindLabel(t.kind)}
               </Link>
-              <span className="block text-[12px] text-sq-muted">{counterparty(t)}</span>
+              <span className="block text-[12px] text-sq-muted">{counterparty(t)} <ScamFlag t={t} /></span>
             </td>
             <td className="py-3 text-right">
               <SignedAmount t={t} />
@@ -112,8 +113,8 @@ export function TxTable({ items, clientName, loading }: { items: WalletTxView[];
               <StatusPill status={t.status} />
             </td>
             <td className="py-3 text-right">
-              {t.status === 'confirmed' ? (
-                <button type="button" onClick={() => void download(t)} className="inline-flex size-10 items-center justify-center rounded-full hover:bg-sq-chip/60" aria-label={reveal.masked ? tr(`Download receipt ${t.reference} (shows amounts: passkey verification first)`, `Télécharger le justificatif ${t.reference} (affiche les montants : vérification par passkey d’abord)`) : tr(`Download receipt ${t.reference}`, `Télécharger le justificatif ${t.reference}`)}>
+              {t.status === 'confirmed' && !isSuspicious(t) ? (
+                <button type="button" onClick={() => void download(t)} className="inline-flex size-10 items-center justify-center rounded-full hover:bg-sq-chip/60" aria-label={tr(`Download receipt ${t.reference}`, `Télécharger le justificatif ${t.reference}`)}>
                   <Download size={18} strokeWidth={1.75} />
                 </button>
               ) : (

@@ -8,6 +8,7 @@ import { useMasked } from '../lib/prefs';
 import { tr } from '../lib/i18n';
 import { fmtChf, RateNote, valueOf, type Rates, type WalletAsset } from '../lib/valuation';
 import { Card, cx, fmt, MockBadge } from '../components/ui';
+import { UnrecognisedTokens } from './scam';
 
 export interface Holding {
   key: string;
@@ -89,6 +90,7 @@ export function CryptoList({ onchain, rates, ratesLoading }: { onchain: any; rat
           );
         })}
       </ul>
+      <UnrecognisedTokens />
       <p className="mt-2 text-[11px] text-sq-muted">
         {tr(
           'Testnet assets (no real value) are valued at the market price of the mainnet asset, for illustration. Arrows show the market price change over 24 h, not your return.',

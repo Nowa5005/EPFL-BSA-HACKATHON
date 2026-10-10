@@ -3,7 +3,7 @@
 // calldata is EXACTLY the canonical encoding of what it decoded (no trailing bytes, no alternative forms).
 
 import { ZeroAddress, getAddress, isAddress } from 'ethers';
-import { USDC_ADDRESS, erc20Iface, safeIface, type SafeTx } from '@sq/shared';
+import { TOKEN_SELECTORS, USDC_ADDRESS, erc20Iface, safeIface, type SafeTx } from '@sq/shared';
 import { t } from '@sq/shared/server';
 import { HttpError } from './db';
 
@@ -91,5 +91,11 @@ export function validateSafeTx(raw: SafeTx, safeAddress: string, opts: { allowOw
     return { kind: 'swap-owner', prevOwner: getAddress(args[0]), oldOwner: getAddress(args[1]), newOwner: getAddress(args[2]) };
   }
 
+  // #19 — a token-style call (transfer, approve, permit…) on a contract outside the whitelist: an unrecognised token.
+  if (TOKEN_SELECTORS[selector])
+    throw bad(
+      `unrecognised token (${tx.to.slice(0, 6)}…${tx.to.slice(-4)}): Swissquote never co-signs a transfer, approval or call on a token outside its list. Unknown tokens are often scams — leave them untouched.`,
+      `jeton non reconnu (${tx.to.slice(0, 6)}…${tx.to.slice(-4)}) : Swissquote ne co-signe jamais de transfert, d’autorisation ni d’appel sur un jeton hors de sa liste. Les jetons inconnus sont souvent des arnaques — n’y touchez pas.`,
+    );
   throw bad('unrecognised operation (unsupported contract or function)', 'opération non reconnue (contrat ou fonction non pris en charge)');
 }
