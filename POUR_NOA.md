@@ -88,3 +88,17 @@ Merci ! Création → signature → attaquant refusé → récupération → anc
 
 **2. Tester Touch ID** : lance la démo (voir « Comment lancer la démo » plus haut), clique « Create my wallet » puis « Create passkey », et pose ton doigt. 
 **Comment me répondre :** tape `touch id ok`, ou copie le message d'erreur affiché.
+
+---
+
+## ✅ USDC reçus — l'interface complète marche sur le vrai Sepolia — 15:50
+
+La trésorerie a reçu 20 USDC. J'ai fait tourner **toute l'interface** sur la vraie blockchain de test avec un Touch ID simulé : création, envoi, contrôle renforcé + validation admin, refus sanction, dApps, attaquant, récupération. Tout passe (liens dans le README). La trésorerie a encore 19.5 USDC : le script de démo est adapté à ce montant.
+
+La démo est **remise à zéro et lancée** : ouvre http://localhost:5173 (utilisateur `alice`). Un 2e client fictif `bruno` existe aussi.
+
+## [NON BLOQUANT] Dernière vérification : Touch ID — 15:50
+1. Dans Chrome, va sur http://localhost:5173 (recharge la page si elle était déjà ouverte).
+2. « Sign in » → « Create my wallet » → « Create passkey » → pose ton doigt sur Touch ID.
+3. Continue jusqu'au kit de récupération (télécharge les 2 fichiers et garde-les : ils servent pour la démo « Swissquote disparaît »).
+**Comment me répondre :** tape `touch id ok`, ou copie-colle le message d'erreur affiché.
