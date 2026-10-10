@@ -148,3 +148,8 @@ Les clés de Swissquote (relayer et co-signataire) sont maintenant **chiffrées*
 
 ## ✅ Blocage « 1 ordinateur + 1 téléphone » à la connexion corrigé — 19:45
 Si un wallet existe déjà pour ton client mais pas sur ton navigateur, My Wall ne tente plus une nouvelle activation (qui était refusée par la règle des appareils). Il affiche « Votre wallet existe déjà » avec deux choix : **Restaurer mon wallet sur cet appareil** (ne compte pas comme un appareil en plus) ou **Démo : recommencer l’activation à zéro**. La règle reste appliquée quand on lie un appareil supplémentaire (Paramètres). J’ai aussi remis toute la démo à zéro : connecte-toi avec `alice` et clique « Mon wallet ».
+
+---
+
+## ✅ « Client inconnu » à la création de la passkey corrigé — 20:10
+Cause : la remise à zéro de la démo avait effacé ton client côté serveur, alors que ton navigateur te gardait connectée. My Wall ré-enregistre maintenant ton client automatiquement (au chargement de la page et juste avant de créer la passkey). Rien à faire : recharge la page et clique « Créer la passkey », Touch ID doit s’afficher.

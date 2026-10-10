@@ -166,6 +166,9 @@ export const deviceLabel = () => {
 
 /** Creates the passkey (Touch ID / Face ID) — device binding. */
 export async function registerPasskey(clientId: string, deviceType: 'mobile' | 'desktop', recoveryAttestationId?: string) {
+  // The session may outlive a demo reset of the services: make sure the co-signer knows the client (idempotent).
+  const profile = getSession()?.profile;
+  if (profile) await cosigner.post('/clients', { clientId, name: profile.name ?? clientId, email: profile.email ?? `${clientId}@example.ch` });
   const options = await cosigner.post('/webauthn/register/options', { clientId, deviceType, recoveryAttestationId });
   const response = await startRegistration({ optionsJSON: options });
   return cosigner.post<{ credentialId: string; status: string }>('/webauthn/register/verify', {
