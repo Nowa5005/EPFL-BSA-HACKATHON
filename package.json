@@ -24,7 +24,7 @@
     "app:android": "npm run app:android -w @sq/mobile",
     "app:preview": "npm run app:preview -w @sq/mobile",
     "app:doctor": "npm run app:doctor -w @sq/mobile",
-    "e2e": "tsx scripts/e2e-demo.ts",
+    "e2e": "tsx scripts/e2e-demo.ts && tsx scripts/e2e-protection.ts",
     "escape-hatch": "tsx scripts/escape-hatch.ts",
     "fund-check": "tsx scripts/fund-check.ts",
     "check-bind": "tsx scripts/check-bind.ts",

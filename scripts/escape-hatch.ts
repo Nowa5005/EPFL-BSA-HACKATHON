@@ -15,7 +15,11 @@
 //   npm run escape-hatch -- --device-key <my-wall-device-key-backup-*.json> --paper <recovery code, or a .txt file containing it>
 //                           (--security-key <part.json> --prf-output <…> | --offline <file.json>) --to <destination address>
 //   Device-key password: asked interactively (or ESCAPE_PASSWORD).
-//   Gas: paid by the device key's own address (it needs ~0.001 Sepolia ETH, from any source), or by GAS_PAYER_KEY.
+//   Gas: paid by GAS_PAYER_KEY, else by the recovery key's address when it holds the emergency gas reserve deposited at
+//        wallet creation, else by the device key's own address (~0.001 Sepolia ETH from any source).
+//   Protected wallet (MyWallGuard): K1 + K3 cannot move funds directly — each withdrawal is QUEUED in the delay module
+//   D1 and executed after its cooldown (2 min demo / 48 h production). The script waits when the delay is short;
+//   otherwise re-run it later with --execute to execute the ready withdrawals (anyone can execute them).
 
 import fs from 'node:fs';
 import readline from 'node:readline';
@@ -40,6 +44,7 @@ import {
   signSafeTx,
   usdcTransferData,
 } from '@sq/shared';
+import { DELAY_ABI, queueInD1SafeTx, readDelayQueue, readProtection } from '@sq/shared/protection';
 
 const arg = (name: string) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -118,12 +123,61 @@ async function main() {
   const [usdcBal, ethBal] = await Promise.all([usdc.balanceOf(safeAddress) as Promise<bigint>, provider.getBalance(safeAddress)]);
   console.log(`  wallet holds ${formatUnits(usdcBal, USDC_DECIMALS)} USDC and ${formatEther(ethBal)} ETH`);
 
-  const payer = process.env.GAS_PAYER_KEY ? new Wallet(process.env.GAS_PAYER_KEY, provider) : k1.connect(provider);
+  const k3Reserve = await provider.getBalance(k3.address);
+  const payer = process.env.GAS_PAYER_KEY ? new Wallet(process.env.GAS_PAYER_KEY, provider) : k3Reserve > 0n ? k3.connect(provider) : k1.connect(provider);
+  if (!process.env.GAS_PAYER_KEY && k3Reserve > 0n) console.log(`⛽ gas paid from the emergency reserve on the recovery key (${formatEther(k3Reserve)} ETH)`);
   const payerBal = await provider.getBalance(payer.address);
   if (payerBal === 0n) {
     console.log(`\n⛽ The gas payer ${payer.address} has no Sepolia ETH.`);
     console.log('   Without Swissquote nobody sponsors fees: send ~0.001 Sepolia ETH to this address from any source, then re-run.');
     process.exit(2);
+  }
+
+  // Protected wallet: queue in D1 (K1 + K3), then execute after the on-chain cooldown.
+  const protection = await readProtection(provider, safeAddress);
+  const d1 = protection.config?.d1;
+  if (d1) {
+    const delay = new Contract(d1, DELAY_ABI, payer);
+    const executeReady = async () => {
+      const q = await readDelayQueue(provider, d1, { withTxs: true });
+      for (const p of q.pending) {
+        if (p.status === 'cooldown') {
+          const wait = p.executableAt - Math.floor(Date.now() / 1000) + 3;
+          if (wait > 600) {
+            console.log(`\n⏳ Withdrawal #${p.index} executable at ${new Date(p.executableAt * 1000).toISOString()} — re-run with --execute after that time.`);
+            return false;
+          }
+          console.log(`  waiting ${wait}s for the on-chain delay of withdrawal #${p.index}…`);
+          await new Promise((r) => setTimeout(r, wait * 1000));
+        }
+        if (p.status === 'expired' || !p.tx) continue;
+        const sent = await delay.executeNextTx(p.tx.to, BigInt(p.tx.value), p.tx.data, p.tx.operation);
+        console.log(`  executed #${p.index}: ${explorerTx(sent.hash)}`);
+        await sent.wait();
+      }
+      return true;
+    };
+    if (process.argv.includes('--execute')) {
+      if (await executeReady()) console.log(`\n✅ Done — funds moved without Swissquote. Wallet: ${explorerAddress(safeAddress)}`);
+      return;
+    }
+    console.log(`\n🛡  Protected wallet: withdrawals are queued in the delay module D1 (${d1}) — the client can still cancel them during the delay.`);
+    const queue = async (label: string, txData: { to: string; value?: bigint; data?: string }) => {
+      const tx = queueInD1SafeTx(d1, { to: txData.to, value: txData.value ?? 0n, data: txData.data ?? '0x' }, await safe.nonce());
+      const sigs = packSignatures([
+        { signer: k1.address, signature: await signSafeTx(k1, safeAddress, tx) },
+        { signer: k3.address, signature: await signSafeTx(k3, safeAddress, tx) },
+      ]);
+      const sent = await safeContract(safeAddress, payer).execTransaction(...execArgs(tx, sigs));
+      console.log(`  queued ${label}: ${explorerTx(sent.hash)}`);
+      const rc = await sent.wait();
+      if (!rc || rc.status !== 1) throw new Error(`${label} failed`);
+    };
+    if (usdcBal > 0n) await queue(`${formatUnits(usdcBal, USDC_DECIMALS)} USDC`, { to: USDC_ADDRESS, data: usdcTransferData(to, usdcBal) });
+    if (ethBal > 0n) await queue(`${formatEther(ethBal)} ETH`, { to, value: ethBal });
+    if (usdcBal === 0n && ethBal === 0n) await queue('proof transaction (0 ETH, wallet empty)', { to, value: 0n });
+    if (await executeReady()) console.log(`\n✅ Done — funds moved without Swissquote (after the on-chain delay). Wallet: ${explorerAddress(safeAddress)}`);
+    return;
   }
 
   const send = async (label: string, txData: { to: string; value?: bigint; data?: string }) => {

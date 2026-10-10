@@ -41,6 +41,7 @@ import {
   estimateFees,
 } from './chain';
 import { validateSafeTx } from './validate';
+import { executeProtectedRecovery, isProtectedRecovery, isProtectedWallet, onRecoveryCancelled, protectedRecoveryRequest, registerProtectionRoutes } from './protection';
 import { consumePreview, createPreview } from './previews';
 import { verifyBackupCode } from './backupCode';
 import { effectiveTier, registerFeatureRoutes, tickScheduled } from './features';
@@ -739,6 +740,8 @@ app.post(
     const c = getClient(clientId);
     if (!c.safeAddress || !c.owners) throw new HttpError(400, t('Wallet not opened yet', 'Wallet pas encore ouvert'));
     const att = await checkAttestation(partnerAttestationId, c);
+    // Protected wallet (MyWallGuard): K3 + K2 can no longer swap directly — the swap is queued in D1 (on-chain delay).
+    if (await isProtectedWallet(c)) return protectedRecoveryRequest({ c, riskScore: att.riskScore, safeTx, signatureK3, partnerAttestationId, newCredentialId, serverDelaySec: RECOVERY_DELAY_SEC });
     const state = await safeState(c.safeAddress);
     // Must be swapOwner(prev, currentDevice, newDevice) on this Safe
     if (safeTx.to.toLowerCase() !== c.safeAddress.toLowerCase() || safeTx.operation !== 0 || BigInt(safeTx.value) !== 0n)
@@ -822,6 +825,7 @@ app.post(
         `Récupération annulée par le client (${req.body?.by ?? 'compte Swissquote'}). Rien n'a changé sur la blockchain.`,
       ),
     });
+    onRecoveryCancelled(r.id);
     return db.data.recoveries[r.id];
   }),
 );
@@ -846,6 +850,7 @@ app.post(
 );
 
 async function executeRecovery(id: string) {
+  if (isProtectedRecovery(id)) return executeProtectedRecovery(id); // queued in D1: executeNextTx after the on-chain cooldown
   const r = db.data.recoveries[id];
   db.update((d) => (d.recoveries[id].status = 'executing'));
   try {
@@ -923,12 +928,13 @@ registerTrpRoutes(app, route); // #9 public Travel Rule identity
 registerDuressRoutes(app, route); // #16 duress code (decoy + silent freeze + console alert) and protective limits
 registerStatementRoutes(app, route);
 registerSnapshotRoutes(app, route);
+registerProtectionRoutes(app, route);
 registerRecoveryKitRoutes(app, route); // recovery key part ② (security-key ciphertext) + recovery-key rotation
 startSnapshotTimer();
-
-// ───────────────────────────── Inbox & activity ─────────────────────────────
 registerIndexerRoutes(app, route); // #3 / #19: on-chain receipts + unrecognised tokens
 startIndexer();
+
+// ───────────────────────────── Inbox & activity ─────────────────────────────
 app.get('/clients/:id/inbox', route((req) => db.data.inbox.filter((m) => m.clientId === req.params.id).slice(-100).reverse()));
 app.get('/clients/:id/activity', route((req) => db.data.activity.filter((e) => e.clientId === req.params.id).slice(-200).reverse()));
 
@@ -946,9 +952,9 @@ app.post(
       for (const k of Object.keys(d.documents ?? {})) if (d.documents![k].clientId === id) delete d.documents![k];
       for (const k of Object.keys(d.scheduled ?? {})) if (d.scheduled![k].clientId === id) delete d.scheduled![k];
       if (d.snapshots) delete d.snapshots[id];
+      if (d.tokenSightings) delete d.tokenSightings[id];
       d.activity = d.activity.filter((e) => e.clientId !== id);
       d.inbox = d.inbox.filter((m) => m.clientId !== id);
-      if (d.tokenSightings) delete d.tokenSightings[id];
     });
     console.log(`[cosigner] demo reset of client ${id}`);
     return { reset: true };

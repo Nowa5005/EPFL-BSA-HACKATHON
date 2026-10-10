@@ -33,6 +33,7 @@ import { createPreview, consumePreview } from './previews';
 import { validateProtectionBatch, validateRecoveryQueue, validateVeto } from './validate';
 import { authOptionsForHash, verifyAssertion } from './webauthn';
 import { verifyBackupCode } from './backupCode';
+import { registerIndexerEvent } from './indexer';
 
 const num = (k: string, d: number) => (process.env[k] !== undefined && process.env[k] !== '' ? Number(process.env[k]) : d);
 /** Demo delays (env-overridable). Production: D1 48 h / 7 d, D2 30 d / 30 d, D3 ~6 months (PROTECTION_PROD_DELAYS). */
@@ -146,6 +147,20 @@ async function depositReserve(c: Client) {
     if (!rc || rc.status !== 1) throw new Error('reserve transfer failed');
     return { txHash: sent.hash, wei: (GAS_RESERVE_WEI - bal).toString() };
   });
+}
+
+/** After a recovery-key rotation (K3 → K3′): the reserve is deposited again on K3′ (best effort, logged). */
+export async function refundReserveAfterRotation(clientId: string) {
+  try {
+    const c = getClient(clientId);
+    if (!store.data.wallets[clientId]) return; // only wallets that received a reserve at protection time
+    const r = await depositReserve(c);
+    if (!r) return;
+    store.update((d) => Object.assign(d.wallets[clientId], { reserveTxHash: r.txHash, reserveWei: r.wei }));
+    logActivity({ clientId, actor: 'swissquote', type: 'protection.reserve', message: both(`Emergency gas reserve (${formatEther(r.wei)} ETH) deposited on your new recovery key's address`, `Réserve de gas d’urgence (${formatEther(r.wei)} ETH) déposée sur l’adresse de votre nouvelle clé de secours`), txHash: r.txHash });
+  } catch (e) {
+    console.warn(`[protection] reserve refund after rotation failed: ${shortErr(e)}`);
+  }
 }
 
 // ───────────────────────────── recovery (protected wallets) ─────────────────────────────
@@ -309,9 +324,49 @@ export function onRecoveryCancelled(id: string) {
   });
 }
 
+// ───────────────────────────── alerts (indexer) ─────────────────────────────
+
+const clientOfDelay = (addr: string) => Object.entries(store.data.wallets).find(([, w]) => [w.d1, w.d2, w.d3].some((d) => d && d.toLowerCase() === addr.toLowerCase()));
+
+/** Every queueing in D1/D2 → immediate alert to the client (veto) and to compliance; every module execution → review. */
+function registerProtectionEvents() {
+  registerIndexerEvent({
+    id: 'delay-transaction-added',
+    topics: [PROTECTION_EVENTS.TransactionAdded],
+    addresses: (safes) => safes.flatMap(({ clientId }) => { const w = store.data.wallets[clientId]; return w ? [w.d1, w.d2, ...(w.d3 ? [w.d3] : [])] : []; }),
+    handle: (log, ctx) => {
+      const found = clientOfDelay(log.address);
+      if (!found) return;
+      const [clientId, w] = found;
+      const module = log.address.toLowerCase() === w.d1.toLowerCase() ? 'D1' : log.address.toLowerCase() === w.d2.toLowerCase() ? 'D2' : 'D3';
+      const index = Number(BigInt(log.topics[1]));
+      logActivity({ clientId, actor: 'system', type: 'protection.queued', message: both(`Protected operation #${index} queued in ${module} — compliance review; the client can cancel it (veto)`, `Opération protégée n°${index} mise en file dans ${module} — revue conformité ; le client peut l’annuler (veto)`), txHash: log.transactionHash, data: { module, index, delay: log.address } });
+      if (ctx.backfilled) return;
+      for (const channel of ['email', 'app'] as const)
+        notify({
+          clientId,
+          channel,
+          subject: both('A protected operation is pending on your wallet', 'Une opération protégée est en attente sur votre wallet'),
+          body: both(`An operation was queued in your wallet's delay module ${module}. If it wasn't you, cancel it now in Security (Cancel it). ${explorerTx(log.transactionHash)}`, `Une opération a été mise en file dans le module de délai ${module} de votre wallet. Si ce n'est pas vous, annulez-la maintenant dans Sécurité (L’annuler). ${explorerTx(log.transactionHash)}`),
+        });
+    },
+  });
+  registerIndexerEvent({
+    id: 'safe-execution-from-module',
+    topics: [PROTECTION_EVENTS.ExecutionFromModuleSuccess],
+    addresses: (safes) => safes.filter(({ clientId }) => store.data.wallets[clientId]).map(({ safe }) => safe),
+    handle: (log) => {
+      const entry = Object.entries(store.data.wallets).find(([, w]) => w.safeAddress.toLowerCase() === log.address.toLowerCase());
+      if (!entry) return;
+      logActivity({ clientId: entry[0], actor: 'system', type: 'protection.module-executed', message: both('Operation executed from a delay module, without Swissquote co-signature at execution — compliance review', 'Opération exécutée depuis un module de délai, sans co-signature Swissquote à l’exécution — revue conformité'), txHash: log.transactionHash });
+    },
+  });
+}
+
 // ───────────────────────────── routes ─────────────────────────────
 
 export function registerProtectionRoutes(app: Express, route: Route) {
+  registerProtectionEvents();
   app.get('/clients/:id/protection', route(async (req) => walletProtection(getClient(String(req.params.id)))));
 
   /** Builds the canonical K1 + K2 setup batch (new wallet right after deployment, or "Upgrade wallet security"). */

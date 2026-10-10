@@ -77,8 +77,8 @@ const errText = (e: any): string => [e?.reason, e?.shortMessage, e?.info?.error?
 /** Public RPC nodes lag: read the Safe nonce until it reaches at least `min`. */
 async function nonceAtLeast(safe: string, min = 0n) {
   for (let i = 0; i < 20; i++) {
-    const n: bigint = await safeContract(safe, provider).nonce();
-    if (n >= min) return n;
+    const n: bigint | null = await safeContract(safe, provider).nonce().catch(() => null); // not visible yet on this node
+    if (n !== null && n >= min) return n;
     await sleep(2000);
   }
   throw new Error('RPC lagging behind');

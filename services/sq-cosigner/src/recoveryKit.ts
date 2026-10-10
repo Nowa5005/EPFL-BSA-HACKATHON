@@ -21,6 +21,7 @@ import { validateSafeTx } from './validate';
 import { DELAY_ABI, SAFE_MULTISEND_CALL_ONLY, readProtection } from '@sq/shared/protection';
 import { MODULE_SENTINEL, buildRecoveryKeyRotation, type RotationProtection } from './recoveryRotation';
 import { authOptionsForHash, verifyAssertion } from './webauthn';
+import { refundReserveAfterRotation } from './protection';
 
 const PARTNER_URL = process.env.PARTNER_URL ?? SERVICE_URLS.partner;
 const ROTATION_TTL_MS = 10 * 60_000;
@@ -191,6 +192,8 @@ export function registerRecoveryKitRoutes(app: Express, route: Route) {
         throw new HttpError(502, t(`Execution failed: ${shortErr(e)}`, `L'exécution a échoué : ${shortErr(e)}`));
       });
       db.update((d) => (d.clients[c.clientId].owners!.recovery = rot.newRecoveryAddress));
+      // Emergency gas reserve follows the recovery key (the old reserve stays on the retired K3 address).
+      void refundReserveAfterRotation(c.clientId);
       kitStore.update((d) => {
         const k = d.clients[c.clientId];
         k.share2 = entry;
