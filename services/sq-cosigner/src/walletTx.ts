@@ -37,6 +37,15 @@ export interface WalletTx {
   /** Indicative CHF price captured when the tx was confirmed (market-data service). Absent = not captured:
    *  receipts then say "CHF value unavailable" instead of applying today's price to an old transaction. */
   valuation?: { chf: number; asOf: string; provider: string };
+  /** On-chain indexer (#3): log index of the receipt (idempotency key txHash:logIndex) and docId suffix when one
+   *  transaction carries several receipts to the same wallet. */
+  logIndex?: number;
+  docSuffix?: string;
+  /** Detected by the indexer while catching up (older than the live window): no notification / animation. */
+  backfilled?: boolean;
+  /** #19 warnings: look-alike of a known address (address poisoning), zero-value or dust transfer. */
+  flags?: ('lookalike' | 'zero-value' | 'dust')[];
+  lookalikeOf?: { name?: string; address: string };
 }
 
 export interface DocumentEntry {
@@ -47,7 +56,9 @@ export interface DocumentEntry {
   createdAt: string;
 }
 
-export const docIdOf = (t: WalletTx) => `${t.kind}:${t.txHash ?? t.id}`;
+export const docIdOf = (t: WalletTx) => `${t.kind}:${t.txHash ?? t.id}${t.docSuffix ?? ''}`;
+/** Suspicious rows (look-alike sender, zero-value transfer) get no receipt document. */
+export const hasReceipt = (t: WalletTx) => !t.flags?.some((f) => f === 'lookalike' || f === 'zero-value');
 export const referenceOf = (t: WalletTx) => {
   const d = (t.confirmedAt ?? t.createdAt).slice(0, 10).replace(/-/g, '');
   const tag = (t.txHash ?? t.id).replace(/^0x/, '').replace(/-/g, '').slice(0, 8);
@@ -65,7 +76,7 @@ export function upsertWalletTx(t: Partial<WalletTx> & { id?: string; clientId: s
       : ({ id: t.id ?? newId(), createdAt: now, updatedAt: now, feesSponsored: false, source: 'wallet', status: 'detected', ...stripUndefined(t) } as WalletTx);
     if (merged.status === 'confirmed' && !merged.confirmedAt) merged.confirmedAt = now;
     d.walletTxs[merged.id] = merged;
-    if (merged.status === 'confirmed') upsertDocument(d, merged);
+    if (merged.status === 'confirmed' && hasReceipt(merged)) upsertDocument(d, merged);
     if (merged.status === 'confirmed' && !merged.valuation && !merged.simulated) void captureValuation(merged.id);
     return merged;
   });

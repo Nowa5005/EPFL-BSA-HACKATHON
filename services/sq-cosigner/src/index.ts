@@ -49,7 +49,8 @@ import { feeChf, policyRates } from './rates';
 import { recordOpportunistic, registerSnapshotRoutes, startSnapshotTimer } from './snapshots';
 import { applyTravelRule, recordPrepared, recordSubmitted, registerTravelRuleRoutes } from './travelRuleGlue';
 import { registerStatementRoutes } from './statements';
-import { confirmWalletTx, docIdOf, referenceOf, simulateReceive, trackIncoming, upsertWalletTx, type WalletTx } from './walletTx';
+import { confirmWalletTx, docIdOf, hasReceipt, referenceOf, simulateReceive, trackIncoming, upsertWalletTx, type WalletTx } from './walletTx';
+import { registerIndexerRoutes, startIndexer } from './indexer';
 import {
   authOptionsForAction,
   authOptionsForHash,
@@ -858,7 +859,7 @@ async function executeRecovery(id: string) {
 }
 
 // ───────────────────────────── Wallet transactions & receipts ─────────────────────────────
-const txWithDoc = (t: WalletTx) => ({ ...t, docId: t.status === 'confirmed' ? docIdOf(t) : undefined, reference: referenceOf(t), explorer: t.txHash ? explorerTx(t.txHash) : undefined });
+const txWithDoc = (t: WalletTx) => ({ ...t, docId: t.status === 'confirmed' && hasReceipt(t) ? docIdOf(t) : undefined, reference: referenceOf(t), explorer: t.txHash ? explorerTx(t.txHash) : undefined });
 
 app.get('/clients/:id/wallet-txs', route((req) =>
   Object.values(db.data.walletTxs ?? {})
@@ -909,6 +910,8 @@ registerSnapshotRoutes(app, route);
 startSnapshotTimer();
 
 // ───────────────────────────── Inbox & activity ─────────────────────────────
+registerIndexerRoutes(app, route); // #3 / #19: on-chain receipts + unrecognised tokens
+startIndexer();
 app.get('/clients/:id/inbox', route((req) => db.data.inbox.filter((m) => m.clientId === req.params.id).slice(-100).reverse()));
 app.get('/clients/:id/activity', route((req) => db.data.activity.filter((e) => e.clientId === req.params.id).slice(-200).reverse()));
 
@@ -928,6 +931,7 @@ app.post(
       if (d.snapshots) delete d.snapshots[id];
       d.activity = d.activity.filter((e) => e.clientId !== id);
       d.inbox = d.inbox.filter((m) => m.clientId !== id);
+      if (d.tokenSightings) delete d.tokenSightings[id];
     });
     console.log(`[cosigner] demo reset of client ${id}`);
     return { reset: true };
@@ -952,6 +956,7 @@ app.post(
       d.snapshots = {};
     });
     console.log('[cosigner] demo state reset');
+      d.tokenSightings = {};
     return { reset: true };
   }),
 );

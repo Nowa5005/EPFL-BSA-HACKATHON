@@ -30,6 +30,7 @@ const provider = makeProvider();
 const C = SERVICE_URLS.cosigner;
 const P = SERVICE_URLS.partner;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+import { externalReceiptStep } from './e2e-external-receipt';
 const step = (n: number | string, t: string) => console.log(`\n\x1b[1m\x1b[34m[${n}] ${t}\x1b[0m`);
 const ok = (t: string) => console.log(`  \x1b[32m✔\x1b[0m ${t}`);
 const info = (t: string) => console.log(`  ${t}`);
@@ -215,4 +216,7 @@ main().catch((e) => {
   console.error(`\n\x1b[31m❌ E2E FAILED: ${e.message}\x1b[0m`);
   process.exit(1);
 });
+
+  step('5b', 'EXTERNAL RECEIPT — a third party pays the Safe directly; the on-chain indexer records row + receipt (#3)');
+  await externalReceiptStep({ provider, clientId, safe, call, ok, info });
 

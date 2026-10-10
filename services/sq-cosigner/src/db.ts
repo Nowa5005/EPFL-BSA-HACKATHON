@@ -164,6 +164,10 @@ export interface Db {
   travelRuleAudit?: import('./travelRule').TravelRuleAudit[];
   /** Recorded portfolio snapshots per client (see snapshots.ts). */
   snapshots?: Record<string, import('./snapshots').Snapshot[]>;
+  /** On-chain indexer state (#3): per-Safe block cursor, idempotency keys txHash:logIndex, pending receipts. */
+  indexer?: import('./indexer').IndexerState;
+  /** Unrecognised tokens received per client (#19) — never valued, never interacted with. */
+  tokenSightings?: Record<string, Record<string, import('./indexer').TokenSighting>>;
 }
 
 export const db = new JsonStore<Db>(DATA_DIR, 'db', () => ({

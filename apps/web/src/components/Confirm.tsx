@@ -94,7 +94,8 @@ export function ConfirmationLayer() {
     }
     for (const t of recv) {
       const before = seen.current.get(t.id);
-      if (t.status === 'confirmed' && before !== 'confirmed') setShown(t);
+      // Indexer catch-up rows (backfilled) and suspicious transfers (#19) never trigger the confirmation animation.
+      if (t.status === 'confirmed' && before !== 'confirmed' && !t.backfilled && !t.flags?.length) setShown(t);
       seen.current.set(t.id, t.status);
     }
   }, [data]);

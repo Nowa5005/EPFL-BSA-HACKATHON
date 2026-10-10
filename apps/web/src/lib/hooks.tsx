@@ -81,6 +81,10 @@ export interface WalletTxView {
   error?: string;
   /** Indicative CHF price captured at confirmation (absent → "CHF value unavailable" on receipts). */
   valuation?: { chf: number; asOf: string; provider: string };
+  /** On-chain indexer (#3/#19): caught up from older blocks (no animation), warning flags, imitated address. */
+  backfilled?: boolean;
+  flags?: ('lookalike' | 'zero-value' | 'dust')[];
+  lookalikeOf?: { name?: string; address: string };
 }
 
 export function useWalletTxs(ms = 4000) {
