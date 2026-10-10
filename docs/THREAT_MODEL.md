@@ -123,3 +123,21 @@ Limits: the PRF credential is bound to the web domain (RP ID: `localhost` in the
   blocked by the freeze — the attacker would also need the paper code and the security key. Reloading the page ends
   the decoy (back to the unlock screen).
 
+
+## 9. On-chain protection — guard + delay modules (#5 #6 #7 #8 #13, Phase B)
+
+Full description: [ONCHAIN_PROTECTION.md](ONCHAIN_PROTECTION.md). `MyWallGuard` (custom, **not audited**) + official Zodiac Delay modules.
+
+| Threat | Before | Now |
+|---|---|---|
+| Two keys stolen (e.g. K2 + K3, or K1 + K3) | Immediate theft possible | Direct transaction **reverted by the guard**; only a queue in D1 (48 h prod) with alert + veto by the client |
+| Swissquote + recovery partner collude | Already impossible (partner holds 1 of 3 parts of K3) | Unchanged, and even a reconstructed K3 + K2 is delayed and vetoable |
+| Recovery delay bypassed by a rogue Swissquote server | Delay only off-chain | Delay **on-chain** (D1); the server delay remains as a complement |
+| Device lost AND Swissquote gone | Not possible | K3 alone through D2 (30 days prod), vetoable |
+| Swissquote blocks an exit | Escape hatch K1 + K3 (immediate) | Still guaranteed, with 48 h notice (D1) — Swissquote can delay, never block |
+| Configuration tampering (remove the guard, shorten a delay, add an owner/module) without K1 + K2 | — | Refused directly; only through D1 (48 h, veto) |
+| Wallet drained through gas refunds by two stolen keys | Refund parameters refused by K2 only | Refused on-chain for any pair other than K1 + K2 |
+
+Residual risks: guard not audited; an attacker with two keys can veto (block) the client's own queued exit but not steal;
+FIFO queue can be stalled by a failing item until vetoed/expired; after the D1 delay any two owners can change
+everything (by design, with notice); the off-chain inbox "cancel" is not binding on-chain — the veto (K1 + K2) is.

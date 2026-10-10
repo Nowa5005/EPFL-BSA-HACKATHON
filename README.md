@@ -22,7 +22,8 @@ On first start the services generate their keys and print the **relayer address*
 | Command | What it does |
 |---|---|
 | `npm run dev` | Starts `sq-cosigner` (:4001), `recovery-partner` (:4002), `sq-bank` (:4003) and the web app (:5173) |
-| `npm run e2e` | **Headless end-to-end run on Sepolia**: create → sign → attacker refused → recover (delay) → old key revoked on-chain → sign with the new key. Prints Etherscan links |
+| `npm run e2e` | **Headless end-to-end run on Sepolia**: create → sign → attacker refused → recover (delay) → old key revoked on-chain → sign with the new key; then `e2e-protection`: guard + D1/D2, refusals, veto, protected exit, recovery through D1, K3 alone via D2. Prints Etherscan links |
+| `npm run test:contracts` | MyWallGuard tests on official Safe / Zodiac bytecode (Hardhat in-process; also run by `npm test`) · `npm run build:contracts` recompiles · `npm run deploy:guard` (Sepolia, once) |
 | `npm run escape-hatch -- --device-key … --paper … (--security-key <part.json> --prf-output <hex> \| --offline <file.json>) --to 0x…` | Moves all funds with **device key + recovery key only** — no Swissquote server |
 | `npm test` | Unit tests: policy engine, recovery code, question picker, answer normalisation, password policy (22 tests) |
 | `npm run screenshots` | Playwright captures at 3 sizes (virtual passkey authenticator) |
@@ -55,6 +56,25 @@ See **[docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)** for the 3-minute demo.
 | 1.5 USDC sent from the new device | [0x6da97a75…](https://sepolia.etherscan.io/tx/0x6da97a75ac0d7155f8113a7cc59b6f6baa6fff3feda13bffa41f920f3cf6e801) |
 
 Headless run Safe: [0x51B970E72005600345D743D9aFf7A5f88549F93f](https://sepolia.etherscan.io/address/0x51B970E72005600345D743D9aFf7A5f88549F93f). The same run also verified the EIP-1271 proof on-chain (`0x1626ba7e`) and the refusal of an attacker holding phone + email (risk score 125).
+
+**On-chain protection — MyWallGuard + Zodiac Delay D1 / D2** (`scripts/e2e-protection.ts`, part of `npm run e2e`, 2026-10-10; details in [docs/ONCHAIN_PROTECTION.md](docs/ONCHAIN_PROTECTION.md), guard **not audited**):
+
+| Step | Transaction |
+|---|---|
+| MyWallGuard deployed once (singleton, source verified on Sourcify) | [0xe7a2f66b…](https://sepolia.etherscan.io/tx/0xe7a2f66b5d56823ca449af78480dd4e4240fe20b186f5f9493a40f86b8deb4ff) — [contract](https://sepolia.etherscan.io/address/0xDb2eD8936CdE1844602dd5791E7E091aaE2dEc5e) |
+| Protection activated: D1 + D2 deployed and enabled, guard configured and set — one K1 + K2 batch | [0xe2e543c7…](https://sepolia.etherscan.io/tx/0xe2e543c7214bb16f42ff36329093262fbc2800ccd927245d4789999119abdb11) |
+| Emergency gas reserve (0.002 ETH) deposited on the recovery key's address | [0x029f9d6b…](https://sepolia.etherscan.io/tx/0x029f9d6b4b6cf655fa5dcb9988b71e7f251cbc920a2a01a54da007ed78025f4d) |
+| K2 + K3 direct (`swapOwner`) → **reverted by the guard** (lab Safe with a test K2) | [0x201dac64…](https://sepolia.etherscan.io/tx/0x201dac642a64a6f8d0ce641b633ef7e3a8026e2872ff322bd3dd7188c3878c64) |
+| K1 + K3 direct transfer → **reverted by the guard** | [0xd7513603…](https://sepolia.etherscan.io/tx/0xd75136037244db215636cb870dddab0f0189bdfe918d98e17546d72dc14ac212) |
+| K1 + K2 transfer → immediate (guard active) | [0x53b2a65a…](https://sepolia.etherscan.io/tx/0x53b2a65a15fb1514577c8abf9aa41b23819acd5f7452cc5dddf5814dafaaa67e) |
+| K1 + K3 queue an operation in D1 → **vetoed** by K1 + K2 (`setTxNonce`) | [0x4683ab0d…](https://sepolia.etherscan.io/tx/0x4683ab0d57c8bd49b94f5a62bb55973d03dd8e5e242d10c24e1ae8dcb3642d89) → [0xd635e3f2…](https://sepolia.etherscan.io/tx/0xd635e3f2ba163e77eac26713a069f0f890f3af0769c81f69002ff4c5e78df65d) |
+| **Protected exit** K1 + K3: withdrawal queued in D1, executed after the delay by K3 alone (gas from the reserve, no Swissquote) | [0x122652bf…](https://sepolia.etherscan.io/tx/0x122652bfef42d2603a32eee35b8b7df30b44e138262eabc7d76714a132c30ef8) → [0x84e8883e…](https://sepolia.etherscan.io/tx/0x84e8883ea09bafa075815cc03282216463778929e9d96e02c7f07ea6eaa6fcdf) |
+| "I lost my device": `swapOwner` queued in D1 by K3 + K2, executed after the on-chain countdown (`executeNextTx`, relayer) | [0x35dba4fb…](https://sepolia.etherscan.io/tx/0x35dba4fb159e19550545ca3b0651a13b6850308b6ebd82a04b27d46780dc4e68) → [0x4a5433c8…](https://sepolia.etherscan.io/tx/0x4a5433c8bb84803ad266be66fc6fde44979bf6b7522fffb9fae11aa51de1b27e) |
+| New device key K1′ + K2 → immediate (the guard reads K1 dynamically) | [0xbdbbe30b…](https://sepolia.etherscan.io/tx/0xbdbbe30bde46797c2afbe7e9cb9a1afbf4597802f1ca63ebee2f192c5cafa1c6) |
+| **K3 alone** queues in D2, executes after D2's longer delay | [0x0fb0a629…](https://sepolia.etherscan.io/tx/0x0fb0a629c7e92c56178099413dcd7a2777ed402a6dcf359253ff6ee7548986d7) → [0xea8eddbc…](https://sepolia.etherscan.io/tx/0xea8eddbccca5a659eed2ace50ea84d2ad8d7645f66a01776022f9dbde9437cfe) |
+
+Protected Safe: [0xc2C8C93884E7f36C9f0497fbd540995885274f05](https://sepolia.etherscan.io/address/0xc2C8C93884E7f36C9f0497fbd540995885274f05) (D1 `0x8BE0…3aEC`, D2 `0x514F…9737`).
+
 
 ---
 
@@ -89,6 +109,7 @@ Each service is a **separate process with its own `data/` directory** (JSON file
 | Element | Status |
 |---|---|
 | Safe 2-of-3 on Sepolia, signatures, execution, owner rotation (`swapOwner`) | **REAL** |
+| On-chain protection: MyWallGuard (custom, **not audited**) + Zodiac Delay D1 / D2, veto, protected exit, recovery through D1 | **REAL** on Sepolia (demo delays 2 / 4 min; production 48 h / 30 days) |
 | USDC transfers (Circle Sepolia USDC `0x1c7D…7238`), gas sponsoring by the relayer | **REAL** |
 | EIP-1271 proof of ownership verified on-chain (`isValidSignature`) | **REAL** |
 | Passkeys / WebAuthn (Touch ID), challenge bound to the Safe tx hash | **REAL** (browser) |
