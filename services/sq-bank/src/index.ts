@@ -193,6 +193,14 @@ app.post(
   }),
 );
 
+app.post('/admin/reset', route(() => {
+  store.update((d) => {
+    d.clients = seedClients();
+    d.sessions = {};
+  });
+  return { reset: true };
+}));
+
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
   console.error(err);

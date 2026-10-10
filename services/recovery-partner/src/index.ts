@@ -238,6 +238,15 @@ app.get(
 
 app.get('/admin/sessions', route(() => Object.values(store.data.sessions).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 50)));
 
+app.post('/admin/reset', route(() => {
+  store.update((d) => {
+    d.shares = {};
+    d.sessions = {};
+    d.attestations = {};
+  });
+  return { reset: true };
+}));
+
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   if (err instanceof HttpError) return res.status(err.status).json({ error: err.message, ...err.extra });
   console.error(err);

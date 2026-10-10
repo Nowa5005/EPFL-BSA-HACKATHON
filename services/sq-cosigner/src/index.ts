@@ -605,6 +605,23 @@ async function executeRecovery(id: string) {
 app.get('/clients/:id/inbox', route((req) => db.data.inbox.filter((m) => m.clientId === req.params.id).slice(-100).reverse()));
 app.get('/clients/:id/activity', route((req) => db.data.activity.filter((e) => e.clientId === req.params.id).slice(-200).reverse()));
 
+// ───────────────────────────── Demo reset (keeps keys: relayer stays funded) ─────────────────────────────
+app.post(
+  '/admin/reset',
+  route(() => {
+    db.update((d) => {
+      d.clients = {};
+      d.txRequests = {};
+      d.recoveries = {};
+      d.challenges = {};
+      d.activity = [];
+      d.inbox = [];
+    });
+    console.log('[cosigner] demo state reset');
+    return { reset: true };
+  }),
+);
+
 // ───────────────────────────── Background ticker ─────────────────────────────
 let ticking = false;
 async function tick() {
