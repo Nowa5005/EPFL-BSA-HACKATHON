@@ -44,3 +44,35 @@ export function loadDotenv() {
     dir = path.dirname(dir);
   }
 }
+
+// ───────────── CHF valuation rates (from the market-data service; never a fixed constant) ─────────────
+export interface ServerRate {
+  chf: number;
+  asOf: string; // timestamp of the market price
+  fetchedAt: string;
+  stale: boolean;
+  provider: string;
+}
+export type WalletRates = Partial<Record<'ETH' | 'USDC', ServerRate>>;
+
+let ratesCache: { at: number; rates: WalletRates } | null = null;
+
+/**
+ * Indicative CHF prices of the wallet assets, cached 30 s. Returns only the assets the provider priced:
+ * callers MUST handle a missing rate explicitly (show "unavailable", or treat as "above threshold" in
+ * compliance checks) — there is no silent fallback rate.
+ */
+export async function fetchWalletRates(marketUrl = process.env.MARKET_URL ?? 'http://localhost:4004'): Promise<WalletRates> {
+  if (ratesCache && Date.now() - ratesCache.at < 30_000) return ratesCache.rates;
+  try {
+    const res = await fetch(`${marketUrl}/wallet-rates`, { signal: AbortSignal.timeout(8_000) });
+    if (!res.ok) throw new Error(String(res.status));
+    const j = (await res.json()) as { rates: WalletRates };
+    ratesCache = { at: Date.now(), rates: j.rates ?? {} };
+  } catch {
+    // keep the last known values but flag them stale; nothing at all if we never got any
+    if (ratesCache) ratesCache = { at: ratesCache.at, rates: Object.fromEntries(Object.entries(ratesCache.rates).map(([k, v]) => [k, { ...v!, stale: true }])) };
+    else return {};
+  }
+  return ratesCache.rates;
+}
