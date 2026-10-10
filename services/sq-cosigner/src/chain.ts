@@ -24,8 +24,23 @@ export const relayerAddress = relayerWallet().address;
 
 // Serialize relayer submissions (one nonce sequence).
 let queue: Promise<unknown> = Promise.resolve();
+// If the relayer key was used elsewhere (ops scripts, another instance), the cached nonce is stale:
+// resync from the chain and retry once.
+const isNonceError = (e: any) => e?.code === 'NONCE_EXPIRED' || e?.code === 'REPLACEMENT_UNDERPRICED' || /nonce too low|already known/i.test(String(e?.message ?? e?.info?.error?.message));
+async function withNonceRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    if (!isNonceError(e)) throw e;
+    console.warn('[relayer] stale nonce — resyncing from chain and retrying');
+    relayer.reset();
+    return fn();
+  }
+}
+
 export function relayerTask<T>(fn: () => Promise<T>): Promise<T> {
-  const p = queue.then(fn, fn);
+  const run = () => withNonceRetry(fn);
+  const p = queue.then(run, run);
   queue = p.catch(() => undefined);
   return p;
 }

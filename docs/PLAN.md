@@ -41,4 +41,6 @@ Priority: the **create → sign → recover** journey must work end-to-end on Se
   dApp approvals (whitelisted / unknown), attacker page, lost-device recovery with paper-kit PNG upload, send with the new device.
 - **Escape hatch verified on the fork with all Swissquote services stopped.**
 - ✅ **`npm run e2e` passed on real Sepolia** (201 s) — tx links in the README.
-- ⏳ Real-Sepolia USDC flows need test USDC in the treasury (faucet.circle.com); real Touch ID to be tried by Noa in Chrome.
+- ✅ **Full web UI flow passed on real Sepolia** with real USDC (virtual WebAuthn authenticator) — tx links in the README.
+- ✅ Robustness fixes found by the real run: relayer nonce resync after external use of the key; deploy refuses to re-bind an existing wallet to a new device (→ recovery).
+- ⏳ Real Touch ID to be tried by Noa in Chrome.

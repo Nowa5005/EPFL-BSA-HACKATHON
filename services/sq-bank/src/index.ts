@@ -66,7 +66,19 @@ function seedClients(): Record<string, BankClient> {
     verifiedWallets: [],
     transfers: [],
   };
-  return { [alice.clientId]: alice };
+  const bruno: BankClient = {
+    ...alice,
+    clientId: 'CH-100235',
+    username: 'bruno',
+    name: 'Bruno Beispiel',
+    email: 'bruno.beispiel@example.ch',
+    phone: '+41 78 765 43 21',
+    kyc: { ...alice.kyc, dob: '1985-09-30', idDocument: 'Swiss passport S7654321 (exp. 2030)', address: 'Bahnhofstrasse 1, 8001 Zürich' },
+    accounts: { CHF: 8_120, USDC: 500 },
+    verifiedWallets: [],
+    transfers: [],
+  };
+  return { [alice.clientId]: alice, [bruno.clientId]: bruno };
 }
 
 const store = new JsonStore<BankDb>(DATA_DIR, 'bank', () => {

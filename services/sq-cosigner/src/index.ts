@@ -187,7 +187,10 @@ app.post(
   route(async (req) => {
     const { clientId, deviceAddress, recoveryAddress } = req.body as { clientId: string; deviceAddress: string; recoveryAddress: string };
     const c = getClient(clientId);
-    if (c.safeAddress) return { safeAddress: c.safeAddress, txHash: c.deployTxHash, alreadyDeployed: true };
+    if (c.safeAddress) {
+      if (c.owners && getAddress(deviceAddress) === getAddress(c.owners.device)) return { safeAddress: c.safeAddress, txHash: c.deployTxHash, alreadyDeployed: true };
+      throw new HttpError(409, 'A wallet already exists for this client. On a new device, use "I lost my device" to recover it.');
+    }
     if (!c.headless && !c.devices.some((d) => d.status === 'active')) throw new HttpError(400, 'Register a passkey first (device binding)');
     const cosigner = getOrCreateCosigner(clientId);
     const owners = [getAddress(deviceAddress), cosigner, getAddress(recoveryAddress)];

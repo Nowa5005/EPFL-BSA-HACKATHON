@@ -17,9 +17,11 @@ export default function Login() {
     try {
       const r = await bank.post('/login', { username, password });
       saveSession({ token: r.token, clientId: r.clientId, profile: r.profile });
-      await cosigner.post('/clients', { clientId: r.clientId, name: r.profile.name, email: r.profile.email });
+      const c = await cosigner.post('/clients', { clientId: r.clientId, name: r.profile.name, email: r.profile.email });
       const d = getDevice();
-      nav(d?.safeAddress && d.clientId === r.clientId ? '/wallet' : '/onboarding');
+      if (d?.safeAddress && d.clientId === r.clientId) nav('/wallet');
+      else nav(c.safeAddress ? '/recover' : '/onboarding'); // wallet exists but not on this device → recovery
+
     } catch (e: any) {
       setErr(e.message);
     } finally {
@@ -50,7 +52,7 @@ export default function Login() {
               void submit();
             }}
           >
-            <Field label="Swissquote username" hint="Demo client: alice (KYC already completed)">
+            <Field label="Swissquote username" hint="Demo clients: alice or bruno (KYC already completed)">
               <input className={inputCls} value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
             </Field>
             <Field label="Password" hint="Any password works in the prototype">

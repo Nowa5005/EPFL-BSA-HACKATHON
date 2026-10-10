@@ -40,7 +40,17 @@ See **[docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)** for the 3-minute demo.
 | Recovery: old device key revoked on-chain (`swapOwner`, K3 + K2, after the delay) | [0x693390bd…](https://sepolia.etherscan.io/tx/0x693390bd4719fd7eebb63668aee4ed7252f9d9c155371cb5ce89a5918d53358e) |
 | Transaction with the new device key (old key refused by the co-signer) | [0x338f0fa2…](https://sepolia.etherscan.io/tx/0x338f0fa22892acb7b4719422cb1f8a60cb864a1be6c01d10f733504418f1a283) |
 
-Safe: [0x51B970E72005600345D743D9aFf7A5f88549F93f](https://sepolia.etherscan.io/address/0x51B970E72005600345D743D9aFf7A5f88549F93f). The same run also verified the EIP-1271 proof on-chain (`0x1626ba7e`) and the refusal of an attacker holding phone + email (risk score 125).
+**Web UI, real Sepolia** (automated browser run with a virtual WebAuthn authenticator, real USDC):
+
+| Step | Transaction |
+|---|---|
+| Wallet created from the UI (passkey, recovery kit) | [0xf4539550…](https://sepolia.etherscan.io/tx/0xf4539550794146e587c41f6f6db6563eab58fb746d16a45a2c20a0bd6986db54) |
+| 1 USDC sent, standard level (passkey + K1 + K2, Safe holds no ETH) | [0x1dfa31cd…](https://sepolia.etherscan.io/tx/0x1dfa31cd21e8560be2ba4e40ba010196685bae1d11144a0d6ef25dffb1fa5563) |
+| 0.5 USDC to a new recipient, reinforced (email OTP + cooling-off + four-eyes in /admin) | [0xcd02ce42…](https://sepolia.etherscan.io/tx/0xcd02ce4238f89241a450e7926cfa310456136a20b105be542d8420abe2d36d64) |
+| "I lost my device" recovery: old device revoked on-chain | [0xfad942f4…](https://sepolia.etherscan.io/tx/0xfad942f485a7f5164e0dadce109c0903c8ae59da4f8cf224748fb5815bb561a7) |
+| 1.5 USDC sent from the new device | [0x6da97a75…](https://sepolia.etherscan.io/tx/0x6da97a75ac0d7155f8113a7cc59b6f6baa6fff3feda13bffa41f920f3cf6e801) |
+
+Headless run Safe: [0x51B970E72005600345D743D9aFf7A5f88549F93f](https://sepolia.etherscan.io/address/0x51B970E72005600345D743D9aFf7A5f88549F93f). The same run also verified the EIP-1271 proof on-chain (`0x1626ba7e`) and the refusal of an attacker holding phone + email (risk score 125).
 
 ---
 
