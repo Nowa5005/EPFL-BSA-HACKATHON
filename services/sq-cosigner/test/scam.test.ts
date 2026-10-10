@@ -61,3 +61,27 @@ test('#20 other-chain address formats are recognised (dedicated message in the s
   assert.equal(foreignAddressFormat('7EcDhSYGxXyscszYEp35KHN8vvw3svAuLKTzXwCFLtV'), 'Solana');
   assert.equal(foreignAddressFormat(CARLA), null);
 });
+
+test('#20 sending USDC to the USDC contract itself (or ETH to a token contract) is blocked: "This would destroy the funds"', () => {
+  for (const tx of [usdc(USDC_ADDRESS, '1'), buildSafeTx({ to: USDC_ADDRESS, value: parseEther('0.001'), nonce: 0 })]) {
+    const r = run(tx);
+    assert.equal(r.decision, 'reject');
+    assert.match(r.checks.find((x) => x.id === 'token-contract')!.detail!, /This would destroy the funds/);
+  }
+  assert.equal(run(usdc(SCAM_TOKEN, '1'), { unrecognisedTokens: [SCAM_TOKEN] }).checks.find((x) => x.id === 'token-contract')?.status, 'fail');
+  assert.equal(run(usdc(CARLA, '1')).checks.find((x) => x.id === 'token-contract'), undefined);
+});
+
+test('#20 recipient that is an unknown smart contract → strong warning with enhanced checks; a Safe or an account is fine', () => {
+  const r = run(usdc(CARLA, '1'), { recipientKind: 'contract' });
+  assert.equal(r.decision, 'step-up');
+  assert.match(r.checks.find((x) => x.id === 'contract-recipient')!.detail!, /smart contract/);
+  assert.equal(run(usdc(CARLA, '1'), { recipientKind: 'safe' }).checks.find((x) => x.id === 'contract-recipient'), undefined);
+  assert.equal(run(usdc(CARLA, '1'), { recipientKind: 'account' }).decision, 'approve');
+});
+
+test('#20 a plain ETH payment to an account is not mistaken for a token-contract send', () => {
+  const r = run(buildSafeTx({ to: CARLA, value: parseEther('0.0001'), nonce: 0 }), { rates: { ETH: 2000, USDC: 0.8 } });
+  assert.equal(r.checks.find((x) => x.id === 'token-contract'), undefined);
+  assert.equal(r.decision, 'approve');
+});

@@ -16,6 +16,7 @@ import { Money } from '../lib/prefs';
 import { Button, Card, Checks, cx, Field, fmt, inputCls, mmss, MockBadge, Notice, ProgressList, Spinner, TxLink, useCountdown, Why } from './ui';
 import { CheckDisc, ConfirmedCard, PendingIndicator } from './Confirm';
 import { RecipientCheckView } from './RecipientCheck';
+import { PreSendChecks, useAcks } from './PreSendChecks';
 
 type Phase =
   | { k: 'loading' }
@@ -33,6 +34,7 @@ export function TxFlow({ clientId, safeAddress, safeTx: initialTx, note, onDone,
   const [useCode, setUseCode] = useState(false);
   const [code, setCode] = useState('');
   const ensureUnlocked = useEnsureUnlocked();
+  const acks = useAcks(phase.k === 'review' || phase.k === 'signing' ? phase.prep.recipientInfo : null); // #20 pre-send confirmations
   const contacts = usePoll(() => cosigner.get(`/clients/${clientId}`).then((c) => c.contacts as { name: string; address: string }[]), 60000, [clientId]);
 
   const prepare = useCallback(
@@ -142,6 +144,7 @@ export function TxFlow({ clientId, safeAddress, safeTx: initialTx, note, onDone,
           <div className="text-[19px] font-semibold leading-snug">{d.summary}</div>
 
           {recipient && <RecipientCheckView input={recipient} contacts={contacts.data ?? []} />}
+          {!reject && <PreSendChecks info={prep.recipientInfo} acks={acks} disabled={phase.k === 'signing'} />}
 
           <section aria-label={tr('Amounts', 'Montants')}>
             <h3 className="mb-1 text-[13px] font-semibold text-sq-ink-2">{tr('Amounts (estimate)', 'Montants (estimation)')}</h3>
@@ -279,12 +282,12 @@ export function TxFlow({ clientId, safeAddress, safeTx: initialTx, note, onDone,
                 <Field label={tr('Recovery code (12 characters)', 'Code de secours (12 caractères)')} hint={tr('Can be used instead of the passkey for this transaction only.', 'Utilisable à la place de la passkey pour cette opération uniquement.')}>
                   <input className={cx(inputCls, 'font-mono uppercase tracking-widest')} value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 12))} autoComplete="off" spellCheck={false} />
                 </Field>
-                <Button onClick={() => confirm(prep)} disabled={code.length !== 12}>
+                <Button onClick={() => confirm(prep)} disabled={code.length !== 12 || !acks.ready}>
                   <KeyRound size={18} strokeWidth={1.75} /> {tr('Confirm with the recovery code', 'Confirmer avec le code de secours')}
                 </Button>
               </Card>
             ) : (
-              <Button onClick={() => confirm(prep)}>
+              <Button onClick={() => confirm(prep)} disabled={!acks.ready}>
                 <Fingerprint size={20} strokeWidth={1.75} /> {tr('Confirm with my passkey', 'Confirmer avec ma passkey')}
               </Button>
             )}

@@ -43,6 +43,8 @@ export interface PolicyInput {
   unrecognisedTokens?: string[];
   /** #19 — every saved contact (cooling-off included), with names: a look-alike of one of them is refused. */
   lookalikeRefs?: { name: string; address: string }[];
+  /** #20 — what the recipient address is on-chain (presend.ts): an unknown contract needs a strong warning. */
+  recipientKind?: 'account' | 'safe' | 'dapp' | 'contract' | 'unknown';
 }
 
 export type PolicyRates = { ETH?: number; USDC?: number };
@@ -130,6 +132,24 @@ export function evaluatePolicy(input: PolicyInput): PolicyResult {
         `${short(counterpartyAddr)} ressemble à l’adresse enregistrée pour « ${r.name} » (${short(r.saved)}) mais elle est différente — une arnaque typique par empoisonnement d’adresse. Choisissez « ${r.name} » dans vos contacts au lieu de copier une adresse depuis l’historique.`,
       ]));
   }
+
+  // 3d. #20 — Sending to the token contract itself (or to any token contract) destroys the funds.
+  const tokenDest = decoded.kind === 'erc20-transfer' || decoded.kind === 'eth-transfer' ? lc(decoded.recipient) : '';
+  const sendsToTokenContract = !!tokenDest && ((decoded.kind === 'erc20-transfer' && tokenDest === target) || isKnownToken(tokenDest) || (input.unrecognisedTokens ?? []).some((a) => lc(a) === tokenDest));
+  if (sendsToTokenContract)
+    add(ck('token-contract', 'fail', ['Recipient is not a token contract', 'Le destinataire n’est pas un contrat de jeton'], [
+      `This would destroy the funds: ${short(tokenDest)} is a token contract, not a wallet. Nothing sent there can ever be recovered. Use the recipient’s own wallet address.`,
+      `Cela détruirait les fonds : ${short(tokenDest)} est un contrat de jeton, pas un wallet. Rien de ce qui y est envoyé ne peut être récupéré. Utilisez l’adresse du wallet du destinataire.`,
+    ]));
+
+  // 3e. #20 — Recipient is a smart contract that is neither a Safe nor an approved dApp.
+  if (tokenDest && input.recipientKind === 'contract')
+    add(ck('contract-recipient', 'step-up', ['Recipient is a wallet', 'Le destinataire est un wallet'], [
+      `${short(tokenDest)} is a smart contract, not a personal wallet, a Safe or an approved app. If it cannot handle ${decoded.kind === 'eth-transfer' ? 'ETH' : 'this token'}, the funds may be lost. Only continue if the recipient told you to use this exact contract.`,
+      `${short(tokenDest)} est un contrat intelligent, ni un wallet personnel, ni un Safe, ni une app approuvée. S’il ne sait pas gérer ${decoded.kind === 'eth-transfer' ? 'l’ETH' : 'ce jeton'}, les fonds peuvent être perdus. Ne continuez que si le destinataire vous a demandé d’utiliser exactement ce contrat.`,
+    ]));
+  if (tokenDest && input.recipientKind === 'unknown')
+    add(ck('contract-recipient', 'step-up', ['Recipient is a wallet', 'Le destinataire est un wallet'], ['The recipient type could not be checked on the blockchain: enhanced checks', 'Le type de destinataire n’a pas pu être vérifié sur la blockchain : contrôles renforcés']));
 
   // 4. Funds available on-chain
   let fundsOk = true;

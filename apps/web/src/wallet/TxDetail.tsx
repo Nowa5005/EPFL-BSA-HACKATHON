@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { Download, FileText } from 'lucide-react';
 import { cosigner } from '../lib/api';
 import { useLocal, usePoll, type WalletTxView } from '../lib/hooks';
@@ -45,6 +45,16 @@ export default function TxDetail() {
             <Row k={tr('Reference', 'Référence')} v={t.reference} />
           </dl>
           {t.txHash && <TxLink hash={t.txHash} />}
+          {/* #20 — return a recognised token received by mistake: prefilled send flow, all the usual checks apply */}
+          {t.kind === 'receive' && t.status === 'confirmed' && !t.simulated && !isSuspicious(t) && /^0x[0-9a-fA-F]{40}$/.test(t.from) && (
+            <Link
+              to={`/send?third=1&to=${t.from}&asset=${t.asset}&amount=${encodeURIComponent(t.amount)}&note=${encodeURIComponent(tr(`Return of ${t.reference}`, `Renvoi de ${t.reference}`))}`}
+              className="inline-flex min-h-11 items-center justify-center rounded-[10px] border border-sq-line px-4 text-[14px] font-semibold text-sq-ink hover:bg-sq-bg"
+              data-testid="send-back"
+            >
+              {tr('Send back to sender', 'Renvoyer à l’expéditeur')}
+            </Link>
+          )}
           {t.simulated && <p className="text-[12px] text-sq-muted">{tr('Simulated incoming payment for the demo: no transaction on the blockchain.', 'Réception simulée pour la démo : aucune transaction sur la blockchain.')}</p>}
         </Card>
       </div>

@@ -8,6 +8,8 @@ import {
   USDC_DECIMALS,
   buildSafeTx,
   checkRecipient,
+  foreignAddressFormat,
+  isKnownToken,
   missingBeneficiaryFields,
   usdcTransferData,
   type BeneficiaryInput,
@@ -28,6 +30,19 @@ const DEMO_SANCTIONED = '0x098B716B8Aaf21512996dC57EB0615e2383E2f96';
 
 // Common ISO 3166-1 alpha-2 codes for the beneficiary's country (names localised by the browser).
 const COUNTRIES = ['CH', 'LI', 'DE', 'FR', 'IT', 'AT', 'GB', 'IE', 'ES', 'PT', 'NL', 'BE', 'LU', 'DK', 'SE', 'NO', 'FI', 'PL', 'CZ', 'HU', 'GR', 'RO', 'HR', 'SI', 'SK', 'US', 'CA', 'BR', 'MX', 'AU', 'NZ', 'JP', 'SG', 'HK', 'IN', 'AE', 'IL', 'TR', 'ZA', 'MA'];
+
+/** #20 — another chain's address format pasted in the Ethereum field. */
+const foreignMessage = (chain: string) =>
+  tr(
+    `My Wall sends only on Ethereum (Sepolia test network). “${chain}” addresses belong to another blockchain: funds sent there from here would be lost. Ask the recipient for an Ethereum address (0x… — 42 characters).`,
+    `My Wall envoie uniquement sur Ethereum (réseau de test Sepolia). Les adresses « ${chain} » appartiennent à une autre blockchain : des fonds envoyés d’ici seraient perdus. Demandez au destinataire une adresse Ethereum (0x… — 42 caractères).`,
+  );
+/** #20 — the recipient is the token contract itself. */
+const destroyMessage = () =>
+  tr(
+    'This would destroy the funds: this address is the token’s own contract, not a wallet. Nothing sent there can ever be recovered.',
+    'Cela détruirait les fonds : cette adresse est le contrat du jeton lui-même, pas un wallet. Rien de ce qui y est envoyé ne peut être récupéré.',
+  );
 
 const relationshipLabel = (r: string) =>
   ({
@@ -79,7 +94,7 @@ export default function Send() {
   const [decl, setDecl] = useState<TransferDeclaration | undefined>(undefined);
   const [err, setErr] = useState('');
   // Travel Rule: whose wallet is it?
-  const [kind, setKind] = useState<'own' | 'third-party' | null>(params.get('own') === '1' ? 'own' : null);
+  const [kind, setKind] = useState<'own' | 'third-party' | null>(params.get('own') === '1' ? 'own' : params.get('third') === '1' ? 'third-party' : null); // third=1: "Send back to sender" (#20)
   const [ben, setBen] = useState<Partial<BeneficiaryInput>>({});
   const [moreDetails, setMoreDetails] = useState(false);
   const setB = (p: Partial<BeneficiaryInput>) => setBen((b) => ({ ...b, ...p }));
@@ -129,7 +144,10 @@ export default function Send() {
 
   const review = async () => {
     setErr('');
+    const foreign = foreignAddressFormat(to); // #20 address of another chain pasted
+    if (foreign) return setErr(foreignMessage(foreign));
     if (!isAddress(to)) return setErr(tr('Enter a valid Ethereum address (0x…).', 'Saisissez une adresse Ethereum valide (0x…).'));
+    if (isKnownToken(to)) return setErr(destroyMessage());
     const look = checkRecipient(to, contacts, getLang()); // #19 address poisoning: refused here and by the co-signer
     if (look.status === 'lookalike')
       return setErr(tr(`Refused: this address imitates the one saved for “${look.name}” (look-alike address — possible scam). Pick “${look.name}” from your contacts instead of copying an address.`, `Refusé : cette adresse imite celle enregistrée pour « ${look.name} » (adresse sosie — arnaque possible). Choisissez « ${look.name} » dans vos contacts au lieu de copier une adresse.`));
@@ -259,6 +277,12 @@ export default function Send() {
               <input className={cx(inputCls, 'font-mono text-[14px]')} value={to} onChange={(e) => setTo(e.target.value.trim())} placeholder="0x…" spellCheck={false} />
             </Field>
             {isAddress(to) && <RecipientCheckView input={to} contacts={contacts} compact />}
+            {foreignAddressFormat(to) && (
+              <Notice tone="bad" title={tr(`This is a ${foreignAddressFormat(to)} address`, `Ceci est une adresse ${foreignAddressFormat(to)}`)}>
+                {foreignMessage(foreignAddressFormat(to)!)}
+              </Notice>
+            )}
+            {isAddress(to) && isKnownToken(to) && <Notice tone="bad" title={tr('This would destroy the funds', 'Cela détruirait les fonds')}>{destroyMessage()}</Notice>}
             <div className="flex flex-wrap gap-2">
               {suggestions.map((s) => (
                 <button

@@ -52,6 +52,7 @@ import { registerStatementRoutes } from './statements';
 import { confirmWalletTx, docIdOf, hasReceipt, referenceOf, simulateReceive, trackIncoming, upsertWalletTx, type WalletTx } from './walletTx';
 import { registerIndexerRoutes, startIndexer, unrecognisedTokensOf } from './indexer';
 import {
+import { isFirstSend, recipientKind } from './presend';
   authOptionsForAction,
   authOptionsForHash,
   HEADLESS_ALLOWED,
@@ -359,6 +360,8 @@ async function analyse(c: Client, safeTx: SafeTx) {
   const usage = usageOf(c);
   const valuation = await policyValuation(c);
   const policy = evaluatePolicy({
+  const rcpt = intent.kind === 'erc20-transfer' || intent.kind === 'eth-transfer' ? intent.to : undefined; // #20
+  const rcptKind = rcpt ? await recipientKind(rcpt) : undefined;
     tx: safeTx,
     decoded,
     safeAddress: c.safeAddress,
@@ -370,6 +373,8 @@ async function analyse(c: Client, safeTx: SafeTx) {
   });
     unrecognisedTokens: unrecognisedTokensOf(c.clientId), // #19
     lookalikeRefs: c.contacts, // #19 address poisoning
+    recipientKind: rcptKind, // #20 contract recipient
+  });
   const simulation = await simulateInner(c.safeAddress, safeTx);
   if (!simulation.success) {
     policy.checks.push({ id: 'simulation', label: 'Simulation on Ethereum', labelFr: 'Simulation sur Ethereum', status: 'fail', detail: simulation.error });
@@ -415,6 +420,7 @@ async function analyse(c: Client, safeTx: SafeTx) {
     debits,
     receives,
     approvals,
+    recipientInfo: rcpt ? { address: rcpt, kind: rcptKind, firstSend: isFirstSend(c.clientId, rcpt), asset: intent.kind === 'eth-transfer' ? 'ETH' : 'USDC' } : null, // #20
     fee,
     fees: { paidBy: 'Swissquote', clientCostChf: 0, network: fee, serviceCommission: { bps: 0, amount: '0', note: t('No commission on sends, receipts and approvals', 'Aucune commission sur les envois, réceptions et autorisations') } },
   };
