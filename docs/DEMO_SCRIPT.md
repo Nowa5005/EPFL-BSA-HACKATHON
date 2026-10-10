@@ -41,7 +41,7 @@
 | N8 | *Swaplet › Échanger* (DEMO): 500 USDC → minimum received, slippage, commission 0.40 % (Plus), ETH balance for fees, quote expiry → confirm → "aucune transaction n'a été exécutée" | |
 | N9 | *Sécurité* → **Geler la co-signature** (passkey) → try a send → refused → unfreeze | "The client can lock Swissquote out; the K1 + K3 exit stays open." |
 | N10 | *Sécurité* → **Code de secours** (12 characters, shown once, retyped, activated with the passkey) → lock → unlock page → "La biométrie n'est pas disponible ?" → unlock with the code | "Not a recovery phrase; it can't freeze, reveal amounts or secrets." |
-| N11 | Eye icon next to the total → amounts masked everywhere → reveal requires the passkey · *Paramètres › Personnalisation*: accent, background, highlight, hidden wallets, reset | |
+| N11 | Amounts in clear after unlock → switch to another tab and back → **“My Wall is locked”** (no figure) → *Unlock with my passkey* (or *Use my wallet password instead*) · *Settings › Appearance*: System / Light / Dark (System follows the OS live) · *Settings › Personalisation*: accent, background, highlight, hidden wallets, reset | "Leaving the app always hides your balances; only you can show them again." |
 | N12 | *Inbox* → *Nouveau message* → type a private key → blocked; write a normal message → draft saved → *Ouvrir dans ma messagerie* opens your own email client (nothing is sent by My Wall) | |
 
 ## Desktop (1440×900)

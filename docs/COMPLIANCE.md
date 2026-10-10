@@ -99,8 +99,8 @@ currencies for cash or other anonymous means of payment*, not transfers between 
 ## 4. Annual statement & CSV export (spec §17)
 
 Server: `services/sq-cosigner/src/statements.ts`; UI: Swaplet → Documents → "Annual statement & export"
-(`apps/web/src/components/AnnualDocuments.tsx`). Amounts are masked by default: the UI requires the passkey reveal
-before viewing or downloading (UI gate); the server requires an authenticated session of that client.
+(`apps/web/src/components/AnnualDocuments.tsx`). The wallet (and so this screen) is only rendered once unlocked
+(password + passkey) and is unmounted behind the privacy screen when the user leaves; the server requires an authenticated session of that client.
 
 **Statement** (`GET /clients/:id/statements/:year`, years from `GET /clients/:id/statements/years`)
 - Cut-off: **31 December 23:59:59 Europe/Zurich** → UTC computed with `Intl` (DST-aware; 31.12 is CET, so
