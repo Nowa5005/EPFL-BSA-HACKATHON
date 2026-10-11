@@ -125,6 +125,7 @@ const security = createSecurity({
   service: 'sq-bank',
   publicRoutes: [
     ['GET', '/health'],
+    ['GET', '/ready'],
     ['POST', '/login'],
   ],
   sessionRoutes: [['POST', '/reauth']],
@@ -133,6 +134,9 @@ app.use(security.edge);
 app.use(express.json());
 app.use(security.guard);
 app.use(localizeResponses); // stored bilingual texts (`xFr` twins) answered in the request language
+
+// Process readiness must not wait for public blockchain RPCs or expose treasury information.
+app.get('/ready', route(() => ({ service: 'sq-bank', ready: true })));
 
 app.get(
   '/health',

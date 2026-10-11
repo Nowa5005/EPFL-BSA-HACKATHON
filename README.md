@@ -10,6 +10,10 @@ Built for the *Swissquote Wallet Challenge* (EPFL hackathon, Oct. 2026). Prototy
 
 ## Quick start
 
+For a hosted frontend (including Vercel), deploy the long-running backend separately using
+[the backend deployment guide](docs/BACKEND_DEPLOYMENT.md). It includes Docker, persistent keys/data,
+passkey domain settings, and the frontend API variables needed to avoid login 404 errors.
+
 Requirements: Node ≥ 20 (tested with Node 26 on Apple Silicon), Chrome (passkeys / Touch ID).
 
 ```bash
