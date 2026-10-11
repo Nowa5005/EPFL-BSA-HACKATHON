@@ -35,6 +35,9 @@ function serviceProxy(name: string, port: number): ProxyOptions {
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  optimizeDeps: {
+    include: ['shamir-secret-sharing']
+  },
   server: {
     port: 5173,
     strictPort: true,
